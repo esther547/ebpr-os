@@ -7,6 +7,7 @@ import { TaskList } from "@/components/tasks/task-list";
 type Props = { params: Promise<{ clientId: string }> };
 
 export const metadata = { title: "Tasks" };
+export const dynamic = "force-dynamic";
 
 export default async function TasksPage({ params }: Props) {
   await requireUser();

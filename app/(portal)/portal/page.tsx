@@ -6,6 +6,7 @@ import { currentMonthYear, monthLabel, DELIVERABLE_TYPE_LABELS, cn } from "@/lib
 import { EBPRLogo } from "@/components/brand/ebpr-logo";
 
 export const metadata = { title: "Dashboard" };
+export const dynamic = "force-dynamic";
 
 export default async function PortalDashboardPage() {
   const clientUser = await getCurrentClientUser();

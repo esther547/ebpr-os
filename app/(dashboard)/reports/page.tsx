@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/layout/header";
 import { currentMonthYear, monthLabel, cn } from "@/lib/utils";
 
 export const metadata = { title: "Reports" };
+export const dynamic = "force-dynamic";
 
 export default async function ReportsPage() {
   const user = await requireUser();

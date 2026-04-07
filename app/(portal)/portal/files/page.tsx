@@ -5,6 +5,7 @@ import { formatDate, formatBytes, getFileIcon } from "@/lib/utils";
 import { FileText, Image, Table, Video, File } from "lucide-react";
 
 export const metadata = { title: "Files" };
+export const dynamic = "force-dynamic";
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   "file-text": <FileText className="h-5 w-5 text-blue-500" />,

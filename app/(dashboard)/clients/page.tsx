@@ -7,6 +7,7 @@ import { ClientCard } from "@/components/clients/client-card";
 import { ClientStatus } from "@prisma/client";
 
 export const metadata = { title: "Clients" };
+export const dynamic = "force-dynamic";
 
 export default async function ClientsPage() {
   const user = await requireUser();

@@ -3,6 +3,7 @@ import { getCurrentClientUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { cn } from "@/lib/utils";
 export const metadata = { title: "My Agenda" };
+export const dynamic = "force-dynamic";
 
 const STATUS_LABELS: Record<string, string> = {
   SCHEDULED: "Goal",

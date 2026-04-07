@@ -5,6 +5,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
 export const metadata: Metadata = {
+export const dynamic = "force-dynamic";
   title: {
     default: "EBPR OS",
     template: "%s — EBPR OS",

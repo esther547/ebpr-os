@@ -6,6 +6,7 @@ import { RunnerScheduleView } from "@/components/runners/runner-schedule-view";
 import { startOfWeek, endOfWeek, addWeeks } from "date-fns";
 
 export const metadata = { title: "Runner Schedule" };
+export const dynamic = "force-dynamic";
 
 export default async function RunnerSchedulePage() {
   const user = await requireUser();

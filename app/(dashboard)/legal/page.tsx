@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/layout/header";
 import { LegalPageClient } from "@/components/legal/legal-page-client";
 
 export const metadata = { title: "Legal & Contracts" };
+export const dynamic = "force-dynamic";
 
 export default async function LegalPage() {
   const user = await requireUser();

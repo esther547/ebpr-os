@@ -6,6 +6,7 @@ import { DeliverableStatus } from "@prisma/client";
 import { Trophy, Target, TrendingUp } from "lucide-react";
 
 export const metadata = { title: "Reports" };
+export const dynamic = "force-dynamic";
 
 export default async function PortalReportsPage() {
   const clientUser = await getCurrentClientUser();

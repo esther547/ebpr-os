@@ -14,6 +14,7 @@ import Link from "next/link";
 type Props = { params: { clientId: string } };
 
 export const metadata = { title: "Strategy" };
+export const dynamic = "force-dynamic";
 
 export default async function StrategyPage({ params }: Props) {
   await requireUser();

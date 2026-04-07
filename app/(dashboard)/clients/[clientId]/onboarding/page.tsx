@@ -7,6 +7,7 @@ import { formatDate, cn } from "@/lib/utils";
 type Props = { params: { clientId: string } };
 
 export const metadata = { title: "Onboarding" };
+export const dynamic = "force-dynamic";
 
 const STATUS_STEPS = [
   { key: "NOT_STARTED", label: "Not Started" },

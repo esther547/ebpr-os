@@ -8,6 +8,7 @@ import { currentMonthYear, monthLabel } from "@/lib/utils";
 type Props = { params: Promise<{ clientId: string }> };
 
 export const metadata = { title: "Deliverables" };
+export const dynamic = "force-dynamic";
 
 export default async function DeliverablesPage({ params }: Props) {
   await requireUser();

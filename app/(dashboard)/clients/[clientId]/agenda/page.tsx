@@ -8,6 +8,7 @@ import { format, getMonth } from "date-fns";
 type Props = { params: { clientId: string } };
 
 export const metadata = { title: "Agenda" };
+export const dynamic = "force-dynamic";
 
 export default async function AgendaPage({ params }: Props) {
   await requireUser();

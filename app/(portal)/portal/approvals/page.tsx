@@ -5,6 +5,7 @@ import { formatDate, cn } from "@/lib/utils";
 import { ApprovalStatus } from "@prisma/client";
 
 export const metadata = { title: "Approvals" };
+export const dynamic = "force-dynamic";
 
 const TYPE_LABELS: Record<string, string> = {
   STRATEGY_IDEA: "Strategy",

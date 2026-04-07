@@ -7,6 +7,7 @@ import { CampaignList } from "@/components/campaigns/campaign-list";
 type Props = { params: Promise<{ clientId: string }> };
 
 export const metadata = { title: "Campaigns" };
+export const dynamic = "force-dynamic";
 
 export default async function CampaignsPage({ params }: Props) {
   await requireUser();

@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/layout/header";
 import { formatDate, cn } from "@/lib/utils";
 
 export const metadata = { title: "Settings" };
+export const dynamic = "force-dynamic";
 
 const ROLE_LABELS: Record<string, string> = {
   SUPER_ADMIN: "Super Admin",

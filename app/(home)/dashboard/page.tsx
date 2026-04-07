@@ -11,6 +11,7 @@ import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 
 export const metadata = { title: "Dashboard — EBPR OS" };
+export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const user = await requireUser();
