@@ -181,13 +181,15 @@ export default async function DashboardPage() {
           <div className="flex items-center gap-4">
             <nav className="flex items-center gap-1">
               {[
-                { href: "/clients", label: "Clients" },
-                { href: "/legal", label: "Legal" },
-                { href: "/finance", label: "Finance" },
-                { href: "/runners/schedule", label: "Runners" },
-                { href: "/reports", label: "Reports" },
-                { href: "/settings", label: "Settings" },
-              ].map((item) => (
+                { href: "/clients", label: "Clients", roles: ["SUPER_ADMIN", "STRATEGIST", "FINANCE"] },
+                { href: "/legal", label: "Legal", roles: ["SUPER_ADMIN", "LEGAL", "FINANCE"] },
+                { href: "/finance", label: "Finance", roles: ["SUPER_ADMIN", "FINANCE", "LEGAL"] },
+                { href: "/runners/schedule", label: "Runners", roles: ["SUPER_ADMIN", "STRATEGIST"] },
+                { href: "/reports", label: "Reports", roles: ["SUPER_ADMIN", "STRATEGIST", "FINANCE"] },
+                { href: "/settings", label: "Settings", roles: ["SUPER_ADMIN"] },
+              ]
+                .filter((item) => item.roles.includes(user.role))
+                .map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
