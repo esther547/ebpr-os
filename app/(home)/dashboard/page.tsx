@@ -183,6 +183,7 @@ export default async function DashboardPage() {
               {[
                 { href: "/clients", label: "Clients" },
                 { href: "/legal", label: "Legal" },
+                { href: "/finance", label: "Finance" },
                 { href: "/runners/schedule", label: "Runners" },
                 { href: "/reports", label: "Reports" },
                 { href: "/settings", label: "Settings" },
