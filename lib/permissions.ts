@@ -41,6 +41,12 @@ export const canManageUsers = (u: SessionUser) => isSuperAdmin(u);
 export const canViewReports = (u: SessionUser) =>
   u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST || u.role === UserRole.FINANCE;
 
+export const canViewFinance = (u: SessionUser) =>
+  u.role === UserRole.SUPER_ADMIN || u.role === UserRole.FINANCE || u.role === UserRole.LEGAL;
+
+export const canManageFinance = (u: SessionUser) =>
+  u.role === UserRole.SUPER_ADMIN || u.role === UserRole.FINANCE;
+
 // ─── Data visibility ─────────────────────────────────────
 
 export const canSeeInternalData = (u: SessionUser) =>

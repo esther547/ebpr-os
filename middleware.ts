@@ -16,6 +16,7 @@ const isInternalRoute = createRouteMatcher([
   "/runners(.*)",
   "/reports(.*)",
   "/settings(.*)",
+  "/finance(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
@@ -42,27 +43,27 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
-  // Runner: only schedule + their own assignments
+  // Runner: only their schedule
   if (role === "RUNNER" && isInternalRoute(req)) {
     const url = req.nextUrl.pathname;
     if (!url.startsWith("/runners")) {
-      return NextResponse.redirect(new URL("/runners/schedule", req.url));
+      return NextResponse.redirect(new URL("/runners/my-schedule", req.url));
     }
   }
 
-  // Legal: only /legal
+  // Legal: /legal + /finance
   if (role === "LEGAL") {
     const url = req.nextUrl.pathname;
-    if (url !== "/" && !url.startsWith("/legal")) {
+    if (url !== "/" && !url.startsWith("/legal") && !url.startsWith("/finance")) {
       return NextResponse.redirect(new URL("/legal", req.url));
     }
   }
 
-  // Finance: only /reports + limited client view
+  // Finance: /finance + /reports + /clients
   if (role === "FINANCE") {
     const url = req.nextUrl.pathname;
-    if (!url.startsWith("/reports") && !url.startsWith("/clients")) {
-      return NextResponse.redirect(new URL("/reports", req.url));
+    if (!url.startsWith("/reports") && !url.startsWith("/clients") && !url.startsWith("/finance")) {
+      return NextResponse.redirect(new URL("/finance", req.url));
     }
   }
 

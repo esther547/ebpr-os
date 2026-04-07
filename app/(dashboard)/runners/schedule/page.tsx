@@ -2,8 +2,8 @@ import { requireUser } from "@/lib/auth";
 import { canViewRunnerSchedule } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/layout/header";
-import { RunnerScheduleView } from "@/components/runners/runner-schedule-view";
-import { startOfWeek, endOfWeek, addWeeks } from "date-fns";
+import { RunnerScheduleClient } from "@/components/runners/runner-schedule-client";
+import { startOfWeek, endOfWeek } from "date-fns";
 
 export const metadata = { title: "Runner Schedule" };
 export const dynamic = "force-dynamic";
@@ -17,7 +17,6 @@ export default async function RunnerSchedulePage() {
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
 
-  // For runners: only their assignments. For others: all.
   const where =
     user.role === "RUNNER"
       ? { runnerId: user.id, eventDate: { gte: weekStart, lte: weekEnd } }
@@ -36,25 +35,19 @@ export default async function RunnerSchedulePage() {
     select: { id: true, name: true, avatar: true },
   });
 
+  const clients = await db.client.findMany({
+    where: { status: "ACTIVE" },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+
   return (
-    <>
-      <PageHeader
-        title="Runner Schedule"
-        subtitle="Weekly assignments"
-        actions={
-          user.role !== "RUNNER" ? (
-            <button className="inline-flex h-9 items-center rounded-md bg-ink-primary px-4 text-sm font-medium text-ink-inverted hover:bg-ink-primary/90 transition-colors">
-              + Assign Runner
-            </button>
-          ) : undefined
-        }
-      />
-      <RunnerScheduleView
-        assignments={assignments}
-        runners={runners}
-        weekStart={weekStart}
-        isReadOnly={user.role === "RUNNER"}
-      />
-    </>
+    <RunnerScheduleClient
+      assignments={JSON.parse(JSON.stringify(assignments))}
+      runners={runners}
+      clients={clients}
+      weekStart={JSON.parse(JSON.stringify(weekStart))}
+      isRunner={user.role === "RUNNER"}
+    />
   );
 }

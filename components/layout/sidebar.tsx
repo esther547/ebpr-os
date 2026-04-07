@@ -7,9 +7,11 @@ import {
   Users,
   LayoutDashboard,
   Calendar,
+  CalendarCheck,
   BarChart3,
   Settings,
   Shield,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EBPRLogoHorizontal } from "@/components/brand/ebpr-logo";
@@ -45,7 +47,19 @@ const navItems: NavItem[] = [
     href: "/runners",
     label: "Runners",
     icon: <Calendar className="h-4 w-4" />,
-    roles: ["SUPER_ADMIN", "STRATEGIST", "RUNNER"],
+    roles: ["SUPER_ADMIN", "STRATEGIST"],
+  },
+  {
+    href: "/runners/my-schedule",
+    label: "My Schedule",
+    icon: <CalendarCheck className="h-4 w-4" />,
+    roles: ["RUNNER"],
+  },
+  {
+    href: "/finance",
+    label: "Finance",
+    icon: <DollarSign className="h-4 w-4" />,
+    roles: ["SUPER_ADMIN", "FINANCE", "LEGAL"],
   },
   {
     href: "/reports",

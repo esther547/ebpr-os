@@ -1,7 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import { DeliverableStatus, DeliverableType } from "@prisma/client";
+import { DeliverableStatus, DeliverableType, InvoiceStatus, PaymentMethod } from "@prisma/client";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -76,6 +76,39 @@ export function getPacingStatus(completed: number, target: number) {
   if (pct >= 60) return { label: "On Track", color: "text-amber-700" };
   return { label: "Behind", color: "text-red-600" };
 }
+
+// ─── Currency ───────────────────────────────────────────
+
+export function formatCurrency(amount: number | string | null | undefined): string {
+  if (amount == null) return "$0.00";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(amount));
+}
+
+// ─── Invoice helpers ────────────────────────────────────
+
+export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
+  DRAFT: "Draft",
+  SENT: "Sent",
+  PAID: "Paid",
+  OVERDUE: "Overdue",
+  CANCELLED: "Cancelled",
+};
+
+export const INVOICE_STATUS_COLORS: Record<InvoiceStatus, string> = {
+  DRAFT: "bg-surface-2 text-ink-secondary",
+  SENT: "bg-amber-50 text-amber-700",
+  PAID: "bg-green-50 text-green-700",
+  OVERDUE: "bg-red-50 text-red-600",
+  CANCELLED: "bg-surface-2 text-ink-muted",
+};
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  CHECK: "Check",
+  WIRE: "Wire Transfer",
+  ACH: "ACH",
+  CREDIT_CARD: "Credit Card",
+  OTHER: "Other",
+};
 
 // ─── File helpers ────────────────────────────────────────
 
