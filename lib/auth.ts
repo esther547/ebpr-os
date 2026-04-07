@@ -32,7 +32,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     },
   });
 
-  // Auto-create on first sign-in
+  // Auto-link or auto-create on first sign-in
   if (!user) {
     const clerkUser = await currentUser();
     if (!clerkUser) return null;
@@ -40,27 +40,50 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     const email = clerkUser.emailAddresses[0]?.emailAddress ?? "";
     const name = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || email.split("@")[0];
 
-    // First user is SUPER_ADMIN (Esther), rest are STRATEGIST by default
-    const userCount = await db.user.count();
-    const role = userCount === 0 ? UserRole.SUPER_ADMIN : UserRole.STRATEGIST;
+    // Check if a user with this email already exists (added by admin)
+    const existingByEmail = await db.user.findUnique({ where: { email } });
 
-    user = await db.user.create({
-      data: {
-        clerkId: userId,
-        email,
-        name,
-        role,
-        avatar: clerkUser.imageUrl,
-      },
-      select: {
-        id: true,
-        clerkId: true,
-        email: true,
-        name: true,
-        role: true,
-        avatar: true,
-      },
-    });
+    if (existingByEmail) {
+      // Link their Clerk ID to the existing account
+      user = await db.user.update({
+        where: { id: existingByEmail.id },
+        data: {
+          clerkId: userId,
+          name: name || existingByEmail.name,
+          avatar: clerkUser.imageUrl,
+        },
+        select: {
+          id: true,
+          clerkId: true,
+          email: true,
+          name: true,
+          role: true,
+          avatar: true,
+        },
+      });
+    } else {
+      // Brand new user — first user is SUPER_ADMIN, rest are STRATEGIST
+      const userCount = await db.user.count();
+      const role = userCount === 0 ? UserRole.SUPER_ADMIN : UserRole.STRATEGIST;
+
+      user = await db.user.create({
+        data: {
+          clerkId: userId,
+          email,
+          name,
+          role,
+          avatar: clerkUser.imageUrl,
+        },
+        select: {
+          id: true,
+          clerkId: true,
+          email: true,
+          name: true,
+          role: true,
+          avatar: true,
+        },
+      });
+    }
   }
 
   return user;
