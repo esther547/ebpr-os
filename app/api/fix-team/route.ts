@@ -49,5 +49,30 @@ export async function GET() {
     changes.push("Deleted Michel Suarez");
   }
 
+  // Fix runner emails
+  const juan = await db.user.findUnique({ where: { email: "juan@ebpublicrelations.com" } });
+  if (juan) {
+    await db.user.update({ where: { id: juan.id }, data: { email: "jdesedag@gmail.com" } });
+    changes.push("Juan → jdesedag@gmail.com");
+  }
+
+  const julieta = await db.user.findUnique({ where: { email: "julieta@ebpublicrelations.com" } });
+  if (julieta) {
+    await db.user.update({ where: { id: julieta.id }, data: { email: "julietacespedes@gmail.com" } });
+    changes.push("Julieta → julietacespedes@gmail.com");
+  }
+
+  const eliana = await db.user.findUnique({ where: { email: "eliana@ebpublicrelations.com" } });
+  if (eliana) {
+    await db.user.update({ where: { id: eliana.id }, data: { email: "elianaebpublicrelations@gmail.com" } });
+    changes.push("Eliana → elianaebpublicrelations@gmail.com");
+  }
+
+  const valentina = await db.user.findUnique({ where: { email: "valentina@ebpublicrelations.com" } });
+  if (valentina) {
+    await db.user.update({ where: { id: valentina.id }, data: { email: "vyou.prmarketing@gmail.com" } });
+    changes.push("Valentina → vyou.prmarketing@gmail.com");
+  }
+
   return NextResponse.json({ message: "Team updated", changes });
 }
