@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- EBPR geometric mark as favicon -->
+  <circle cx="10" cy="10" r="6.5" stroke="#0A0A0A" stroke-width="1.8" fill="none"/>
+  <circle cx="22" cy="10" r="6.5" stroke="#0A0A0A" stroke-width="1.8" fill="none"/>
+  <clipPath id="a"><rect x="15.5" y="10" width="13" height="7"/></clipPath>
+  <circle cx="22" cy="10" r="6.5" fill="#0A0A0A" clip-path="url(#a)"/>
+  <circle cx="10" cy="22" r="6.5" stroke="#0A0A0A" stroke-width="1.8" fill="none"/>
+  <clipPath id="b"><rect x="3.5" y="15" width="13" height="7"/></clipPath>
+  <circle cx="10" cy="22" r="6.5" fill="#0A0A0A" clip-path="url(#b)"/>
+  <circle cx="22" cy="22" r="6.5" stroke="#0A0A0A" stroke-width="1.8" fill="none"/>
+  <line x1="16" y1="2" x2="16" y2="30" stroke="#0A0A0A" stroke-width="1.8" stroke-linecap="square"/>
+</svg>

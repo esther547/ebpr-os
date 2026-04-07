@@ -1,0 +1,626 @@
+// EBPR OS — Prisma Schema
+// Multi-tenant PR Agency Operating System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── ENUMS ───────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  STRATEGIST
+  RUNNER
+  LEGAL
+  FINANCE
+  CLIENT_ADMIN
+  CLIENT_VIEWER
+}
+
+enum ClientStatus {
+  PROSPECT
+  ACTIVE
+  PAUSED
+  CHURNED
+}
+
+enum ContractStatus {
+  DRAFT
+  SENT
+  SIGNED
+  EXPIRED
+  TERMINATED
+}
+
+enum OnboardingStatus {
+  NOT_STARTED
+  KICKOFF_SCHEDULED
+  KICKOFF_COMPLETE
+  QUESTIONNAIRE_SENT
+  QUESTIONNAIRE_RECEIVED
+  STRATEGY_IN_PROGRESS
+  COMPLETE
+}
+
+enum StrategyCategory {
+  MEDIA_TARGET
+  INFLUENCER
+  EVENT
+  BRAND_OPPORTUNITY
+  POSITIONING
+  OTHER
+}
+
+enum StrategyStatus {
+  IDEA
+  APPROVED
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+  ON_HOLD
+}
+
+enum CampaignStatus {
+  PREPARATION
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum DeliverableType {
+  PRESS_PLACEMENT
+  INTERVIEW
+  INFLUENCER_COLLAB
+  EVENT_APPEARANCE
+  BRAND_OPPORTUNITY
+  INTRODUCTION
+  SOCIAL_MEDIA
+  PRESS_RELEASE
+  OTHER
+}
+
+enum DeliverableStatus {
+  IDEA
+  OUTREACH
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  DONE
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ApprovalType {
+  STRATEGY_IDEA
+  PRESS_RELEASE
+  INTERVIEW_QUESTIONS
+  PROPOSAL
+  OTHER
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REVISION_REQUESTED
+}
+
+enum AssignmentStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+// ─── USERS ───────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  email     String   @unique
+  name      String
+  role      UserRole
+  avatar    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Internal assignments
+  assignedDeliverables Deliverable[]      @relation("DeliverableAssignee")
+  assignedTasks        Task[]             @relation("TaskAssignee")
+  createdTasks         Task[]             @relation("TaskCreator")
+  runnerAssignments    RunnerAssignment[]
+  availability         RunnerAvailability[]
+  activityLogs         ActivityLog[]
+  comments             Comment[]
+  approvalRequests     Approval[]         @relation("ApprovalRequester")
+  files                File[]             @relation("FileUploader")
+
+  @@map("users")
+}
+
+model ClientUser {
+  id        String     @id @default(cuid())
+  clerkId   String     @unique
+  email     String     @unique
+  name      String
+  clientId  String
+  client    Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  role      UserRole   @default(CLIENT_VIEWER)
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  approvalResponses ApprovalResponse[]
+
+  @@map("client_users")
+}
+
+// ─── CLIENTS ─────────────────────────────────────────────
+
+model Client {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  industry    String?
+  website     String?
+  logo        String?
+  description String?
+  status      ClientStatus @default(PROSPECT)
+
+  // Monthly deliverable target
+  monthlyTarget Int @default(6)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contacts         Contact[]
+  clientUsers      ClientUser[]
+  contracts        Contract[]
+  onboarding       Onboarding?
+  strategyDocument StrategyDocument?
+  campaigns        Campaign[]
+  deliverables     Deliverable[]
+  strategyItems    StrategyItem[]
+  files            File[]
+  approvals        Approval[]
+  activityLogs     ActivityLog[]
+  reports          Report[]
+
+  @@map("clients")
+}
+
+model Contact {
+  id        String  @id @default(cuid())
+  clientId  String
+  client    Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name      String
+  email     String?
+  phone     String?
+  role      String?
+  isPrimary Boolean @default(false)
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("contacts")
+}
+
+// ─── LEGAL / CONTRACTS ───────────────────────────────────
+
+model Contract {
+  id           String         @id @default(cuid())
+  clientId     String
+  client       Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title        String
+  status       ContractStatus @default(DRAFT)
+  fileUrl      String?
+  fileName     String?
+  startDate    DateTime?
+  endDate      DateTime?
+  value        Decimal?       @db.Decimal(12, 2)
+  notes        String?
+  billingReady Boolean        @default(false)
+  sentAt       DateTime?
+  signedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("contracts")
+}
+
+// ─── ONBOARDING ──────────────────────────────────────────
+
+model Onboarding {
+  id               String           @id @default(cuid())
+  clientId         String           @unique
+  client           Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  status           OnboardingStatus @default(NOT_STARTED)
+  kickoffDate      DateTime?
+  kickoffNotes     String?
+  narrative        String?
+  brandPositioning String?
+  goals            Json?            // string[]
+  vision           String?
+  targetAudience   String?
+
+  // Questionnaire
+  questionnaireSentAt       DateTime?
+  questionnaireCompletedAt  DateTime?
+  questionnaireResponses    Json?
+
+  checklistItems OnboardingChecklistItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("onboardings")
+}
+
+model OnboardingChecklistItem {
+  id           String     @id @default(cuid())
+  onboardingId String
+  onboarding   Onboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  label        String
+  completed    Boolean    @default(false)
+  completedAt  DateTime?
+  completedBy  String?
+  order        Int        @default(0)
+
+  @@map("onboarding_checklist_items")
+}
+
+// ─── STRATEGY DOCUMENT ───────────────────────────────────
+
+model StrategyDocument {
+  id         String   @id @default(cuid())
+  clientId   String   @unique
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  campaignId String?
+
+  // Dates
+  prepMonthStart DateTime?
+  prepMonthEnd   DateTime?
+  campaignStart  DateTime?
+  location       String?
+  year           Int?
+
+  // Narrative sections (bilingual — stored as-is)
+  purpose              String?
+  objective            String?
+  strategicPath        String?
+  messagingFramework   String?
+  keyMessages          Json?     // string[]
+  clientPersona        String?
+  targetAudience       String?
+  executionNotes       String?
+  servicesProvided     Json?     // string[]
+
+  // Phases
+  phase1Name  String?
+  phase1Start DateTime?
+  phase1End   DateTime?
+  phase2Name  String?
+  phase2Start DateTime?
+  phase2End   DateTime?
+
+  // External collaborators (not Clerk users — e.g. partner agencies)
+  externalCollaborators Json?  // [{name, role, organization}]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("strategy_documents")
+}
+
+// ─── STRATEGY / WISHLIST ─────────────────────────────────
+
+model StrategyItem {
+  id         String           @id @default(cuid())
+  clientId   String
+  client     Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  campaignId String?
+  campaign   Campaign?        @relation(fields: [campaignId], references: [id])
+  title      String
+  description String?
+  category   StrategyCategory
+  status     StrategyStatus   @default(IDEA)
+  assigneeId String?          // references User.id
+  notes      String?
+  priority   Int              @default(0)
+  targetDate DateTime?
+
+  // Enriched fields from real strategy docs
+  targetName     String?    // specific outlet/guest/brand/event name
+  brandCategory  String?    // "Fragancias", "Deporte", "Tecnología"
+  episodeNumber  Int?       // for podcast episodes
+  scheduledDate  DateTime?  // dated appearances/episodes
+  eventLocation  String?    // city/country for events
+  phase          Int?       // 1 or 2
+  isBigWin       Boolean    @default(false)
+
+  deliverable Deliverable?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("strategy_items")
+}
+
+// ─── CAMPAIGNS ───────────────────────────────────────────
+
+model Campaign {
+  id            String         @id @default(cuid())
+  clientId      String
+  client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  status        CampaignStatus @default(PREPARATION)
+  startDate     DateTime?
+  endDate       DateTime?
+  objectives    Json?          // string[]
+  ownerId       String?        // lead strategist userId
+  monthlyTarget Int            @default(6)
+
+  deliverables  Deliverable[]
+  strategyItems StrategyItem[]
+  tasks         Task[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("campaigns")
+}
+
+// ─── DELIVERABLES ─────────────────────────────────────────
+
+model Deliverable {
+  id             String            @id @default(cuid())
+  clientId       String
+  client         Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  campaignId     String?
+  campaign       Campaign?         @relation(fields: [campaignId], references: [id])
+  strategyItemId String?           @unique
+  strategyItem   StrategyItem?     @relation(fields: [strategyItemId], references: [id])
+  assigneeId     String?           // references User.id
+  assignee       User?             @relation("DeliverableAssignee", fields: [assigneeId], references: [id])
+
+  title           String
+  type            DeliverableType
+  status          DeliverableStatus @default(IDEA)
+  dueDate         DateTime?
+  completedAt     DateTime?
+  month           Int               // 1–12
+  year            Int
+  notes           String?
+  outcome         String?           // the win / result text
+  isClientVisible Boolean           @default(true)
+  isInternal      Boolean           @default(false)
+
+  tasks        Task[]
+  files        File[]
+  approvals    Approval[]
+  comments     Comment[]
+  activityLogs ActivityLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("deliverables")
+}
+
+// ─── TASKS ───────────────────────────────────────────────
+
+model Task {
+  id            String      @id @default(cuid())
+  clientId      String?
+  deliverableId String?
+  deliverable   Deliverable? @relation(fields: [deliverableId], references: [id])
+  campaignId    String?
+  campaign      Campaign?   @relation(fields: [campaignId], references: [id])
+  assigneeId    String?
+  assignee      User?       @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdById   String?
+  createdBy     User?       @relation("TaskCreator", fields: [createdById], references: [id])
+
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  priority    Priority   @default(MEDIUM)
+  dueDate     DateTime?
+  completedAt DateTime?
+  isInternal  Boolean    @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tasks")
+}
+
+// ─── RUNNERS ─────────────────────────────────────────────
+
+model RunnerAssignment {
+  id            String           @id @default(cuid())
+  runnerId      String
+  runner        User             @relation(fields: [runnerId], references: [id])
+  eventDate     DateTime
+  eventName     String
+  clientId      String?
+  deliverableId String?
+  location      String?          // city/country (short)
+  notes         String?
+  status        AssignmentStatus @default(SCHEDULED)
+  weekOf        DateTime         // Monday of the week
+
+  // Enriched agenda fields
+  arrivalTime       DateTime?  // "Llegada" time
+  eventTime         DateTime?  // "Al Aire" — actual event/broadcast start time
+  venueName         String?    // "Telemundo Center"
+  venueAddress      String?    // full street address
+  itemType          String?    // "TV Appearance", "Podcast", "Red Carpet", "Event"
+  accompanistCount  Int        @default(0)
+  monthNumber       Int?       // MES 1, MES 2... for grouping
+  agendaSequence    Int?       // sequential # within the agenda doc
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("runner_assignments")
+}
+
+model RunnerAvailability {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  date        DateTime
+  isAvailable Boolean  @default(true)
+  notes       String?
+
+  @@unique([userId, date])
+  @@map("runner_availability")
+}
+
+// ─── APPROVALS ───────────────────────────────────────────
+
+model Approval {
+  id            String         @id @default(cuid())
+  clientId      String
+  client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  deliverableId String?
+  deliverable   Deliverable?   @relation(fields: [deliverableId], references: [id])
+  requestedById String
+  requestedBy   User           @relation("ApprovalRequester", fields: [requestedById], references: [id])
+
+  title       String
+  description String?
+  type        ApprovalType
+  status      ApprovalStatus @default(PENDING)
+  version     Int            @default(1)
+  fileUrl     String?
+  content     String?        // text content for review (press release copy, etc.)
+
+  responses ApprovalResponse[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("approvals")
+}
+
+model ApprovalResponse {
+  id           String         @id @default(cuid())
+  approvalId   String
+  approval     Approval       @relation(fields: [approvalId], references: [id], onDelete: Cascade)
+  clientUserId String?
+  clientUser   ClientUser?    @relation(fields: [clientUserId], references: [id])
+  status       ApprovalStatus
+  comment      String?
+
+  createdAt DateTime @default(now())
+
+  @@map("approval_responses")
+}
+
+// ─── FILES ────────────────────────────────────────────────
+
+model File {
+  id            String      @id @default(cuid())
+  clientId      String
+  client        Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  campaignId    String?
+  deliverableId String?
+  deliverable   Deliverable? @relation(fields: [deliverableId], references: [id])
+  uploadedById  String
+  uploadedBy    User        @relation("FileUploader", fields: [uploadedById], references: [id])
+
+  name            String
+  url             String
+  size            Int?
+  mimeType        String?
+  isClientVisible Boolean    @default(false)
+  tags            String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("files")
+}
+
+// ─── ACTIVITY LOG ─────────────────────────────────────────
+
+model ActivityLog {
+  id            String      @id @default(cuid())
+  clientId      String?
+  client        Client?     @relation(fields: [clientId], references: [id])
+  deliverableId String?
+  deliverable   Deliverable? @relation(fields: [deliverableId], references: [id])
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+
+  action      String  // "status_changed" | "file_uploaded" | "approval_requested" | etc.
+  description String
+  metadata    Json?
+
+  createdAt DateTime @default(now())
+
+  @@map("activity_logs")
+}
+
+// ─── COMMENTS ─────────────────────────────────────────────
+
+model Comment {
+  id            String       @id @default(cuid())
+  deliverableId String?
+  deliverable   Deliverable? @relation(fields: [deliverableId], references: [id])
+  userId        String
+  user          User         @relation(fields: [userId], references: [id])
+
+  content    String
+  isInternal Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("comments")
+}
+
+// ─── REPORTS ──────────────────────────────────────────────
+
+model Report {
+  id          String  @id @default(cuid())
+  clientId    String
+  client      Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  month       Int
+  year        Int
+  title       String
+  summary     String?
+  data        Json?   // structured wins, coverage, stats
+  isPublished Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, month, year])
+  @@map("reports")
+}
