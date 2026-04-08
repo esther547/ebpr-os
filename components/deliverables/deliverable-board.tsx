@@ -1,19 +1,17 @@
 "use client";
 
 import { cn, DELIVERABLE_STATUS_LABELS, DELIVERABLE_STATUS_COLORS, DELIVERABLE_TYPE_LABELS } from "@/lib/utils";
-import { DeliverableStatus } from "@prisma/client";
-import type { DeliverableWithRelations } from "@/types";
 
-const COLUMNS: DeliverableStatus[] = [
+const COLUMNS = [
   "IDEA",
   "OUTREACH",
   "CONFIRMED",
   "IN_PROGRESS",
   "COMPLETED",
-];
+] as const;
 
 type Props = {
-  deliverables: DeliverableWithRelations[];
+  deliverables: any[];
   clientId: string;
   target: number;
 };
@@ -21,10 +19,10 @@ type Props = {
 export function DeliverableBoard({ deliverables, clientId, target }: Props) {
   const byStatus = COLUMNS.reduce(
     (acc, status) => {
-      acc[status] = deliverables.filter((d) => d.status === status);
+      acc[status] = deliverables.filter((d: any) => d.status === status);
       return acc;
     },
-    {} as Record<DeliverableStatus, DeliverableWithRelations[]>
+    {} as Record<string, any[]>
   );
 
   const completed = byStatus.COMPLETED.length;
@@ -34,7 +32,7 @@ export function DeliverableBoard({ deliverables, clientId, target }: Props) {
       <div className="flex gap-4 min-w-max">
         {COLUMNS.map((status) => {
           const items = byStatus[status];
-          const colors = DELIVERABLE_STATUS_COLORS[status];
+          const colors = DELIVERABLE_STATUS_COLORS[status as keyof typeof DELIVERABLE_STATUS_COLORS];
 
           return (
             <div key={status} className="w-72 flex-shrink-0">
@@ -45,7 +43,7 @@ export function DeliverableBoard({ deliverables, clientId, target }: Props) {
                     className={cn("h-2 w-2 rounded-full", colors.dot)}
                   />
                   <span className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
-                    {DELIVERABLE_STATUS_LABELS[status]}
+                    {DELIVERABLE_STATUS_LABELS[status as keyof typeof DELIVERABLE_STATUS_LABELS]}
                   </span>
                 </div>
                 <span className="text-xs font-medium text-ink-muted">
@@ -89,10 +87,10 @@ function DeliverableCard({
   deliverable,
   clientId,
 }: {
-  deliverable: DeliverableWithRelations;
+  deliverable: any;
   clientId: string;
 }) {
-  const colors = DELIVERABLE_STATUS_COLORS[deliverable.status];
+  const colors = DELIVERABLE_STATUS_COLORS[deliverable.status as keyof typeof DELIVERABLE_STATUS_COLORS];
 
   return (
     <a
@@ -102,7 +100,7 @@ function DeliverableCard({
       {/* Type badge */}
       <div className="mb-2">
         <span className="text-2xs font-semibold uppercase tracking-widest text-ink-muted">
-          {DELIVERABLE_TYPE_LABELS[deliverable.type]}
+          {DELIVERABLE_TYPE_LABELS[deliverable.type as keyof typeof DELIVERABLE_TYPE_LABELS]}
         </span>
       </div>
 
