@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { cn, formatCurrency } from "@/lib/utils";
 import { ChevronDown, ChevronRight, Plus, ArrowRightLeft, Trash2, MoreHorizontal } from "lucide-react";
 import { CreateInvoiceModal } from "./create-invoice-modal";
+import { RecordPaymentModal } from "./record-payment-modal";
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -389,6 +390,7 @@ export function FinancePageClient({ clients, canManage }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [showCreateInvoice, setShowCreateInvoice] = useState(false);
   const [addingInvoiceFor, setAddingInvoiceFor] = useState<string | null>(null);
+  const [payInvoice, setPayInvoice] = useState<Invoice & { client: { name: string } } | null>(null);
 
   // Stats
   const allInvoices = clients.flatMap((c) => c.invoices);
@@ -436,11 +438,7 @@ export function FinancePageClient({ clients, canManage }: Props) {
   }, [router]);
 
   const deleteInvoice = useCallback(async (invoiceId: string) => {
-    await fetch(`/api/invoices/${invoiceId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "CANCELLED" }),
-    });
+    await fetch(`/api/invoices/${invoiceId}`, { method: "DELETE" });
     router.refresh();
   }, [router]);
 
@@ -648,9 +646,39 @@ export function FinancePageClient({ clients, canManage }: Props) {
                               </span>
                             )}
                           </td>
-                          {/* Status */}
+                          {/* Status + Actions */}
                           <td className="px-3 py-2">
-                            <StatusBadge status={inv.status} paidAt={inv.paidAt} dueDate={inv.dueDate} />
+                            <div className="flex items-center gap-1.5">
+                              {canManage ? (
+                                <select
+                                  className={cn(
+                                    "rounded-full px-2 py-0.5 text-2xs font-semibold border-0 cursor-pointer appearance-none",
+                                    inv.status === "PAID" || inv.paidAt ? "bg-green-100 text-green-700" :
+                                    inv.status === "OVERDUE" || (!inv.paidAt && inv.dueDate && new Date(inv.dueDate) < new Date()) ? "bg-red-100 text-red-600" :
+                                    inv.status === "SENT" ? "bg-amber-100 text-amber-700" :
+                                    "bg-gray-100 text-gray-500"
+                                  )}
+                                  value={inv.paidAt ? "PAID" : inv.status}
+                                  onChange={(e) => saveInvoiceField(inv.id, "status", e.target.value)}
+                                >
+                                  <option value="DRAFT">DRAFT</option>
+                                  <option value="SENT">SENT</option>
+                                  <option value="PAID">PAID</option>
+                                  <option value="OVERDUE">OVERDUE</option>
+                                  <option value="CANCELLED">CANCELLED</option>
+                                </select>
+                              ) : (
+                                <StatusBadge status={inv.status} paidAt={inv.paidAt} dueDate={inv.dueDate} />
+                              )}
+                              {canManage && inv.status !== "PAID" && !inv.paidAt && (
+                                <button
+                                  onClick={() => setPayInvoice({ ...inv, client: { name: client.name } })}
+                                  className="rounded bg-green-600 px-1.5 py-0.5 text-2xs font-medium text-white hover:bg-green-700 transition-colors whitespace-nowrap"
+                                >
+                                  $ Pay
+                                </button>
+                              )}
+                            </div>
                           </td>
                           {/* Bill To */}
                           <td className="px-3 py-2"></td>
@@ -679,6 +707,14 @@ export function FinancePageClient({ clients, canManage }: Props) {
           onOpenChange={setShowCreateInvoice}
           clients={clients.map((c) => ({ id: c.id, name: c.name }))}
           contracts={allContracts}
+        />
+      )}
+
+      {payInvoice && (
+        <RecordPaymentModal
+          open={!!payInvoice}
+          onOpenChange={(open) => { if (!open) setPayInvoice(null); }}
+          invoice={payInvoice}
         />
       )}
     </>

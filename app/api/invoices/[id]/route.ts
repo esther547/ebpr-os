@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { canViewFinance, canManageFinance } from "@/lib/permissions";
+import { canViewFinance, canManageFinance, canViewFollowUp } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { z } from "zod";
 
@@ -36,7 +36,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
-  if (!canManageFinance(user)) {
+  // canManageFinance for full edits, canViewFollowUp for notes/status updates from follow-up tab
+  if (!canManageFinance(user) && !canViewFollowUp(user)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -75,4 +76,26 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   });
 
   return NextResponse.json({ data: invoice });
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await requireUser();
+  if (!canManageFinance(user)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  await db.payment.deleteMany({ where: { invoiceId: id } });
+  const invoice = await db.invoice.delete({ where: { id } });
+
+  await db.activityLog.create({
+    data: {
+      userId: user.id,
+      clientId: invoice.clientId,
+      action: "invoice_deleted",
+      description: `Deleted invoice ${invoice.invoiceNumber}`,
+    },
+  });
+
+  return NextResponse.json({ success: true });
 }

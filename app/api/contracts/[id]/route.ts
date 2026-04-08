@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { canManageContracts } from "@/lib/permissions";
+import { canManageContracts, canViewFollowUp } from "@/lib/permissions";
 
 const updateContractSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -22,7 +22,8 @@ export async function PUT(
 ) {
   try {
     const user = await requireUser();
-    if (!canManageContracts(user)) {
+    // canManageContracts for full edits, canViewFollowUp for notes-only updates
+    if (!canManageContracts(user) && !canViewFollowUp(user)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
