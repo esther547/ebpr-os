@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { cn, formatCurrency } from "@/lib/utils";
-import { ChevronDown, ChevronRight, Palette, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, ArrowRightLeft, Trash2, MoreHorizontal } from "lucide-react";
 import { CreateInvoiceModal } from "./create-invoice-modal";
 
 // ─── Types ───────────────────────────────────────────────
@@ -228,12 +228,153 @@ function ColorPicker({ current, onSelect }: { current: string; onSelect: (c: str
   );
 }
 
+// ─── Invoice Actions Menu ────────────────────────────────
+
+function InvoiceActions({
+  invoiceId,
+  currentClientId,
+  allClients,
+  onReassign,
+  onDelete,
+}: {
+  invoiceId: string;
+  currentClientId: string;
+  allClients: { id: string; name: string }[];
+  onReassign: (invoiceId: string, newClientId: string) => void;
+  onDelete: (invoiceId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [showMove, setShowMove] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filtered = allClients
+    .filter((c) => c.id !== currentClientId)
+    .filter((c) => c.name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div className="relative inline-block">
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); setShowMove(false); }}
+        className="p-0.5 rounded hover:bg-white/80 text-ink-muted hover:text-ink-primary transition-colors"
+        title="Actions"
+      >
+        <MoreHorizontal className="h-3.5 w-3.5" />
+      </button>
+      {open && !showMove && (
+        <div className="absolute right-0 top-6 z-50 w-40 rounded-lg border border-border bg-white shadow-lg py-1" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => setShowMove(true)}
+            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-surface-1 transition-colors"
+          >
+            <ArrowRightLeft className="h-3 w-3" /> Move to client...
+          </button>
+          <button
+            onClick={() => { if (confirm("Delete this invoice?")) { onDelete(invoiceId); setOpen(false); } }}
+            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left text-red-600 hover:bg-red-50 transition-colors"
+          >
+            <Trash2 className="h-3 w-3" /> Delete invoice
+          </button>
+        </div>
+      )}
+      {open && showMove && (
+        <div className="absolute right-0 top-6 z-50 w-56 rounded-lg border border-border bg-white shadow-lg p-2" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="text"
+            placeholder="Search client..."
+            className="w-full rounded border border-border px-2 py-1 text-xs mb-1 focus:outline-none focus:ring-1 focus:ring-ink-primary"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            autoFocus
+          />
+          <div className="max-h-40 overflow-y-auto">
+            {filtered.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => { onReassign(invoiceId, c.id); setOpen(false); setShowMove(false); }}
+                className="w-full text-left px-2 py-1.5 text-xs hover:bg-surface-1 rounded transition-colors truncate"
+              >
+                {c.name}
+              </button>
+            ))}
+            {filtered.length === 0 && <p className="text-2xs text-ink-muted px-2 py-1">No matches</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Quick Add Invoice Form ──────────────────────────────
+
+function QuickAddInvoice({ clientId, clientName, contractId, onDone }: {
+  clientId: string;
+  clientName: string;
+  contractId: string | null;
+  onDone: () => void;
+}) {
+  const [amount, setAmount] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const slug = clientName.toLowerCase().replace(/[^a-z0-9]+/g, "-").substring(0, 8).toUpperCase();
+  const now = new Date();
+  const invoiceNumber = `EBPR-${slug}-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+
+  async function save() {
+    if (!amount) return;
+    setSaving(true);
+    await fetch("/api/invoices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clientId,
+        contractId,
+        invoiceNumber,
+        amount: parseFloat(amount),
+        dueDate: dueDate || undefined,
+        notes: notes || undefined,
+      }),
+    });
+    setSaving(false);
+    onDone();
+  }
+
+  return (
+    <tr className="bg-blue-50/30 border-b border-border/30">
+      <td className="px-3 py-1.5"></td>
+      <td className="px-3 py-1.5 text-2xs text-ink-muted italic">New invoice</td>
+      <td className="px-3 py-1.5"></td>
+      <td className="px-3 py-1.5"></td>
+      <td className="px-3 py-1.5">
+        <input type="date" className="w-28 rounded border border-border bg-white px-1.5 py-0.5 text-xs" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+      </td>
+      <td className="px-3 py-1.5 text-right">
+        <input type="number" step="0.01" placeholder="$0.00" className="w-20 rounded border border-border bg-white px-1.5 py-0.5 text-xs text-right" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
+      </td>
+      <td className="px-3 py-1.5"></td>
+      <td className="px-3 py-1.5"></td>
+      <td className="px-3 py-1.5">
+        <div className="flex gap-1">
+          <button onClick={save} disabled={saving || !amount} className="rounded bg-ink-primary px-2 py-0.5 text-2xs font-medium text-white disabled:opacity-40">Save</button>
+          <button onClick={onDone} className="rounded bg-gray-200 px-2 py-0.5 text-2xs font-medium text-ink-secondary">Cancel</button>
+        </div>
+      </td>
+      <td className="px-3 py-1.5"></td>
+      <td className="px-3 py-1.5">
+        <input type="text" placeholder="Notes..." className="w-full rounded border border-border bg-white px-1.5 py-0.5 text-xs" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </td>
+    </tr>
+  );
+}
+
 // ─── Main Component ──────────────────────────────────────
 
 export function FinancePageClient({ clients, canManage }: Props) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [showCreateInvoice, setShowCreateInvoice] = useState(false);
+  const [addingInvoiceFor, setAddingInvoiceFor] = useState<string | null>(null);
 
   // Stats
   const allInvoices = clients.flatMap((c) => c.invoices);
@@ -271,7 +412,25 @@ export function FinancePageClient({ clients, canManage }: Props) {
     router.refresh();
   }, [router]);
 
-  const clientList = clients.map((c) => c.id);
+  const reassignInvoice = useCallback(async (invoiceId: string, newClientId: string) => {
+    await fetch("/api/invoices/reassign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invoiceId, newClientId }),
+    });
+    router.refresh();
+  }, [router]);
+
+  const deleteInvoice = useCallback(async (invoiceId: string) => {
+    await fetch(`/api/invoices/${invoiceId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "CANCELLED" }),
+    });
+    router.refresh();
+  }, [router]);
+
+  const allClientList = clients.map((c) => ({ id: c.id, name: c.name }));
   const allContracts = clients.flatMap((c) =>
     c.contracts.map((ct) => ({ id: ct.id, title: ct.title, clientId: c.id }))
   );
@@ -383,6 +542,14 @@ export function FinancePageClient({ clients, canManage }: Props) {
                       <td className="px-3 py-2.5 text-ink-muted" colSpan={3}>
                         {invoices.length} invoice{invoices.length !== 1 ? "s" : ""} ·{" "}
                         {formatCurrency(invoices.reduce((s, i) => s + Number(i.amount), 0))} total
+                        {canManage && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setAddingInvoiceFor(client.id); }}
+                            className="ml-2 inline-flex items-center gap-0.5 rounded bg-ink-primary/10 px-1.5 py-0.5 text-2xs font-medium text-ink-primary hover:bg-ink-primary/20 transition-colors"
+                          >
+                            <Plus className="h-2.5 w-2.5" /> Add
+                          </button>
+                        )}
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="flex gap-1">
@@ -403,6 +570,14 @@ export function FinancePageClient({ clients, canManage }: Props) {
                     </tr>
 
                     {/* Invoice Rows */}
+                    {!isCollapsed && addingInvoiceFor === client.id && (
+                      <QuickAddInvoice
+                        clientId={client.id}
+                        clientName={client.name}
+                        contractId={contract?.id || null}
+                        onDone={() => { setAddingInvoiceFor(null); router.refresh(); }}
+                      />
+                    )}
                     {!isCollapsed && invoices.map((inv) => {
                       const isPaid = inv.status === "PAID" || !!inv.paidAt;
                       const isOverdue = !isPaid && inv.dueDate && new Date(inv.dueDate) < new Date();
@@ -415,7 +590,17 @@ export function FinancePageClient({ clients, canManage }: Props) {
 
                       return (
                         <tr key={inv.id} className={cn(rowBg, "border-b border-border/30 hover:bg-white/50 transition-colors")}>
-                          <td className="px-3 py-2"></td>
+                          <td className="px-3 py-2">
+                            {canManage && (
+                              <InvoiceActions
+                                invoiceId={inv.id}
+                                currentClientId={client.id}
+                                allClients={allClientList}
+                                onReassign={reassignInvoice}
+                                onDelete={deleteInvoice}
+                              />
+                            )}
+                          </td>
                           <td className="px-3 py-2 text-ink-muted text-2xs">{inv.invoiceNumber}</td>
                           <td className="px-3 py-2"></td>
                           <td className="px-3 py-2"></td>
