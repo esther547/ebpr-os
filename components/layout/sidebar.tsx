@@ -35,13 +35,13 @@ const navItems: NavItem[] = [
     href: "/clients",
     label: "Clients",
     icon: <Users className="h-4 w-4" />,
-    roles: ["SUPER_ADMIN", "STRATEGIST", "FINANCE"],
+    roles: ["SUPER_ADMIN", "STRATEGIST"],
   },
   {
     href: "/legal",
     label: "Legal & Contracts",
     icon: <Shield className="h-4 w-4" />,
-    roles: ["SUPER_ADMIN", "LEGAL", "FINANCE"],
+    roles: ["SUPER_ADMIN", "LEGAL"],
   },
   {
     href: "/runners",
@@ -59,7 +59,7 @@ const navItems: NavItem[] = [
     href: "/reports",
     label: "Reports",
     icon: <BarChart3 className="h-4 w-4" />,
-    roles: ["SUPER_ADMIN", "STRATEGIST", "FINANCE"],
+    roles: ["SUPER_ADMIN", "STRATEGIST"],
   },
   {
     href: "/settings",

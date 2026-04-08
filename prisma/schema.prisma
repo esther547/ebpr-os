@@ -19,6 +19,7 @@ enum UserRole {
   RUNNER
   LEGAL
   FINANCE
+  ASSISTANT
   CLIENT_ADMIN
   CLIENT_VIEWER
 }
@@ -165,11 +166,13 @@ model User {
   assignedTasks        Task[]             @relation("TaskAssignee")
   createdTasks         Task[]             @relation("TaskCreator")
   runnerAssignments    RunnerAssignment[]
+  runnerHours          RunnerHours[]      @relation("RunnerHoursUser")
   availability         RunnerAvailability[]
   activityLogs         ActivityLog[]
   comments             Comment[]
   approvalRequests     Approval[]         @relation("ApprovalRequester")
   files                File[]             @relation("FileUploader")
+  pressReleases        PressRelease[]     @relation("PressReleaseCreator")
 
   @@map("users")
 }
@@ -222,6 +225,7 @@ model Client {
   approvals        Approval[]
   activityLogs     ActivityLog[]
   reports          Report[]
+  pressReleases    PressRelease[]
 
   @@map("clients")
 }
@@ -264,7 +268,8 @@ model Contract {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  invoices Invoice[]
+  invoices   Invoice[]
+  signatures ContractSignature[]
 
   @@map("contracts")
 }
@@ -683,4 +688,109 @@ model Report {
 
   @@unique([clientId, month, year])
   @@map("reports")
+}
+
+// ─── RUNNER HOURS ────────────────────────────────────────
+
+model RunnerHours {
+  id          String   @id @default(cuid())
+  runnerId    String
+  runner      User     @relation("RunnerHoursUser", fields: [runnerId], references: [id])
+  assignmentId String?
+  date        DateTime
+  hours       Decimal  @db.Decimal(5, 2)
+  description String?
+  clientName  String?  // for display — runners don't see client IDs
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("runner_hours")
+}
+
+// ─── JOURNALISTS ─────────────────────────────────────────
+
+model Journalist {
+  id           String  @id @default(cuid())
+  name         String
+  email        String  @unique
+  outlet       String? // "People en Español", "Univision", etc.
+  beat         String? // "Entertainment", "Music", "Lifestyle"
+  phone        String?
+  city         String?
+  country      String?
+  language     String? // "Spanish", "English", "Both"
+  notes        String?
+  isActive     Boolean @default(true)
+  tags         String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("journalists")
+}
+
+// ─── PRESS RELEASES ──────────────────────────────────────
+
+enum PressReleaseStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SCHEDULED
+  SENT
+  CANCELLED
+}
+
+model PressRelease {
+  id            String             @id @default(cuid())
+  clientId      String
+  client        Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title         String
+  content       String             // the actual press release text
+  status        PressReleaseStatus @default(DRAFT)
+  createdById   String
+  createdBy     User               @relation("PressReleaseCreator", fields: [createdById], references: [id])
+
+  // Approval
+  approvedAt    DateTime?
+  approvedBy    String?            // who approved it
+
+  // Distribution
+  scheduledDate DateTime?          // when to send (weekdays only)
+  sentAt        DateTime?
+  recipientCount Int?              // how many journalists received it
+  tags          String[]           // to filter journalist list by beat/tag
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("press_releases")
+}
+
+// ─── CONTRACT SIGNATURES ─────────────────────────────────
+
+enum SignatureStatus {
+  PENDING
+  VIEWED
+  SIGNED
+  DECLINED
+  EXPIRED
+}
+
+model ContractSignature {
+  id          String          @id @default(cuid())
+  contractId  String
+  contract    Contract        @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  signerEmail String
+  signerName  String
+  status      SignatureStatus @default(PENDING)
+  token       String          @unique @default(cuid()) // unique link token
+  viewedAt    DateTime?
+  signedAt    DateTime?
+  ipAddress   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("contract_signatures")
 }

@@ -22,6 +22,7 @@ const ROLE_LABELS: Record<string, string> = {
   RUNNER: "Runner",
   LEGAL: "Legal",
   FINANCE: "Finance",
+  ASSISTANT: "Assistant",
   CLIENT_ADMIN: "Client Admin",
   CLIENT_VIEWER: "Client Viewer",
 };
@@ -32,6 +33,7 @@ const ROLE_STYLES: Record<string, string> = {
   RUNNER: "bg-purple-50 text-purple-700",
   LEGAL: "bg-amber-50 text-amber-700",
   FINANCE: "bg-green-50 text-green-700",
+  ASSISTANT: "bg-pink-50 text-pink-700",
   CLIENT_ADMIN: "bg-surface-2 text-ink-secondary",
   CLIENT_VIEWER: "bg-surface-2 text-ink-muted",
 };
@@ -168,6 +170,7 @@ function AddUserModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
             <option value="RUNNER">Runner</option>
             <option value="LEGAL">Legal</option>
             <option value="FINANCE">Finance</option>
+            <option value="ASSISTANT">Assistant</option>
           </Select>
         </FormGroup>
 
@@ -234,6 +237,7 @@ function EditUserModal({ open, onOpenChange, user }: { open: boolean; onOpenChan
             <option value="RUNNER">Runner</option>
             <option value="LEGAL">Legal</option>
             <option value="FINANCE">Finance</option>
+            <option value="ASSISTANT">Assistant</option>
           </Select>
         </FormGroup>
 

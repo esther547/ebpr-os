@@ -181,11 +181,11 @@ export default async function DashboardPage() {
           <div className="flex items-center gap-4">
             <nav className="flex items-center gap-1">
               {[
-                { href: "/clients", label: "Clients", roles: ["SUPER_ADMIN", "STRATEGIST", "FINANCE"] },
-                { href: "/legal", label: "Legal", roles: ["SUPER_ADMIN", "LEGAL", "FINANCE"] },
+                { href: "/clients", label: "Clients", roles: ["SUPER_ADMIN", "STRATEGIST"] },
+                { href: "/legal", label: "Legal", roles: ["SUPER_ADMIN", "LEGAL"] },
                 { href: "/finance", label: "Finance", roles: ["SUPER_ADMIN", "FINANCE", "LEGAL"] },
                 { href: "/runners/schedule", label: "Runners", roles: ["SUPER_ADMIN", "STRATEGIST"] },
-                { href: "/reports", label: "Reports", roles: ["SUPER_ADMIN", "STRATEGIST", "FINANCE"] },
+                { href: "/reports", label: "Reports", roles: ["SUPER_ADMIN", "STRATEGIST"] },
                 { href: "/settings", label: "Settings", roles: ["SUPER_ADMIN"] },
               ]
                 .filter((item) => item.roles.includes(user.role))
