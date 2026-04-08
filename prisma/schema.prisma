@@ -206,7 +206,8 @@ model Client {
   logo        String?
   description String?
   status      ClientStatus @default(PROSPECT)
-  shareToken  String?      @unique // for public campaign monitor link
+  shareToken     String?      @unique // for public campaign monitor link
+  strategyDocUrl String?      // Google Doc link for client strategy
 
   // Monthly deliverable target
   monthlyTarget Int @default(6)

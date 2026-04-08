@@ -11,6 +11,7 @@ const updateClientSchema = z.object({
   monthlyTarget: z.number().int().min(1).max(30).optional(),
   status: z.enum(["PROSPECT", "ACTIVE", "PAUSED", "CHURNED"]).optional(),
   description: z.string().optional(),
+  strategyDocUrl: z.string().nullable().optional(),
 });
 
 type Params = { params: { clientId: string } };

@@ -10,6 +10,7 @@ import { StrategyOutletList } from "@/components/strategy/strategy-outlet-list";
 import { StrategyWorkflowTable } from "@/components/strategy/strategy-workflow-table";
 import { StrategyEventsList } from "@/components/strategy/strategy-events-list";
 import Link from "next/link";
+import { StrategyDocLink } from "@/components/strategy/strategy-doc-link";
 
 type Props = { params: { clientId: string } };
 
@@ -21,7 +22,7 @@ export default async function StrategyPage({ params }: Props) {
 
   const client = await db.client.findUnique({
     where: { id: params.clientId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, strategyDocUrl: true },
   });
   if (!client) notFound();
 
@@ -86,6 +87,9 @@ export default async function StrategyPage({ params }: Props) {
           </div>
         }
       />
+
+      {/* Google Doc Link */}
+      <StrategyDocLink clientId={client.id} strategyDocUrl={client.strategyDocUrl} />
 
       <div className="space-y-8">
         {/* Strategy document brief */}
