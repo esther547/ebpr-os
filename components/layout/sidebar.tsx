@@ -12,6 +12,8 @@ import {
   Settings,
   Shield,
   DollarSign,
+  Newspaper,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EBPRLogoHorizontal } from "@/components/brand/ebpr-logo";
@@ -47,6 +49,18 @@ const navItems: NavItem[] = [
     href: "/runners",
     label: "Runners",
     icon: <Calendar className="h-4 w-4" />,
+    roles: ["SUPER_ADMIN", "STRATEGIST"],
+  },
+  {
+    href: "/press-releases",
+    label: "Press Releases",
+    icon: <Newspaper className="h-4 w-4" />,
+    roles: ["SUPER_ADMIN", "STRATEGIST"],
+  },
+  {
+    href: "/journalists",
+    label: "Journalists",
+    icon: <BookOpen className="h-4 w-4" />,
     roles: ["SUPER_ADMIN", "STRATEGIST"],
   },
   {
