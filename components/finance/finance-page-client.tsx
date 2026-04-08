@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { cn, formatCurrency } from "@/lib/utils";
 import { ChevronDown, ChevronRight, Plus, ArrowRightLeft, Trash2, MoreHorizontal } from "lucide-react";
@@ -246,19 +246,33 @@ function InvoiceActions({
   const [open, setOpen] = useState(false);
   const [showMove, setShowMove] = useState(false);
   const [search, setSearch] = useState("");
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close on click outside
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setShowMove(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
 
   const filtered = allClients
     .filter((c) => c.id !== currentClientId)
     .filter((c) => c.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="relative inline-block">
+    <div className="relative inline-block" ref={menuRef}>
       <button
-        onClick={(e) => { e.stopPropagation(); setOpen(!open); setShowMove(false); }}
-        className="p-0.5 rounded hover:bg-white/80 text-ink-muted hover:text-ink-primary transition-colors"
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(!open); setShowMove(false); }}
+        className="p-1.5 rounded-md border border-border bg-white hover:bg-surface-1 text-ink-muted hover:text-ink-primary transition-colors shadow-sm"
         title="Actions"
       >
-        <MoreHorizontal className="h-3.5 w-3.5" />
+        <MoreHorizontal className="h-4 w-4" />
       </button>
       {open && !showMove && (
         <div className="absolute right-0 top-6 z-50 w-40 rounded-lg border border-border bg-white shadow-lg py-1" onClick={(e) => e.stopPropagation()}>
