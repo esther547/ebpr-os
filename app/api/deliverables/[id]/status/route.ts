@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canManageDeliverables } from "@/lib/permissions";
+import { slackDeliverableCompleted } from "@/lib/slack";
 
 const updateStatusSchema = z.object({
   status: z.enum([
@@ -62,6 +63,57 @@ export async function POST(req: NextRequest, { params }: Params) {
         },
       },
     });
+
+    // Slack notification for completed deliverables
+    if (parsed.data.status === "COMPLETED" && existing.status !== "COMPLETED") {
+      const clientData = await db.client.findUnique({ where: { id: existing.clientId }, select: { name: true } });
+      if (clientData) {
+        slackDeliverableCompleted(clientData.name, existing.title, parsed.data.outcome);
+      }
+    }
+
+    // Notify client portal users when a deliverable is completed
+    if (parsed.data.status === "COMPLETED" && existing.status !== "COMPLETED") {
+      const clientUsers = await db.clientUser.findMany({
+        where: { clientId: existing.clientId, isActive: true },
+        select: { id: true },
+      });
+      // Also notify all internal team about completion
+      const teamUsers = await db.user.findMany({
+        where: { isActive: true, role: { in: ["SUPER_ADMIN", "STRATEGIST"] } },
+        select: { id: true },
+      });
+      for (const cu of teamUsers) {
+        await db.notification.create({
+          data: {
+            userId: cu.id,
+            title: "Deliverable Completed",
+            message: `"${existing.title}" has been marked as completed`,
+            type: "deliverable_completed",
+            link: `/clients/${existing.clientId}/deliverables/${existing.id}`,
+          },
+        });
+      }
+    }
+
+    // Notify when deliverable goes from IDEA/OUTREACH → CONFIRMED (goes live)
+    if (parsed.data.status === "CONFIRMED" && (existing.status === "IDEA" || existing.status === "OUTREACH")) {
+      const teamUsers = await db.user.findMany({
+        where: { isActive: true, role: { in: ["SUPER_ADMIN", "STRATEGIST"] } },
+        select: { id: true },
+      });
+      for (const u of teamUsers) {
+        await db.notification.create({
+          data: {
+            userId: u.id,
+            title: "Deliverable Confirmed",
+            message: `"${existing.title}" has been confirmed — assign a runner if needed`,
+            type: "deliverable_confirmed",
+            link: `/clients/${existing.clientId}/deliverables/${existing.id}`,
+          },
+        });
+      }
+    }
 
     return NextResponse.json({ data: deliverable });
   } catch {
