@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/form-field";
 import { CreateContractModal } from "@/components/contracts/create-contract-modal";
 import { Modal } from "@/components/ui/modal";
 import { Input, FormGroup } from "@/components/ui/form-field";
-import { Send } from "lucide-react";
+import { Send, Upload, FileText, Check, X } from "lucide-react";
 
 type ContractRow = {
   id: string;
@@ -19,6 +19,8 @@ type ContractRow = {
   endDate: string | Date | null;
   signedAt: string | Date | null;
   billingReady: boolean;
+  fileUrl: string | null;
+  fileName: string | null;
 };
 
 const STATUS_STYLES: Record<string, string> = {
@@ -37,11 +39,23 @@ interface Props {
 export function LegalPageClient({ contracts, clients }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [sendContract, setSendContract] = useState<ContractRow | null>(null);
+  const [uploadContract, setUploadContract] = useState<ContractRow | null>(null);
+  const router = useRouter();
 
-  const needsAction = contracts.filter(
-    (c) => c.status === "DRAFT" || c.status === "SENT"
+  const notSigned = contracts.filter(
+    (c) => c.status !== "SIGNED" && c.status !== "EXPIRED" && c.status !== "TERMINATED"
   );
   const signed = contracts.filter((c) => c.status === "SIGNED");
+
+  async function toggleStatus(contractId: string, currentStatus: string) {
+    const newStatus = currentStatus === "SIGNED" ? "SENT" : "SIGNED";
+    await fetch(`/api/contracts/${contractId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    router.refresh();
+  }
 
   return (
     <>
@@ -49,21 +63,31 @@ export function LegalPageClient({ contracts, clients }: Props) {
         <Button onClick={() => setShowCreate(true)}>+ New Contract</Button>
       </div>
 
-      {needsAction.length > 0 && (
+      {/* Not Signed */}
+      {notSigned.length > 0 && (
         <section className="mb-8">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-            Needs Action ({needsAction.length})
+            Not Signed ({notSigned.length})
           </h2>
-          <ContractTable contracts={needsAction} onSend={setSendContract} />
+          <ContractTable
+            contracts={notSigned}
+            onSend={setSendContract}
+            onUpload={setUploadContract}
+            onToggleStatus={toggleStatus}
+          />
         </section>
       )}
 
+      {/* Signed */}
       {signed.length > 0 && (
         <section className="mb-8">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-            Signed
+            Signed ({signed.length})
           </h2>
-          <ContractTable contracts={signed} />
+          <ContractTable
+            contracts={signed}
+            onToggleStatus={toggleStatus}
+          />
         </section>
       )}
 
@@ -87,11 +111,29 @@ export function LegalPageClient({ contracts, clients }: Props) {
           contract={sendContract}
         />
       )}
+
+      {uploadContract && (
+        <UploadContractModal
+          open={!!uploadContract}
+          onOpenChange={(o) => { if (!o) setUploadContract(null); }}
+          contract={uploadContract}
+        />
+      )}
     </>
   );
 }
 
-function ContractTable({ contracts, onSend }: { contracts: ContractRow[]; onSend?: (c: ContractRow) => void }) {
+function ContractTable({
+  contracts,
+  onSend,
+  onUpload,
+  onToggleStatus,
+}: {
+  contracts: ContractRow[];
+  onSend?: (c: ContractRow) => void;
+  onUpload?: (c: ContractRow) => void;
+  onToggleStatus: (id: string, status: string) => void;
+}) {
   return (
     <div className="rounded-lg border border-border bg-white overflow-hidden">
       <table className="w-full text-sm">
@@ -100,9 +142,9 @@ function ContractTable({ contracts, onSend }: { contracts: ContractRow[]; onSend
             <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Contract</th>
             <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Client</th>
             <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Status</th>
+            <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">File</th>
             <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Signed</th>
-            <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Billing</th>
-            {onSend && <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Actions</th>}
+            <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -111,21 +153,51 @@ function ContractTable({ contracts, onSend }: { contracts: ContractRow[]; onSend
               <td className="px-5 py-4 font-medium text-ink-primary">{contract.title}</td>
               <td className="px-5 py-4 text-ink-secondary">{contract.client.name}</td>
               <td className="px-5 py-4">
-                <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_STYLES[contract.status] || "bg-surface-2 text-ink-secondary")}>
-                  {contract.status.charAt(0) + contract.status.slice(1).toLowerCase()}
-                </span>
+                <button
+                  onClick={() => onToggleStatus(contract.id, contract.status)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity",
+                    contract.status === "SIGNED"
+                      ? "bg-green-50 text-green-700"
+                      : "bg-red-50 text-red-600"
+                  )}
+                  title={contract.status === "SIGNED" ? "Click to mark as Not Signed" : "Click to mark as Signed"}
+                >
+                  {contract.status === "SIGNED" ? (
+                    <><Check className="h-3 w-3" /> Signed</>
+                  ) : (
+                    <><X className="h-3 w-3" /> Not Signed</>
+                  )}
+                </button>
+              </td>
+              <td className="px-5 py-4">
+                {contract.fileUrl ? (
+                  <a
+                    href={contract.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                  >
+                    <FileText className="h-3 w-3" />
+                    {contract.fileName || "View PDF"}
+                  </a>
+                ) : (
+                  <span className="text-xs text-ink-muted">No file</span>
+                )}
               </td>
               <td className="px-5 py-4 text-ink-secondary">{formatDate(contract.signedAt)}</td>
               <td className="px-5 py-4">
-                {contract.billingReady ? (
-                  <span className="text-green-700 font-medium">Ready</span>
-                ) : (
-                  <span className="text-ink-muted">Pending</span>
-                )}
-              </td>
-              {onSend && (
-                <td className="px-5 py-4">
-                  {(contract.status === "DRAFT" || contract.status === "SENT") && (
+                <div className="flex gap-2">
+                  {onUpload && (
+                    <button
+                      onClick={() => onUpload(contract)}
+                      className="inline-flex items-center gap-1 text-xs text-purple-600 hover:underline"
+                    >
+                      <Upload className="h-3 w-3" />
+                      Upload PDF
+                    </button>
+                  )}
+                  {onSend && (contract.status === "DRAFT" || contract.status === "SENT") && (
                     <button
                       onClick={() => onSend(contract)}
                       className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
@@ -134,13 +206,79 @@ function ContractTable({ contracts, onSend }: { contracts: ContractRow[]; onSend
                       Send for Signature
                     </button>
                   )}
-                </td>
-              )}
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+function UploadContractModal({ open, onOpenChange, contract }: { open: boolean; onOpenChange: (o: boolean) => void; contract: ContractRow }) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const form = new FormData(e.currentTarget);
+    const fileUrl = form.get("fileUrl") as string;
+    const fileName = form.get("fileName") as string;
+
+    if (!fileUrl) {
+      setError("Please enter a file URL");
+      setLoading(false);
+      return;
+    }
+
+    const res = await fetch(`/api/contracts/${contract.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileUrl, fileName: fileName || "Contract.pdf" }),
+    });
+
+    if (!res.ok) {
+      setError("Failed to update contract");
+      setLoading(false);
+      return;
+    }
+
+    onOpenChange(false);
+    router.refresh();
+  }
+
+  return (
+    <Modal open={open} onOpenChange={onOpenChange} title="Upload Contract PDF" description={`${contract.title} — ${contract.client.name}`}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+
+        <p className="text-sm text-ink-secondary">
+          Upload your contract PDF to Google Drive or Dropbox, then paste the link here.
+        </p>
+
+        <FormGroup label="PDF Link" htmlFor="up-url" required>
+          <Input id="up-url" name="fileUrl" type="url" placeholder="https://drive.google.com/..." required autoFocus defaultValue={contract.fileUrl || ""} />
+        </FormGroup>
+
+        <FormGroup label="File Name" htmlFor="up-name">
+          <Input id="up-name" name="fileName" placeholder="e.g., Reykon_Contract_2026.pdf" defaultValue={contract.fileName || ""} />
+        </FormGroup>
+
+        <div className="flex gap-3 pt-2">
+          <Button type="submit" disabled={loading}>
+            {loading ? "Saving..." : "Save PDF Link"}
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -184,7 +322,7 @@ function SendForSignatureModal({ open, onOpenChange, contract }: { open: boolean
     return (
       <Modal open={open} onOpenChange={onOpenChange} title="Signing Link Ready" description={`Contract: ${contract.title}`}>
         <div className="space-y-4">
-          <p className="text-sm text-ink-secondary">Share this link with the signer. They can sign directly from the link:</p>
+          <p className="text-sm text-ink-secondary">Share this link with the signer:</p>
           <div className="rounded-md bg-surface-1 p-3 text-sm break-all font-mono text-ink-primary border border-border">
             {signingUrl}
           </div>
@@ -197,18 +335,15 @@ function SendForSignatureModal({ open, onOpenChange, contract }: { open: boolean
   }
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Send for Signature" description={`Contract: ${contract.title} — ${contract.client.name}`}>
+    <Modal open={open} onOpenChange={onOpenChange} title="Send for Signature" description={`${contract.title} — ${contract.client.name}`}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-
         <FormGroup label="Signer Name" htmlFor="sig-name" required>
           <Input id="sig-name" name="signerName" placeholder="e.g., John Smith" required autoFocus />
         </FormGroup>
-
         <FormGroup label="Signer Email" htmlFor="sig-email" required>
           <Input id="sig-email" name="signerEmail" type="email" placeholder="e.g., john@client.com" required />
         </FormGroup>
-
         <div className="flex gap-3 pt-2">
           <Button type="submit" disabled={loading}>
             {loading ? "Generating..." : "Generate Signing Link"}
