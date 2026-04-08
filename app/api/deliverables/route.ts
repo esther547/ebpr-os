@@ -21,7 +21,7 @@ const createDeliverableSchema = z.object({
     "OTHER",
   ]),
   assigneeId: z.string().optional(),
-  dueDate: z.string().datetime().optional(),
+  dueDate: z.string().optional(),
   month: z.number().int().min(1).max(12).optional(),
   year: z.number().int().min(2020).optional(),
   notes: z.string().optional(),

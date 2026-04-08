@@ -1,7 +1,11 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import { DeliverableStatus, DeliverableType, InvoiceStatus, PaymentMethod } from "@prisma/client";
+// Using string types instead of @prisma/client imports to support client components
+type DeliverableStatus = "IDEA" | "OUTREACH" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+type DeliverableType = "PRESS_PLACEMENT" | "INTERVIEW" | "INFLUENCER_COLLAB" | "EVENT_APPEARANCE" | "BRAND_OPPORTUNITY" | "INTRODUCTION" | "SOCIAL_MEDIA" | "PRESS_RELEASE" | "OTHER";
+type InvoiceStatus = "DRAFT" | "SENT" | "PAID" | "OVERDUE" | "CANCELLED";
+type PaymentMethod = "CHECK" | "WIRE" | "ACH" | "CREDIT_CARD" | "OTHER";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
