@@ -50,12 +50,6 @@ const navItems: NavItem[] = [
     roles: ["SUPER_ADMIN", "STRATEGIST"],
   },
   {
-    href: "/runners/my-schedule",
-    label: "My Schedule",
-    icon: <CalendarCheck className="h-4 w-4" />,
-    roles: ["RUNNER"],
-  },
-  {
     href: "/finance",
     label: "Finance",
     icon: <DollarSign className="h-4 w-4" />,

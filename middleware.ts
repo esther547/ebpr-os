@@ -9,6 +9,7 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 const isPortalRoute = createRouteMatcher(["/portal(.*)"]);
+const isRunnerPortalRoute = createRouteMatcher(["/runner-portal(.*)"]);
 const isInternalRoute = createRouteMatcher([
   "/",
   "/clients(.*)",
@@ -38,17 +39,17 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.next();
   }
 
-  // Internal users cannot access /portal
-  if (isPortalRoute(req)) {
-    return NextResponse.redirect(new URL("/", req.url));
+  // Runners: external portal only — NO internal access
+  if (role === "RUNNER") {
+    if (!isRunnerPortalRoute(req) && !req.nextUrl.pathname.startsWith("/api/")) {
+      return NextResponse.redirect(new URL("/runner-portal", req.url));
+    }
+    return NextResponse.next();
   }
 
-  // Runner: only their schedule
-  if (role === "RUNNER" && isInternalRoute(req)) {
-    const url = req.nextUrl.pathname;
-    if (!url.startsWith("/runners")) {
-      return NextResponse.redirect(new URL("/runners/my-schedule", req.url));
-    }
+  // Internal users cannot access /portal or /runner-portal
+  if (isPortalRoute(req) || isRunnerPortalRoute(req)) {
+    return NextResponse.redirect(new URL("/", req.url));
   }
 
   // Legal: /legal + /finance
