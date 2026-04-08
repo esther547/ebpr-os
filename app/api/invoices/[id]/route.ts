@@ -7,9 +7,11 @@ import { z } from "zod";
 const updateSchema = z.object({
   status: z.enum(["DRAFT", "SENT", "PAID", "OVERDUE", "CANCELLED"]).optional(),
   amount: z.number().positive().optional(),
-  dueDate: z.string().optional(),
-  notes: z.string().optional(),
-  issuedAt: z.string().optional(),
+  dueDate: z.string().nullable().optional(),
+  sentAt: z.string().nullable().optional(),
+  paidAt: z.string().nullable().optional(),
+  issuedAt: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
 });
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -46,18 +48,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const data: Record<string, unknown> = {};
-  if (parsed.data.status) data.status = parsed.data.status;
-  if (parsed.data.amount) data.amount = parsed.data.amount;
-  if (parsed.data.dueDate) data.dueDate = new Date(parsed.data.dueDate);
+  if (parsed.data.status !== undefined) data.status = parsed.data.status;
+  if (parsed.data.amount !== undefined) data.amount = parsed.data.amount;
+  if (parsed.data.dueDate !== undefined) data.dueDate = parsed.data.dueDate ? new Date(parsed.data.dueDate) : null;
+  if (parsed.data.sentAt !== undefined) data.sentAt = parsed.data.sentAt ? new Date(parsed.data.sentAt) : null;
+  if (parsed.data.paidAt !== undefined) data.paidAt = parsed.data.paidAt ? new Date(parsed.data.paidAt) : null;
+  if (parsed.data.issuedAt !== undefined) data.issuedAt = parsed.data.issuedAt ? new Date(parsed.data.issuedAt) : null;
   if (parsed.data.notes !== undefined) data.notes = parsed.data.notes;
-  if (parsed.data.issuedAt) data.issuedAt = new Date(parsed.data.issuedAt);
 
-  // Auto-set dates on status changes
-  if (parsed.data.status === "SENT" && !parsed.data.issuedAt) {
-    data.issuedAt = new Date();
-  }
-  if (parsed.data.status === "PAID") {
-    data.paidAt = new Date();
+  // Auto-set status based on dates
+  if (parsed.data.paidAt && parsed.data.paidAt !== null) {
+    data.status = "PAID";
+  } else if (parsed.data.sentAt && parsed.data.sentAt !== null && !parsed.data.paidAt) {
+    data.status = "SENT";
   }
 
   const invoice = await db.invoice.update({ where: { id }, data });

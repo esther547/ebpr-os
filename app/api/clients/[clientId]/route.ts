@@ -12,6 +12,7 @@ const updateClientSchema = z.object({
   status: z.enum(["PROSPECT", "ACTIVE", "PAUSED", "CHURNED"]).optional(),
   description: z.string().optional(),
   strategyDocUrl: z.string().nullable().optional(),
+  rowColor: z.string().nullable().optional(),
 });
 
 type Params = { params: { clientId: string } };

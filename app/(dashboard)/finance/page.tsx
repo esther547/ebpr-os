@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth";
-import { canViewFinance, canManageFinance, canViewContracts } from "@/lib/permissions";
+import { canViewFinance, canManageFinance } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/layout/header";
 import { FinancePageClient } from "@/components/finance/finance-page-client";
@@ -13,43 +13,43 @@ export default async function FinancePage() {
     return <p className="text-ink-muted py-10 text-center">Access restricted.</p>;
   }
 
-  const invoices = await db.invoice.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      client: { select: { id: true, name: true } },
-      contract: { select: { id: true, title: true } },
-      payments: true,
-    },
-  });
-
-  const contracts = await db.contract.findMany({
-    where: { status: "SIGNED" },
-    orderBy: { updatedAt: "desc" },
-    include: { client: { select: { id: true, name: true } } },
-  });
-
-  const clients = await db.client.findMany({
+  // Fetch clients with their contracts, invoices, and billing contacts
+  const clientsWithData = await db.client.findMany({
     where: { status: "ACTIVE" },
-    select: { id: true, name: true },
     orderBy: { name: "asc" },
-  });
-
-  const allContracts = await db.contract.findMany({
-    select: { id: true, title: true, clientId: true },
-    orderBy: { title: "asc" },
+    include: {
+      contracts: {
+        orderBy: { createdAt: "desc" },
+        take: 1, // latest contract per client
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          startDate: true,
+          endDate: true,
+          value: true,
+          notes: true,
+        },
+      },
+      invoices: {
+        orderBy: [{ dueDate: "asc" }],
+        include: { payments: true },
+      },
+      contacts: {
+        where: { role: "Billing" },
+        select: { name: true, email: true },
+      },
+    },
   });
 
   return (
     <>
       <PageHeader
         title="Finance"
-        subtitle="Invoicing & payments"
+        subtitle="Accounting — Active Clients"
       />
       <FinancePageClient
-        invoices={JSON.parse(JSON.stringify(invoices))}
-        contracts={JSON.parse(JSON.stringify(contracts))}
-        clients={clients}
-        allContracts={allContracts}
+        clients={JSON.parse(JSON.stringify(clientsWithData))}
         canManage={canManageFinance(user)}
       />
     </>

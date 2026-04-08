@@ -213,6 +213,9 @@ model Client {
   // Monthly deliverable target
   monthlyTarget Int @default(6)
 
+  // Finance spreadsheet row color
+  rowColor String? // e.g. "blue", "green", "pink", "purple", "yellow"
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -292,6 +295,7 @@ model Invoice {
   status        InvoiceStatus @default(DRAFT)
   issuedAt      DateTime?
   dueDate       DateTime?
+  sentAt        DateTime?     // date invoice was actually sent
   paidAt        DateTime?
   notes         String?
   fileUrl       String?
