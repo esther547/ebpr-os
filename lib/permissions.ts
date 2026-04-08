@@ -62,6 +62,9 @@ export const canManagePressReleases = (u: SessionUser) =>
 export const canManageJournalists = (u: SessionUser) =>
   u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST;
 
+export const canViewFollowUp = (u: SessionUser) =>
+  u.role === UserRole.SUPER_ADMIN || u.role === UserRole.ASSISTANT || u.role === UserRole.FINANCE || u.role === UserRole.LEGAL;
+
 // ─── Data visibility ─────────────────────────────────────
 
 export const canSeeInternalData = (u: SessionUser) =>

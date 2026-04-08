@@ -14,6 +14,7 @@ import {
   DollarSign,
   Newspaper,
   BookOpen,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EBPRLogoHorizontal } from "@/components/brand/ebpr-logo";
@@ -69,6 +70,12 @@ const navItems: NavItem[] = [
     label: "Finance",
     icon: <DollarSign className="h-4 w-4" />,
     roles: ["SUPER_ADMIN", "FINANCE", "LEGAL"],
+  },
+  {
+    href: "/follow-up",
+    label: "Follow-Up",
+    icon: <ClipboardList className="h-4 w-4" />,
+    roles: ["SUPER_ADMIN", "ASSISTANT", "FINANCE", "LEGAL"],
   },
   {
     href: "/reports",

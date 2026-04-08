@@ -43,10 +43,11 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.next();
   }
 
-  // ── Assistant (Carolina) → assistant portal only
+  // ── Assistant (Carolina) → follow-up tab only
   if (role === "ASSISTANT") {
-    if (!isAssistantPortalRoute(req) && !url.startsWith("/api/")) {
-      return NextResponse.redirect(new URL("/assistant-portal", req.url));
+    const allowed = url.startsWith("/follow-up") || url.startsWith("/api/") || isAssistantPortalRoute(req);
+    if (!allowed) {
+      return NextResponse.redirect(new URL("/follow-up", req.url));
     }
     return NextResponse.next();
   }
@@ -64,17 +65,17 @@ export default clerkMiddleware(async (auth, req) => {
     }
   }
 
-  // ── Legal (Jessica) → Legal + Finance only
+  // ── Legal (Jessica) → Legal + Finance + Follow-Up only (NO dashboard)
   if (role === "LEGAL") {
-    const allowed = url === "/" || url.startsWith("/legal") || url.startsWith("/finance");
+    const allowed = url.startsWith("/legal") || url.startsWith("/finance") || url.startsWith("/follow-up");
     if (!allowed && !url.startsWith("/api/")) {
       return NextResponse.redirect(new URL("/legal", req.url));
     }
   }
 
-  // ── Finance (Laurie) → Finance/Accounting only
+  // ── Finance (Laurie) → Finance + Follow-Up only (NO dashboard)
   if (role === "FINANCE") {
-    const allowed = url === "/" || url.startsWith("/finance");
+    const allowed = url.startsWith("/finance") || url.startsWith("/follow-up");
     if (!allowed && !url.startsWith("/api/")) {
       return NextResponse.redirect(new URL("/finance", req.url));
     }
