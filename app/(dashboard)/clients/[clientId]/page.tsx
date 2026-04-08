@@ -8,6 +8,8 @@ import { cn, formatDate, monthLabel } from "@/lib/utils";
 import { currentMonthYear } from "@/lib/utils";
 import { ClientStatus } from "@prisma/client";
 import { ShareMonitorButton } from "@/components/clients/share-monitor-button";
+import { ClientActions } from "@/components/clients/client-actions";
+import { ClientReminders } from "@/components/clients/client-reminders";
 
 type Props = { params: { clientId: string } };
 
@@ -69,6 +71,13 @@ export default async function ClientPage({ params }: Props) {
     (d) => !["COMPLETED", "CANCELLED", "IDEA"].includes(d.status)
   ).length;
 
+  // Reminders
+  const reminders = await db.reminder.findMany({
+    where: { clientId: params.clientId, isDone: false },
+    orderBy: { remindAt: "asc" },
+    include: { createdBy: { select: { name: true } } },
+  });
+
   // Recent activity
   const activity = await db.activityLog.findMany({
     where: { clientId: params.clientId },
@@ -90,6 +99,12 @@ export default async function ClientPage({ params }: Props) {
           )}
         </div>
         <div className="flex gap-2">
+          <ClientActions
+            clientId={client.id}
+            clientName={client.name}
+            monthlyTarget={client.monthlyTarget}
+            status={client.status}
+          />
           <ShareMonitorButton clientId={client.id} />
           <Link
             href={`/clients/${client.id}/deliverables`}
@@ -243,6 +258,9 @@ export default async function ClientPage({ params }: Props) {
               </div>
             </dl>
           </section>
+
+          {/* Reminders */}
+          <ClientReminders clientId={client.id} reminders={JSON.parse(JSON.stringify(reminders))} />
 
           {/* Primary Contacts */}
           {client.contacts.length > 0 && (

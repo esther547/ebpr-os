@@ -173,6 +173,7 @@ model User {
   approvalRequests     Approval[]         @relation("ApprovalRequester")
   files                File[]             @relation("FileUploader")
   pressReleases        PressRelease[]     @relation("PressReleaseCreator")
+  reminders            Reminder[]         @relation("ReminderCreator")
 
   @@map("users")
 }
@@ -227,6 +228,7 @@ model Client {
   activityLogs     ActivityLog[]
   reports          Report[]
   pressReleases    PressRelease[]
+  reminders        Reminder[]
 
   @@map("clients")
 }
@@ -689,6 +691,26 @@ model Report {
 
   @@unique([clientId, month, year])
   @@map("reports")
+}
+
+// ─── REMINDERS ───────────────────────────────────────────
+
+model Reminder {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User     @relation("ReminderCreator", fields: [createdById], references: [id])
+  title       String
+  description String?
+  remindAt    DateTime
+  isDone      Boolean  @default(false)
+  type        String?  // "event", "deliverable", "payment", "general"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("reminders")
 }
 
 // ─── RUNNER HOURS ────────────────────────────────────────
