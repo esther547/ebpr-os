@@ -2,16 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
-import { startOfWeek } from "date-fns";
+import { startOfWeek, startOfDay, endOfDay } from "date-fns";
 
 const agendaItemSchema = z.object({
   runnerId: z.string().optional(),
   deliverableId: z.string().optional(),
-  date: z.string(),
+  eventName: z.string().optional(),
+  date: z.string().optional(),
+  eventDate: z.string().optional(),
   arrivalTime: z.string().optional().nullable(),
   eventTime: z.string().optional().nullable(),
   venueName: z.string().optional(),
   venueAddress: z.string().optional(),
+  location: z.string().optional(),
   itemType: z.string().optional(),
   notes: z.string().optional(),
   accompanistCount: z.number().int().min(0).optional().default(0),
@@ -29,24 +32,22 @@ export async function GET(
   const { clientId } = await params;
 
   const { searchParams } = new URL(req.url);
-  const monthNumber = searchParams.get("month");
   const year = searchParams.get("year");
 
   const now = new Date();
-  const startOfYear = year
+  const startYear = year
     ? new Date(`${year}-01-01`)
     : new Date(`${now.getFullYear()}-01-01`);
-  const endOfYear = year
+  const endYear = year
     ? new Date(`${Number(year) + 1}-01-01`)
     : new Date(`${now.getFullYear() + 1}-01-01`);
 
   const items = await db.runnerAssignment.findMany({
     where: {
       clientId,
-      eventDate: { gte: startOfYear, lt: endOfYear },
-      ...(monthNumber ? { monthNumber: Number(monthNumber) } : {}),
+      eventDate: { gte: startYear, lt: endYear },
     },
-    orderBy: [{ monthNumber: "asc" }, { agendaSequence: "asc" }, { eventDate: "asc" }],
+    orderBy: [{ eventDate: "asc" }],
     include: {
       runner: { select: { id: true, name: true } },
     },
@@ -55,17 +56,17 @@ export async function GET(
   return NextResponse.json({ data: items });
 }
 
-// POST — create a new agenda item
+// POST — create a new agenda item (runner assignment)
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ clientId: string }> }
 ) {
-  await requireUser();
+  const user = await requireUser();
   const { clientId } = await params;
 
   const client = await db.client.findUnique({
     where: { id: clientId },
-    select: { id: true },
+    select: { id: true, name: true },
   });
   if (!client) {
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
@@ -81,16 +82,47 @@ export async function POST(
   }
 
   const data = parsed.data;
-  const eventDate = new Date(data.date);
+  const dateStr = data.eventDate || data.date;
+  if (!dateStr) {
+    return NextResponse.json({ error: "Event date is required" }, { status: 400 });
+  }
+
+  const eventDate = new Date(dateStr);
   const weekOf = startOfWeek(eventDate, { weekStartsOn: 1 });
+  const eventName = data.eventName || data.itemType || "Appearance";
+
+  // ── Conflict Detection ──────────────────────────────────
+  let conflictWarning: string | null = null;
+  if (data.runnerId) {
+    const sameDayAssignments = await db.runnerAssignment.findMany({
+      where: {
+        runnerId: data.runnerId,
+        eventDate: {
+          gte: startOfDay(eventDate),
+          lte: endOfDay(eventDate),
+        },
+        status: { not: "CANCELLED" },
+      },
+    });
+
+    if (sameDayAssignments.length > 0) {
+      const runner = await db.user.findUnique({
+        where: { id: data.runnerId },
+        select: { name: true },
+      });
+      conflictWarning = `Warning: ${runner?.name || "Runner"} already has ${sameDayAssignments.length} assignment(s) on this day`;
+    }
+  }
 
   const item = await db.runnerAssignment.create({
     data: {
       clientId,
       runnerId: data.runnerId ?? "placeholder",
+      deliverableId: data.deliverableId,
       eventDate,
-      eventName: data.notes ?? data.itemType ?? "Appearance",
+      eventName,
       weekOf,
+      location: data.location,
       arrivalTime: data.arrivalTime ? new Date(data.arrivalTime) : null,
       eventTime: data.eventTime ? new Date(data.eventTime) : null,
       venueName: data.venueName,
@@ -107,5 +139,18 @@ export async function POST(
     },
   });
 
-  return NextResponse.json({ data: item }, { status: 201 });
+  // Log activity
+  await db.activityLog.create({
+    data: {
+      clientId,
+      userId: user.id,
+      action: "runner_assigned",
+      description: `Assigned ${item.runner.name} to "${eventName}" for ${client.name}`,
+    },
+  });
+
+  return NextResponse.json({
+    data: item,
+    conflictWarning,
+  }, { status: 201 });
 }

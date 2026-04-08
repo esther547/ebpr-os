@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EBPRLogoHorizontal } from "@/components/brand/ebpr-logo";
+import { NotificationBell } from "./notification-bell";
 import type { UserRole } from "@prisma/client";
 
 type NavItem = {
@@ -141,6 +142,7 @@ export function Sidebar({ userRole, userName, userEmail }: SidebarProps) {
       <div className="border-t border-border p-4">
         <div className="flex items-center gap-3">
           <UserButton afterSignOutUrl="/sign-in" />
+          <NotificationBell />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-ink-primary">
               {userName}

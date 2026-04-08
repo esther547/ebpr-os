@@ -8,6 +8,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/clerk(.*)",
   "/sign/(.*)",      // public contract signing pages
   "/monitor/(.*)",   // public campaign monitor pages
+  "/api/cron(.*)",   // cron job endpoint
 ]);
 
 const isPortalRoute = createRouteMatcher(["/portal(.*)"]);

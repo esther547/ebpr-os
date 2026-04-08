@@ -1,5 +1,6 @@
 import { UserButton } from "@clerk/nextjs";
 import { EBPRLogoHorizontal } from "@/components/brand/ebpr-logo";
+import { NotificationBell } from "@/components/layout/notification-bell";
 
 export default function RunnerPortalLayout({
   children,
@@ -16,7 +17,10 @@ export default function RunnerPortalLayout({
               Runner Portal
             </span>
           </div>
-          <UserButton afterSignOutUrl="/sign-in" />
+          <div className="flex items-center gap-3">
+            <NotificationBell />
+            <UserButton afterSignOutUrl="/sign-in" />
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-6 py-8">{children}</main>

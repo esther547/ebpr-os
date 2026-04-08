@@ -116,6 +116,14 @@ export function FinancePageClient({ invoices, contracts, clients, allContracts, 
         </div>
       </div>
 
+      {/* Color Legend */}
+      <div className="flex items-center gap-6 mb-4 text-xs text-ink-muted">
+        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-red-500" /> On Hold</span>
+        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-amber-500" /> Payment Due / Overdue</span>
+        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-green-500" /> Paid</span>
+        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-border bg-white" /> Not Due Yet</span>
+      </div>
+
       {/* Tabs */}
       <div className="flex items-center gap-1 mb-6 border-b border-border">
         {tabs.map((t) => (
@@ -156,8 +164,18 @@ export function FinancePageClient({ invoices, contracts, clients, allContracts, 
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {invoices.map((inv) => (
-                <tr key={inv.id} className="hover:bg-surface-1 transition-colors">
+              {invoices.map((inv) => {
+                // Color coding: red=on hold/cancelled, yellow=overdue/sent, green=paid, white=draft/upcoming
+                const isOverdue = inv.dueDate && new Date(inv.dueDate) < new Date() && inv.status !== "PAID";
+                const rowColor = inv.status === "PAID"
+                  ? "border-l-4 border-l-green-500 bg-green-50/30"
+                  : inv.status === "CANCELLED"
+                    ? "border-l-4 border-l-red-500 bg-red-50/30"
+                    : isOverdue
+                      ? "border-l-4 border-l-amber-500 bg-amber-50/30"
+                      : "border-l-4 border-l-white";
+                return (
+                <tr key={inv.id} className={cn("hover:bg-surface-1 transition-colors", rowColor)}>
                   <td className="px-5 py-4 font-medium text-ink-primary">{inv.invoiceNumber}</td>
                   <td className="px-5 py-4 text-ink-secondary">{inv.client.name}</td>
                   <td className="px-5 py-4 font-medium text-ink-primary">{formatCurrency(inv.amount as number)}</td>
@@ -185,7 +203,8 @@ export function FinancePageClient({ invoices, contracts, clients, allContracts, 
                     </td>
                   )}
                 </tr>
-              ))}
+                );
+              })}
               {invoices.length === 0 && (
                 <tr>
                   <td colSpan={canManage ? 7 : 6} className="px-5 py-12 text-center text-ink-muted">

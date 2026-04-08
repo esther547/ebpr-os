@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth";
-import { canViewFinance, canManageFinance } from "@/lib/permissions";
+import { canViewFinance, canManageFinance, canViewContracts } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/layout/header";
 import { FinancePageClient } from "@/components/finance/finance-page-client";
@@ -25,9 +25,7 @@ export default async function FinancePage() {
   const contracts = await db.contract.findMany({
     where: { status: "SIGNED" },
     orderBy: { updatedAt: "desc" },
-    include: {
-      client: { select: { id: true, name: true } },
-    },
+    include: { client: { select: { id: true, name: true } } },
   });
 
   const clients = await db.client.findMany({

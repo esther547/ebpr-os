@@ -174,6 +174,7 @@ model User {
   files                File[]             @relation("FileUploader")
   pressReleases        PressRelease[]     @relation("PressReleaseCreator")
   reminders            Reminder[]         @relation("ReminderCreator")
+  notifications        Notification[]     @relation("UserNotifications")
 
   @@map("users")
 }
@@ -730,6 +731,23 @@ model RunnerHours {
   updatedAt DateTime @updatedAt
 
   @@map("runner_hours")
+}
+
+// ─── NOTIFICATIONS ───────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation("UserNotifications", fields: [userId], references: [id])
+  title     String
+  message   String
+  type      String?  // "runner_reminder", "overdue_payment", "unsigned_contract"
+  isRead    Boolean  @default(false)
+  link      String?  // URL to navigate to
+
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
 }
 
 // ─── JOURNALISTS ─────────────────────────────────────────
