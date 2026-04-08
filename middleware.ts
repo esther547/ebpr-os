@@ -6,7 +6,8 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/api/webhooks(.*)",
   "/api/clerk(.*)",
-  "/sign/(.*)",  // public contract signing pages
+  "/sign/(.*)",      // public contract signing pages
+  "/monitor/(.*)",   // public campaign monitor pages
 ]);
 
 const isPortalRoute = createRouteMatcher(["/portal(.*)"]);

@@ -7,6 +7,7 @@ import { DeliverablePacingBar } from "@/components/deliverables/pacing-bar";
 import { cn, formatDate, monthLabel } from "@/lib/utils";
 import { currentMonthYear } from "@/lib/utils";
 import { ClientStatus } from "@prisma/client";
+import { ShareMonitorButton } from "@/components/clients/share-monitor-button";
 
 type Props = { params: { clientId: string } };
 
@@ -89,6 +90,7 @@ export default async function ClientPage({ params }: Props) {
           )}
         </div>
         <div className="flex gap-2">
+          <ShareMonitorButton clientId={client.id} />
           <Link
             href={`/clients/${client.id}/deliverables`}
             className="inline-flex h-9 items-center rounded-md bg-ink-primary px-4 text-sm font-medium text-ink-inverted hover:bg-ink-primary/90 transition-colors"
