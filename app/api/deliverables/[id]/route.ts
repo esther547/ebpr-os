@@ -10,6 +10,7 @@ const updateDeliverableSchema = z.object({
     "PRESS_PLACEMENT", "INTERVIEW", "INFLUENCER_COLLAB", "EVENT_APPEARANCE",
     "BRAND_OPPORTUNITY", "INTRODUCTION", "SOCIAL_MEDIA", "PRESS_RELEASE", "OTHER",
   ]).optional(),
+  status: z.enum(["IDEA", "OUTREACH", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]).optional(),
   assigneeId: z.string().nullable().optional(),
   dueDate: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
@@ -76,6 +77,10 @@ export async function PUT(
     const d = parsed.data;
     if (d.title !== undefined) data.title = d.title;
     if (d.type !== undefined) data.type = d.type;
+    if (d.status !== undefined) {
+      data.status = d.status;
+      if (d.status === "COMPLETED") data.completedAt = new Date();
+    }
     if (d.assigneeId !== undefined) data.assigneeId = d.assigneeId;
     if (d.dueDate !== undefined) data.dueDate = d.dueDate ? new Date(d.dueDate) : null;
     if (d.notes !== undefined) data.notes = d.notes;
