@@ -9,6 +9,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign/(.*)",      // public contract signing pages
   "/monitor/(.*)",   // public campaign monitor pages
   "/api/cron(.*)",   // cron job endpoint
+  "/api/digest(.*)", // weekly digest cron
   "/api/calendar(.*)", // public iCal feed
 ]);
 

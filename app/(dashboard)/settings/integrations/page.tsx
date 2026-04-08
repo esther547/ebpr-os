@@ -14,7 +14,7 @@ export default async function IntegrationsPage() {
 
   const hasSlack = !!process.env.SLACK_WEBHOOK_URL;
   const hasQBO = !!(process.env.QBO_CLIENT_ID && process.env.QBO_CLIENT_SECRET);
-  const hasResend = !!process.env.RESEND_API_KEY;
+  const hasGmail = !!(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
 
   const integrations = [
     {
@@ -40,11 +40,13 @@ export default async function IntegrationsPage() {
       instructions: hasQBO ? "Configured — connect via OAuth" : "1. Create app at developer.intuit.com\n2. Add QBO_CLIENT_ID and QBO_CLIENT_SECRET to Vercel env vars\n3. Redeploy",
     },
     {
-      name: "Email Digests (Resend)",
-      description: "Send weekly email digests to clients with their PR activity summary, upcoming events, and wins.",
+      name: "Email Digests (Gmail / Google Workspace)",
+      description: "Send weekly email digests to clients from your @ebmanagement.io account. Every Monday at 9am.",
       icon: <Mail className="h-5 w-5" />,
-      connected: hasResend,
-      instructions: hasResend ? "Connected — digests will send weekly via cron" : "1. Sign up at resend.com\n2. Get API key\n3. Add RESEND_API_KEY to Vercel env vars\n4. Redeploy",
+      connected: hasGmail,
+      instructions: hasGmail
+        ? `Connected — sending from ${process.env.GMAIL_USER}. Digests go out every Monday at 9am.`
+        : "1. Go to myaccount.google.com with your @ebmanagement.io account\n2. Security → 2-Step Verification (enable if not already)\n3. Search 'App Passwords' → Generate one for 'EBPR OS'\n4. Set GMAIL_USER and GMAIL_APP_PASSWORD in Vercel env vars\n5. Redeploy",
     },
     {
       name: "Google Docs (Strategy Import)",

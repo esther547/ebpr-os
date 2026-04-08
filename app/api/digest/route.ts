@@ -1,16 +1,82 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { sendEmail, digestEmailHtml, isEmailConfigured } from "@/lib/email";
 
-// Weekly client digest — generates a summary for each active client
-// This endpoint produces the digest data. To send emails, connect an email provider
-// (e.g., Resend, SendGrid) and call this endpoint from the cron job.
-//
-// To activate email sending:
-// 1. Set RESEND_API_KEY in Vercel env vars
-// 2. Install: npm install resend
-// 3. The cron job at /api/cron can call this weekly
+// Weekly client digest — generates + sends email summaries
+// Triggered by cron or manually via POST
+// GET = preview digests, POST = send them
 
 export async function GET() {
+  const digests = await generateDigests();
+  return NextResponse.json({
+    generated: new Date().toISOString(),
+    emailConfigured: isEmailConfigured(),
+    totalClients: digests.totalClients,
+    digestsGenerated: digests.digests.length,
+    digests: digests.digests,
+    setupInstructions: !isEmailConfigured() ? "Set GMAIL_USER + GMAIL_APP_PASSWORD in Vercel env vars to enable email sending" : undefined,
+  });
+}
+
+export async function POST() {
+  if (!isEmailConfigured()) {
+    return NextResponse.json({
+      error: "Email not configured. Set GMAIL_USER and GMAIL_APP_PASSWORD in Vercel env vars.",
+      instructions: [
+        "1. Go to myaccount.google.com with your @ebmanagement.io account",
+        "2. Security → 2-Step Verification (enable if not already)",
+        "3. Search 'App Passwords' → Generate one for 'EBPR OS'",
+        "4. Set GMAIL_USER and GMAIL_APP_PASSWORD in Vercel env vars",
+        "5. Redeploy",
+      ],
+    }, { status: 400 });
+  }
+
+  const { digests } = await generateDigests();
+  let sent = 0;
+  let failed = 0;
+
+  for (const digest of digests) {
+    if (!digest.contactEmail) continue;
+
+    const html = digestEmailHtml({
+      clientName: digest.client,
+      contactName: digest.contactName,
+      monthlyProgress: digest.summary.monthlyProgress,
+      weekActivity: digest.summary.weekActivity,
+      wins: digest.recentDeliverables
+        .filter((d) => d.status === "COMPLETED" && d.outcome)
+        .map((d) => ({ title: d.title, outcome: d.outcome! })),
+      upcomingEvents: digest.upcomingEvents.map((e) => ({
+        name: e.name,
+        date: String(e.date),
+        location: e.location,
+      })),
+      monitorLink: digest.monitorLink,
+      deliverables: digest.recentDeliverables.slice(0, 5),
+    });
+
+    const success = await sendEmail({
+      to: digest.contactEmail,
+      subject: `Weekly PR Update — ${digest.client}`,
+      html,
+    });
+
+    if (success) sent++;
+    else failed++;
+  }
+
+  return NextResponse.json({
+    sent,
+    failed,
+    totalDigests: digests.length,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+// ─── Digest Generator ────────────────────────────────────
+
+async function generateDigests() {
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const month = now.getMonth() + 1;
@@ -33,7 +99,6 @@ export async function GET() {
   const digests = [];
 
   for (const client of clients) {
-    // Get this week's activity
     const recentDeliverables = await db.deliverable.findMany({
       where: {
         clientId: client.id,
@@ -44,7 +109,6 @@ export async function GET() {
       orderBy: { updatedAt: "desc" },
     });
 
-    // Get monthly pacing
     const monthDeliverables = await db.deliverable.findMany({
       where: { clientId: client.id, month, year },
       select: { status: true },
@@ -55,7 +119,6 @@ export async function GET() {
       ? Math.round((completed / client.monthlyTarget) * 100)
       : 0;
 
-    // Upcoming events this week
     const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const upcomingAssignments = await db.runnerAssignment.findMany({
       where: {
@@ -66,8 +129,6 @@ export async function GET() {
       select: { eventName: true, eventDate: true, location: true },
       orderBy: { eventDate: "asc" },
     });
-
-    const recentWins = recentDeliverables.filter((d) => d.status === "COMPLETED" && d.outcome);
 
     if (recentDeliverables.length === 0 && upcomingAssignments.length === 0) continue;
 
@@ -80,7 +141,7 @@ export async function GET() {
         weekActivity: recentDeliverables.length,
         monthlyProgress: `${completed}/${client.monthlyTarget} (${completionRate}%)`,
         upcomingEvents: upcomingAssignments.length,
-        wins: recentWins.length,
+        wins: recentDeliverables.filter((d) => d.status === "COMPLETED" && d.outcome).length,
       },
       recentDeliverables: recentDeliverables.slice(0, 5).map((d) => ({
         title: d.title,
@@ -96,11 +157,5 @@ export async function GET() {
     });
   }
 
-  return NextResponse.json({
-    generated: new Date().toISOString(),
-    totalClients: clients.length,
-    digestsGenerated: digests.length,
-    digests,
-    emailStatus: process.env.RESEND_API_KEY ? "configured" : "not_configured — set RESEND_API_KEY to enable email sending",
-  });
+  return { totalClients: clients.length, digests };
 }
