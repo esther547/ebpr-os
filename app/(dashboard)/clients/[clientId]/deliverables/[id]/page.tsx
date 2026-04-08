@@ -29,15 +29,32 @@ export default async function DeliverableDetailPage({
 
   if (!deliverable || deliverable.clientId !== clientId) notFound();
 
+  // Get linked runner assignment for this deliverable
+  const runnerAssignment = await db.runnerAssignment.findFirst({
+    where: { deliverableId: id },
+    include: { runner: { select: { id: true, name: true } } },
+  });
+
   const teamMembers = await db.user.findMany({
     where: { role: { in: ["SUPER_ADMIN", "STRATEGIST"] }, isActive: true },
     select: { id: true, name: true },
   });
 
+  const runners = await db.user.findMany({
+    where: { role: "RUNNER", isActive: true },
+    select: { id: true, name: true },
+  });
+
+  const deliverableWithRunner = {
+    ...deliverable,
+    runnerAssignment,
+  };
+
   return (
     <DeliverableDetailClient
-      deliverable={JSON.parse(JSON.stringify(deliverable))}
+      deliverable={JSON.parse(JSON.stringify(deliverableWithRunner))}
       teamMembers={teamMembers}
+      runners={runners}
     />
   );
 }
