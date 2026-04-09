@@ -449,26 +449,6 @@ export function FinancePageClient({ clients, canManage }: Props) {
 
   return (
     <>
-      {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="rounded-lg border border-border bg-white p-4">
-          <p className="text-xs font-medium text-ink-muted uppercase tracking-wider mb-1">Active Clients</p>
-          <p className="text-2xl font-bold text-ink-primary">{clients.length}</p>
-        </div>
-        <div className="rounded-lg border border-border bg-white p-4">
-          <p className="text-xs font-medium text-ink-muted uppercase tracking-wider mb-1">Total Invoices</p>
-          <p className="text-2xl font-bold text-ink-primary">{allInvoices.length}</p>
-        </div>
-        <div className="rounded-lg border border-border bg-white p-4">
-          <p className="text-xs font-medium text-amber-600 uppercase tracking-wider mb-1">Outstanding</p>
-          <p className="text-2xl font-bold text-amber-700">{formatCurrency(totalOutstanding)}</p>
-        </div>
-        <div className="rounded-lg border border-border bg-white p-4">
-          <p className="text-xs font-medium text-green-600 uppercase tracking-wider mb-1">Received</p>
-          <p className="text-2xl font-bold text-green-700">{formatCurrency(totalReceived)}</p>
-        </div>
-      </div>
-
       {/* Color Legend */}
       <div className="flex items-center gap-6 mb-4 text-xs text-ink-muted">
         <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-red-400" /> Overdue</span>
