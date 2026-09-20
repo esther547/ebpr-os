@@ -33,7 +33,7 @@ export function ClientCard({ client }: { client: ClientCardData }) {
             {initials(client.name)}
           </span>
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-sm font-semibold text-ink-primary">{client.name}</h3>
+            <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-ink-primary">{client.name}</h3>
             <p className="mt-0.5 truncate text-xs text-ink-muted">{client.industry || "No industry set"}</p>
           </div>
           <Badge tone={statusTone(client.status)} dot>
