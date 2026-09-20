@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/form-field";
+import { useToast } from "@/components/ui/toast";
+import { cn } from "@/lib/utils";
 
 const MAX_BYTES = 50 * 1024 * 1024;
 const TIMEOUT_MS = 45_000;
@@ -18,19 +20,17 @@ export function FileUpload({ clientId, deliverableId }: Props) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const [clientVisible, setClientVisible] = useState(false);
+  const { toast } = useToast();
 
   async function handleFile(file: File) {
-    setError(null);
-    setSuccess(null);
     if (file.size === 0) {
-      setError("That file is empty.");
+      toast({ title: "That file is empty.", variant: "error" });
       return;
     }
     if (file.size > MAX_BYTES) {
-      setError("File too large (max 50MB).");
+      toast({ title: "File too large", description: "Maximum size is 50MB.", variant: "error" });
       return;
     }
 
@@ -44,20 +44,31 @@ export function FileUpload({ clientId, deliverableId }: Props) {
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     setUploading(true);
     try {
-      const res = await fetch("/api/files/upload", { method: "POST", body: formData, signal: controller.signal });
+      const res = await fetch("/api/files/upload", {
+        method: "POST",
+        body: formData,
+        signal: controller.signal,
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(typeof data.error === "string" ? data.error : `Upload failed (${res.status})`);
+        toast({
+          title: "Upload failed",
+          description: typeof data.error === "string" ? data.error : `Request failed (${res.status})`,
+          variant: "error",
+        });
         return;
       }
-      setSuccess(`Uploaded "${file.name}"`);
+      toast({ title: `Uploaded "${file.name}"`, variant: "success" });
       router.refresh();
     } catch (err) {
-      setError(
-        err instanceof DOMException && err.name === "AbortError"
-          ? "Upload timed out. File storage did not respond — check the Supabase configuration."
-          : "Network error — could not reach the server"
-      );
+      toast({
+        title: "Upload failed",
+        description:
+          err instanceof DOMException && err.name === "AbortError"
+            ? "Upload timed out. File storage did not respond — check the Supabase configuration."
+            : "Network error — could not reach the server",
+        variant: "error",
+      });
     } finally {
       clearTimeout(timer);
       setUploading(false);
@@ -66,23 +77,42 @@ export function FileUpload({ clientId, deliverableId }: Props) {
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-3">
-        <input
-          ref={inputRef}
-          type="file"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void handleFile(f);
-          }}
-        />
-        <Button
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-          leftIcon={<Upload className="h-3.5 w-3.5" />}
-        >
-          {uploading ? "Uploading..." : "Upload File"}
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        const f = e.dataTransfer.files?.[0];
+        if (f) void handleFile(f);
+      }}
+      className={cn(
+        "rounded-xl border border-dashed bg-white/60 px-6 py-8 text-center transition-colors",
+        dragging ? "border-ink-primary bg-surface-2" : "border-border"
+      )}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void handleFile(f);
+        }}
+      />
+
+      <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-surface-2 text-ink-muted">
+        <Upload className="h-5 w-5" />
+      </div>
+      <p className="text-sm font-semibold text-ink-primary">Drop a file here</p>
+      <p className="mt-1 text-sm text-ink-muted">Contracts, assets, or coverage. Up to 50MB.</p>
+
+      <div className="mt-5 flex flex-col items-center justify-center gap-3 sm:flex-row">
+        <Button onClick={() => inputRef.current?.click()} loading={uploading} variant="secondary" size="sm">
+          Choose File
         </Button>
         <label className="flex items-center gap-2 text-xs text-ink-secondary">
           <input
@@ -94,16 +124,6 @@ export function FileUpload({ clientId, deliverableId }: Props) {
           Visible to client
         </label>
       </div>
-      {error && (
-        <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
-          {error}
-        </div>
-      )}
-      {success && (
-        <div className="rounded-md bg-green-50 px-4 py-3 text-sm text-green-700" role="status">
-          {success}
-        </div>
-      )}
     </div>
   );
 }

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/modal";
-import { Button, Input, Select, Textarea, FormGroup } from "@/components/ui/form-field";
+import { Button, Input, Select, Textarea, FormGroup, FormActions } from "@/components/ui/form-field";
+import { useToast } from "@/components/ui/toast";
 import { formatCurrency } from "@/lib/utils";
 import { apiErrorMessage, localDateInputValue } from "@/components/finance/invoice-status";
 
@@ -21,8 +22,8 @@ interface Props {
 
 export function RecordPaymentModal({ open, onOpenChange, invoice }: Props) {
   const router = useRouter();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const totalPaid = invoice.payments.reduce((sum, p) => sum + Number(p.amount), 0);
   const remaining = Number(invoice.amount) - totalPaid;
@@ -30,7 +31,6 @@ export function RecordPaymentModal({ open, onOpenChange, invoice }: Props) {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     const form = new FormData(e.currentTarget);
 
@@ -51,19 +51,21 @@ export function RecordPaymentModal({ open, onOpenChange, invoice }: Props) {
         body: JSON.stringify(body),
       });
     } catch {
-      setError("Network error — payment not recorded");
+      toast({ title: "Network error — payment not recorded", variant: "error" });
       setLoading(false);
       return;
     }
 
     if (!res.ok) {
       const data = await res.json().catch(() => null);
-      setError(apiErrorMessage(data, "Failed to record payment"));
+      toast({ title: apiErrorMessage(data, "Failed to record payment"), variant: "error" });
       setLoading(false);
       return;
     }
 
+    setLoading(false);
     onOpenChange(false);
+    toast({ title: "Payment recorded", variant: "success" });
     router.refresh();
   }
 
@@ -75,11 +77,7 @@ export function RecordPaymentModal({ open, onOpenChange, invoice }: Props) {
       description={`Invoice ${invoice.invoiceNumber} · ${invoice.client.name} · Remaining: ${formatCurrency(remaining)}`}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && (
-          <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
-        )}
-
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <FormGroup label="Amount ($)" htmlFor="pay-amount" required>
             <Input
               id="pay-amount"
@@ -96,7 +94,7 @@ export function RecordPaymentModal({ open, onOpenChange, invoice }: Props) {
           </FormGroup>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <FormGroup label="Payment Method" htmlFor="pay-method" required>
             <Select id="pay-method" name="method" required>
               <option value="">Select...</option>
@@ -116,14 +114,14 @@ export function RecordPaymentModal({ open, onOpenChange, invoice }: Props) {
           <Textarea id="pay-notes" name="notes" rows={2} placeholder="Optional notes..." />
         </FormGroup>
 
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={loading}>
-            {loading ? "Recording..." : "Record Payment"}
-          </Button>
+        <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-        </div>
+          <Button type="submit" loading={loading}>
+            Record Payment
+          </Button>
+        </FormActions>
       </form>
     </Modal>
   );

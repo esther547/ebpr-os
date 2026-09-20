@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/modal";
-import { Button, Input, Select, Textarea, FormGroup } from "@/components/ui/form-field";
+import { Button, Input, Select, Textarea, FormGroup, FormActions } from "@/components/ui/form-field";
+import { useToast } from "@/components/ui/toast";
 import { apiErrorMessage } from "@/components/finance/invoice-status";
 
 interface Props {
@@ -14,13 +15,12 @@ interface Props {
 
 export function CreateContractModal({ open, onOpenChange, clients }: Props) {
   const router = useRouter();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     const form = new FormData(e.currentTarget);
 
@@ -41,30 +41,27 @@ export function CreateContractModal({ open, onOpenChange, clients }: Props) {
         body: JSON.stringify(body),
       });
     } catch {
-      setError("Network error — contract not created");
+      toast({ title: "Network error — contract not created", variant: "error" });
       setLoading(false);
       return;
     }
 
     if (!res.ok) {
       const data = await res.json().catch(() => null);
-      setError(apiErrorMessage(data, "Failed to create contract"));
+      toast({ title: apiErrorMessage(data, "Failed to create contract"), variant: "error" });
       setLoading(false);
       return;
     }
 
     setLoading(false);
     onOpenChange(false);
+    toast({ title: "Contract created", variant: "success" });
     router.refresh();
   }
 
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="New Contract" description="Create a contract for a client">
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && (
-          <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
-        )}
-
         <FormGroup label="Client" htmlFor="ct-client" required>
           <Select id="ct-client" name="clientId" required>
             <option value="">Select client...</option>
@@ -78,7 +75,7 @@ export function CreateContractModal({ open, onOpenChange, clients }: Props) {
           <Input id="ct-title" name="title" placeholder="e.g., 2026 PR Retainer" required autoFocus />
         </FormGroup>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <FormGroup label="Start Date" htmlFor="ct-start">
             <Input id="ct-start" name="startDate" type="date" />
           </FormGroup>
@@ -95,14 +92,14 @@ export function CreateContractModal({ open, onOpenChange, clients }: Props) {
           <Textarea id="ct-notes" name="notes" rows={3} placeholder="Internal notes about this contract..." />
         </FormGroup>
 
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={loading}>
-            {loading ? "Creating..." : "Create Contract"}
-          </Button>
+        <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-        </div>
+          <Button type="submit" loading={loading}>
+            Create Contract
+          </Button>
+        </FormActions>
       </form>
     </Modal>
   );

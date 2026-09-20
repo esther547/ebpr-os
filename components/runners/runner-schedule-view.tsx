@@ -1,7 +1,12 @@
 "use client";
 
+import { useState } from "react";
+import { CalendarX2, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { addDaysKey, formatDayKey } from "@/components/runners/miami-time";
+import { addDaysKey, formatDayKey, formatInTz } from "@/components/runners/miami-time";
+import { Badge, statusTone, humanize } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type Runner = { id: string; name: string; avatar: string | null };
 
@@ -29,13 +34,17 @@ type Props = {
 };
 
 const WEEK_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const TIME: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
 
-const STATUS_STYLES: Record<string, string> = {
-  SCHEDULED: "bg-blue-50 text-blue-700 border-blue-100",
-  CONFIRMED: "bg-green-50 text-green-700 border-green-100",
-  COMPLETED: "bg-surface-2 text-ink-secondary border-border",
-  CANCELLED: "bg-red-50 text-red-600 border-red-100",
-};
+/** Up to two initials. */
+function initials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0].toUpperCase())
+    .join("");
+}
 
 export function RunnerScheduleView({
   assignments,
@@ -43,110 +52,171 @@ export function RunnerScheduleView({
   weekStartKey,
   todayKey,
 }: Props) {
+  const [runnerFilter, setRunnerFilter] = useState<string>("ALL");
+
   const days = WEEK_DAYS.map((label, i) => ({
     label,
     key: addDaysKey(weekStartKey, i),
   }));
 
+  const visible =
+    runnerFilter === "ALL"
+      ? assignments
+      : assignments.filter((a) => a.runnerId === runnerFilter);
+
   return (
-    <div>
-      {/* Week label */}
-      <p className="mb-4 text-sm text-ink-muted">
-        Week of{" "}
-        <span className="font-medium text-ink-primary">
-          {formatDayKey(weekStartKey, "MMMM d, yyyy")}
-        </span>
-      </p>
+    <div className="space-y-4">
+      {/* Week label + runner filter */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-ink-muted">
+          Week of{" "}
+          <span className="font-medium text-ink-primary">
+            {formatDayKey(weekStartKey, "MMMM d, yyyy")}
+          </span>
+        </p>
 
-      {/* Calendar grid */}
-      <div className="overflow-hidden rounded-lg border border-border bg-white">
-        {/* Header row */}
-        <div className="grid grid-cols-7 border-b border-border">
-          {days.map(({ label, key }) => (
-            <div
-              key={label}
-              className={cn(
-                "px-3 py-3 text-center border-r border-border last:border-r-0",
-                key === todayKey && "bg-surface-2"
-              )}
+        {runners.length > 0 && (
+          <div className="no-scrollbar -mx-1 flex gap-1 overflow-x-auto px-1">
+            <FilterChip
+              active={runnerFilter === "ALL"}
+              onClick={() => setRunnerFilter("ALL")}
             >
-              <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-                {label}
-              </p>
-              <p
-                className={cn(
-                  "mt-0.5 text-sm font-medium",
-                  key === todayKey ? "text-ink-primary" : "text-ink-secondary"
-                )}
+              All runners
+            </FilterChip>
+            {runners.map((r) => (
+              <FilterChip
+                key={r.id}
+                active={runnerFilter === r.id}
+                onClick={() => setRunnerFilter(r.id)}
               >
-                {formatDayKey(key, "d")}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {/* Runner rows */}
-        {runners.map((runner) => (
-          <div
-            key={runner.id}
-            className="grid grid-cols-7 border-b border-border last:border-b-0 min-h-[80px]"
-          >
-            {days.map(({ key }, i) => {
-              const dayAssignments = assignments.filter(
-                (a) => a.runnerId === runner.id && a.dayKey === key
-              );
-
-              return (
-                <div
-                  key={i}
-                  className={cn(
-                    "p-2 border-r border-border last:border-r-0 relative",
-                    key === todayKey && "bg-surface-1"
-                  )}
-                >
-                  {/* Runner name (only first column) */}
-                  {i === 0 && (
-                    <p className="text-xs font-medium text-ink-primary mb-1.5 truncate">
-                      {runner.name.split(" ")[0]}
-                    </p>
-                  )}
-                  {dayAssignments.map((a) => (
-                    <div
-                      key={a.id}
-                      title={`${a.eventName}${a.venueName ? ` · ${a.venueName}` : ""}`}
-                      className={cn(
-                        "rounded border px-2 py-1 text-xs mb-1",
-                        STATUS_STYLES[a.status] ?? "bg-surface-2 text-ink-secondary border-border"
-                      )}
-                    >
-                      <p className="font-medium truncate">{a.eventName}</p>
-                      {(a.location || a.venueName) && (
-                        <p className="truncate opacity-80">{a.location || a.venueName}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-        ))}
-
-        {runners.length === 0 && (
-          <div className="py-16 text-center text-sm text-ink-muted">
-            No runners in the system yet.
+                {r.name.split(" ")[0]}
+              </FilterChip>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Legend */}
-      <div className="mt-4 flex items-center gap-4 text-xs text-ink-muted">
-        {Object.entries(STATUS_STYLES).map(([status, styles]) => (
-          <div key={status} className="flex items-center gap-1.5">
-            <div className={cn("h-2.5 w-2.5 rounded-sm border", styles)} />
-            <span className="capitalize">{status.toLowerCase()}</span>
-          </div>
-        ))}
-      </div>
+      {runners.length === 0 ? (
+        <EmptyState
+          icon={<CalendarX2 />}
+          title="No runners yet"
+          description="Add a runner to start building the weekly schedule."
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+          {days.map(({ label, key }) => {
+            const dayAssignments = visible
+              .filter((a) => a.dayKey === key)
+              .sort((a, b) => a.eventDate.localeCompare(b.eventDate));
+            const isToday = key === todayKey;
+
+            return (
+              <Card
+                key={key}
+                padding="none"
+                className={cn(
+                  "flex min-h-[160px] flex-col overflow-hidden",
+                  isToday && "border-ink-primary ring-1 ring-ink-primary/10"
+                )}
+              >
+                <div
+                  className={cn(
+                    "flex items-baseline justify-between gap-2 border-b border-border px-3 py-2",
+                    isToday ? "bg-ink-primary text-ink-inverted" : "bg-surface-2"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "text-2xs font-semibold uppercase tracking-[0.14em]",
+                      isToday ? "text-ink-inverted" : "text-ink-muted"
+                    )}
+                  >
+                    {label}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-sm font-semibold tabular",
+                      isToday ? "text-ink-inverted" : "text-ink-primary"
+                    )}
+                  >
+                    {formatDayKey(key, "d")}
+                  </span>
+                </div>
+
+                <div className="flex flex-1 flex-col gap-2 p-2">
+                  {dayAssignments.length === 0 ? (
+                    <p className="py-4 text-center text-2xs text-ink-muted">No assignments</p>
+                  ) : (
+                    dayAssignments.map((a) => (
+                      <div
+                        key={a.id}
+                        className="rounded-lg border border-border bg-surface-1 p-2 transition-colors hover:border-border-strong hover:bg-white"
+                      >
+                        <div className="mb-1 flex items-center justify-between gap-1.5">
+                          <span className="text-2xs font-semibold tabular text-ink-secondary">
+                            {formatInTz(a.eventDate, TIME)}
+                          </span>
+                          <Badge tone={statusTone(a.status)} size="xs">
+                            {humanize(a.status)}
+                          </Badge>
+                        </div>
+
+                        <p className="truncate text-xs font-medium text-ink-primary" title={a.eventName}>
+                          {a.eventName}
+                        </p>
+
+                        {(a.venueName || a.location) && (
+                          <p className="mt-0.5 flex items-center gap-1 truncate text-2xs text-ink-muted">
+                            <MapPin className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{a.venueName || a.location}</span>
+                          </p>
+                        )}
+
+                        {a.runner && (
+                          <div className="mt-1.5 flex items-center gap-1.5">
+                            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[9px] font-semibold text-ink-secondary">
+                              {initials(a.runner.name)}
+                            </span>
+                            <span className="truncate text-2xs text-ink-secondary">
+                              {a.runner.name.split(" ")[0]}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
+  );
+}
+
+function FilterChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "h-8 shrink-0 rounded-lg border px-3 text-xs font-medium transition-colors",
+        active
+          ? "border-ink-primary bg-ink-primary text-ink-inverted"
+          : "border-border bg-white text-ink-secondary hover:border-border-strong hover:bg-surface-2"
+      )}
+    >
+      {children}
+    </button>
   );
 }

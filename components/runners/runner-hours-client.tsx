@@ -2,9 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, FormGroup } from "@/components/ui/form-field";
+import { Clock, Plus } from "lucide-react";
+import { Button, Input, FormGroup, FormActions } from "@/components/ui/form-field";
 import { Modal } from "@/components/ui/modal";
-import { Clock } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { StatTile } from "@/components/ui/stat-tile";
+import { Table, Th, Td } from "@/components/ui/table";
+import { SectionHeader } from "@/components/layout/header";
+import { useToast } from "@/components/ui/toast";
 import { formatDayKey } from "@/components/runners/miami-time";
 
 type HourEntry = {
@@ -30,42 +35,57 @@ export function RunnerHoursClient({
   const [showAdd, setShowAdd] = useState(false);
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg border border-border bg-white px-4 py-3">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-ink-muted" />
-              <span className="text-2xl font-bold text-ink-primary">{totalHours}h</span>
-            </div>
-            <p className="text-xs text-ink-muted mt-0.5">This month</p>
-          </div>
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <StatTile
+          label="Hours this month"
+          value={`${totalHours}h`}
+          hint={`${hours.length} entr${hours.length === 1 ? "y" : "ies"} logged`}
+          icon={<Clock />}
+        />
+        <div className="flex items-center sm:justify-end">
+          <Button
+            size="lg"
+            onClick={() => setShowAdd(true)}
+            leftIcon={<Plus className="h-4 w-4" />}
+            className="h-12 w-full sm:h-10 sm:w-auto"
+          >
+            Log Hours
+          </Button>
         </div>
-        <Button onClick={() => setShowAdd(true)} size="sm">+ Log Hours</Button>
       </div>
 
       {hours.length > 0 && (
-        <div className="rounded-lg border border-border bg-white overflow-hidden mb-4">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-surface-1">
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Date</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Hours</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Job</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Description</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {hours.map((h) => (
-                <tr key={h.id}>
-                  <td className="px-4 py-3 text-ink-secondary">{formatDayKey(h.dayKey, "MMM d, yyyy")}</td>
-                  <td className="px-4 py-3 font-medium text-ink-primary">{h.hours}h</td>
-                  <td className="px-4 py-3 text-ink-secondary">{h.clientName || "—"}</td>
-                  <td className="px-4 py-3 text-ink-muted">{h.description || "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div>
+          <SectionHeader title="Logged hours" />
+          <Card padding="none" className="overflow-hidden">
+            <div className="overflow-auto">
+              <Table className="min-w-[520px]">
+                <thead>
+                  <tr>
+                    <Th>Date</Th>
+                    <Th align="right">Hours</Th>
+                    <Th>Job</Th>
+                    <Th>Description</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {hours.map((h) => (
+                    <tr key={h.id}>
+                      <Td className="whitespace-nowrap text-ink-secondary">
+                        {formatDayKey(h.dayKey, "MMM d, yyyy")}
+                      </Td>
+                      <Td align="right" numeric className="font-medium">
+                        {h.hours}h
+                      </Td>
+                      <Td className="text-ink-secondary">{h.clientName || "—"}</Td>
+                      <Td className="text-ink-muted">{h.description || "—"}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
+          </Card>
         </div>
       )}
 
@@ -84,18 +104,17 @@ function LogHoursModal({
   todayKey: string;
 }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     const form = new FormData(e.currentTarget);
     const hoursValue = parseFloat(form.get("hours") as string);
     if (!Number.isFinite(hoursValue) || hoursValue <= 0) {
-      setError("Please enter a valid number of hours");
+      toast({ title: "Please enter a valid number of hours", variant: "error" });
       setLoading(false);
       return;
     }
@@ -116,22 +135,25 @@ function LogHoursModal({
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         const err = data?.error;
-        setError(
-          typeof err === "string"
-            ? err
-            : err && typeof err === "object"
-              ? Object.values(err as Record<string, string[]>).flat().join(", ")
-              : "Failed to log hours"
-        );
+        toast({
+          title:
+            typeof err === "string"
+              ? err
+              : err && typeof err === "object"
+                ? Object.values(err as Record<string, string[]>).flat().join(", ")
+                : "Failed to log hours",
+          variant: "error",
+        });
         setLoading(false);
         return;
       }
 
       onOpenChange(false);
       setLoading(false);
+      toast({ title: "Hours logged", variant: "success" });
       router.refresh();
     } catch {
-      setError("Network error — please try again");
+      toast({ title: "Network error — please try again", variant: "error" });
       setLoading(false);
     }
   }
@@ -139,14 +161,22 @@ function LogHoursModal({
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Log Hours" description="Record hours for a job">
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormGroup label="Date" htmlFor="rh-date" required>
             <Input id="rh-date" name="date" type="date" required defaultValue={todayKey} max={todayKey} />
           </FormGroup>
           <FormGroup label="Hours" htmlFor="rh-hours" required>
-            <Input id="rh-hours" name="hours" type="number" step="0.25" min="0.25" max="24" required placeholder="e.g., 3.5" />
+            <Input
+              id="rh-hours"
+              name="hours"
+              type="number"
+              inputMode="decimal"
+              step="0.25"
+              min="0.25"
+              max="24"
+              required
+              placeholder="e.g., 3.5"
+            />
           </FormGroup>
         </div>
 
@@ -158,14 +188,14 @@ function LogHoursModal({
           <Input id="rh-desc" name="description" placeholder="What did you do?" />
         </FormGroup>
 
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={loading}>
-            {loading ? "Saving..." : "Log Hours"}
-          </Button>
+        <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-        </div>
+          <Button type="submit" loading={loading}>
+            Log Hours
+          </Button>
+        </FormActions>
       </form>
     </Modal>
   );

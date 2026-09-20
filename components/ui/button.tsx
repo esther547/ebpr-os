@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef } from "react";
-import { Slot } from "@radix-ui/react-slot";
+import { Slot, Slottable } from "@radix-ui/react-slot";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -57,7 +57,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         {...props}
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : leftIcon}
-        {children}
+        {asChild ? <Slottable>{children}</Slottable> : children}
         {!loading && rightIcon}
       </Comp>
     );

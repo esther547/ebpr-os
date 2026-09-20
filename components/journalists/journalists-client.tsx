@@ -3,9 +3,30 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/form-field";
-import { Modal } from "@/components/ui/modal";
-import { Input, Select, Textarea, FormGroup } from "@/components/ui/form-field";
-import { Search, Upload } from "lucide-react";
+import { Modal, ConfirmModal } from "@/components/ui/modal";
+import { Input, Select, Textarea, FormGroup, FormActions } from "@/components/ui/form-field";
+import { Card } from "@/components/ui/card";
+import { TableWrap, Table, Th, Td } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { useToast } from "@/components/ui/toast";
+import {
+  DropdownMenu,
+  DropdownMenuDots,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  Search,
+  Upload,
+  Plus,
+  Pencil,
+  Trash2,
+  Users,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 
 type Journalist = {
   id: string;
@@ -54,11 +75,12 @@ export function JournalistsClient({
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [editing, setEditing] = useState<Journalist | null>(null);
+  const [removing, setRemoving] = useState<Journalist | null>(null);
   const [search, setSearch] = useState(initialSearch);
   const [beatFilter, setBeatFilter] = useState(initialBeat);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [rowError, setRowError] = useState<string | null>(null);
   const router = useRouter();
+  const { toast } = useToast();
   const firstRender = useRef(true);
 
   // Server-side filtering: push search/beat into the URL (debounced) and let the page re-query.
@@ -87,149 +109,199 @@ export function JournalistsClient({
   }
 
   async function remove(j: Journalist) {
-    if (!confirm(`Remove ${j.name} from the journalist list?`)) return;
     setBusyId(j.id);
-    setRowError(null);
     const res = await fetch(`/api/journalists/${j.id}`, { method: "DELETE" }).catch(() => null);
     if (!res || !res.ok) {
-      setRowError(res ? await readError(res, "Failed to remove journalist") : "Network error");
+      toast({
+        title: "Could not remove journalist",
+        description: res ? await readError(res, "Failed to remove journalist") : "Network error",
+        variant: "error",
+      });
       setBusyId(null);
-      return;
+      return false;
     }
     setBusyId(null);
+    toast({ title: `${j.name} removed`, variant: "success" });
     router.refresh();
+    return true;
   }
 
   const totalPages = Math.max(1, Math.ceil(matching / pageSize));
   const from = matching === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, matching);
+  const isFiltered = !!(search || beatFilter);
 
   return (
-    <>
-      {/* Search & Filter Bar */}
-      <div className="flex items-center gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-muted" />
-          <input
-            type="text"
-            placeholder="Search name, email, outlet, city..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-md border border-border bg-white pl-10 pr-4 py-2 text-sm text-ink-primary placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-ink-primary/20"
-          />
-        </div>
-        {beats.length > 0 && (
-          <select
-            value={beatFilter}
-            onChange={(e) => setBeatFilter(e.target.value)}
-            className="rounded-md border border-border bg-white px-3 py-2 text-sm"
-          >
-            <option value="">All Beats</option>
-            {beats.map((b) => (
-              <option key={b} value={b}>{b}</option>
-            ))}
-          </select>
-        )}
-        <Button onClick={() => setShowImport(true)} size="sm" variant="secondary">
-          <Upload className="h-3.5 w-3.5" /> Import CSV
-        </Button>
-        <Button onClick={() => setShowAdd(true)} size="sm">+ Add Journalist</Button>
-      </div>
-
-      {rowError && (
-        <div className="mb-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{rowError}</div>
-      )}
-
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-xs text-ink-muted">
-          {search || beatFilter
-            ? `${matching} match${matching === 1 ? "" : "es"} of ${total} contacts`
-            : `${total} contacts`}
-          {matching > pageSize ? ` · showing ${from}–${to}` : ""}
-        </p>
-        {totalPages > 1 && (
-          <div className="flex items-center gap-2 text-xs">
-            <button
-              onClick={() => goToPage(page - 1)}
-              disabled={page <= 1}
-              className="rounded border border-border px-2 py-1 disabled:opacity-40 hover:bg-surface-1"
-            >
-              Prev
-            </button>
-            <span className="text-ink-muted">Page {page} of {totalPages}</span>
-            <button
-              onClick={() => goToPage(page + 1)}
-              disabled={page >= totalPages}
-              className="rounded border border-border px-2 py-1 disabled:opacity-40 hover:bg-surface-1"
-            >
-              Next
-            </button>
+    <div className="space-y-6">
+      {/* Toolbar */}
+      <Card padding="sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
+            <Input
+              type="search"
+              placeholder="Search name, email, outlet, city..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+              aria-label="Search journalists"
+            />
           </div>
-        )}
-      </div>
-
-      {/* Table */}
-      <div className="rounded-lg border border-border bg-white overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-surface-1">
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Name</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Email</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Outlet</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Beat</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Location</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {journalists.map((j) => (
-              <tr key={j.id} className="hover:bg-surface-1 transition-colors">
-                <td className="px-5 py-4 font-medium text-ink-primary">
-                  {j.name}
-                  {j.tags.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {j.tags.map((t) => (
-                        <span key={t} className="rounded bg-surface-2 px-1.5 py-0.5 text-2xs font-medium text-ink-secondary">{t}</span>
-                      ))}
-                    </div>
-                  )}
-                </td>
-                <td className="px-5 py-4 text-ink-secondary">{j.email}</td>
-                <td className="px-5 py-4 text-ink-secondary">{j.outlet || "—"}</td>
-                <td className="px-5 py-4">
-                  {j.beat ? (
-                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">{j.beat}</span>
-                  ) : "—"}
-                </td>
-                <td className="px-5 py-4 text-ink-muted">{[j.city, j.country].filter(Boolean).join(", ") || "—"}</td>
-                <td className="px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <button onClick={() => setEditing(j)} className="text-xs text-blue-600 hover:underline">
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => remove(j)}
-                      disabled={busyId === j.id}
-                      className="text-xs text-red-600 hover:underline disabled:opacity-40"
-                    >
-                      {busyId === j.id ? "Removing..." : "Remove"}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {journalists.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-5 py-12 text-center text-ink-muted">
-                  {search || beatFilter
-                    ? "No journalists match your search."
-                    : "No journalists yet. Add one or import a CSV."}
-                </td>
-              </tr>
+          <div className="flex flex-wrap items-center gap-2">
+            {beats.length > 0 && (
+              <Select
+                value={beatFilter}
+                onChange={(e) => setBeatFilter(e.target.value)}
+                aria-label="Filter by beat"
+                className="w-auto min-w-[140px]"
+              >
+                <option value="">All beats</option>
+                {beats.map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </Select>
             )}
-          </tbody>
-        </table>
-      </div>
+            <Button
+              onClick={() => setShowImport(true)}
+              variant="secondary"
+              leftIcon={<Upload className="h-4 w-4" />}
+            >
+              Import CSV
+            </Button>
+            <Button onClick={() => setShowAdd(true)} leftIcon={<Plus className="h-4 w-4" />}>
+              Add Journalist
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {journalists.length === 0 ? (
+        <EmptyState
+          icon={<Users />}
+          title={isFiltered ? "No journalists match your search" : "No journalists yet"}
+          description={
+            isFiltered
+              ? "Try a different name, outlet or beat — or clear the filters."
+              : "Add a contact by hand, or import your existing media list from a CSV."
+          }
+          action={
+            isFiltered ? (
+              <Button
+                variant="secondary"
+                onClick={() => { setSearch(""); setBeatFilter(""); }}
+              >
+                Clear filters
+              </Button>
+            ) : (
+              <Button onClick={() => setShowImport(true)} leftIcon={<Upload className="h-4 w-4" />}>
+                Import CSV
+              </Button>
+            )
+          }
+        />
+      ) : (
+        <Card padding="none" className="overflow-hidden">
+          <TableWrap className="rounded-none border-0 shadow-none">
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Name</Th>
+                  <Th>Email</Th>
+                  <Th>Outlet</Th>
+                  <Th>Beat</Th>
+                  <Th>Location</Th>
+                  <Th align="right"><span className="sr-only">Actions</span></Th>
+                </tr>
+              </thead>
+              <tbody>
+                {journalists.map((j) => {
+                  const busy = busyId === j.id;
+                  return (
+                    <tr key={j.id}>
+                      <Td>
+                        <span className="font-medium text-ink-primary">{j.name}</span>
+                        {j.tags.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {j.tags.map((t) => (
+                              <Badge key={t} tone="outline" size="xs">{t}</Badge>
+                            ))}
+                          </div>
+                        )}
+                      </Td>
+                      <Td className="text-ink-secondary">{j.email}</Td>
+                      <Td className="text-ink-secondary">{j.outlet || "—"}</Td>
+                      <Td>
+                        {j.beat ? <Badge tone="info">{j.beat}</Badge> : <span className="text-ink-muted">—</span>}
+                      </Td>
+                      <Td className="text-ink-muted">
+                        {[j.city, j.country].filter(Boolean).join(", ") || "—"}
+                      </Td>
+                      <Td align="right">
+                        <div className="flex justify-end">
+                          <DropdownMenu>
+                            <DropdownMenuDots
+                              label={`Actions for ${j.name}`}
+                              className={busy ? "pointer-events-none opacity-50" : undefined}
+                            />
+                            <DropdownMenuContent>
+                              <DropdownMenuItem icon={<Pencil />} onSelect={() => setEditing(j)}>
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                icon={<Trash2 />}
+                                destructive
+                                disabled={busy}
+                                onSelect={() => setRemoving(j)}
+                              >
+                                {busy ? "Removing..." : "Remove"}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+          </TableWrap>
+
+          <div className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-ink-muted">
+              {isFiltered
+                ? `${matching} match${matching === 1 ? "" : "es"} of ${total} contacts`
+                : `${total} contacts`}
+              {matching > pageSize ? ` · showing ${from}–${to}` : ""}
+            </p>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => goToPage(page - 1)}
+                  disabled={page <= 1}
+                  leftIcon={<ChevronLeft className="h-3.5 w-3.5" />}
+                >
+                  Prev
+                </Button>
+                <span className="text-xs text-ink-muted tabular">
+                  Page {page} of {totalPages}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => goToPage(page + 1)}
+                  disabled={page >= totalPages}
+                  rightIcon={<ChevronRight className="h-3.5 w-3.5" />}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
 
       <JournalistFormModal open={showAdd} onOpenChange={setShowAdd} />
       {editing && (
@@ -240,7 +312,22 @@ export function JournalistsClient({
         />
       )}
       <ImportCsvModal open={showImport} onOpenChange={setShowImport} />
-    </>
+
+      <ConfirmModal
+        open={!!removing}
+        onOpenChange={(o) => { if (!o) setRemoving(null); }}
+        title={removing ? `Remove ${removing.name}?` : "Remove journalist?"}
+        description="They will be taken off the journalist list. You can add them again later."
+        confirmLabel="Remove"
+        destructive
+        loading={!!removing && busyId === removing.id}
+        onConfirm={async () => {
+          if (!removing) return;
+          const ok = await remove(removing);
+          if (ok) setRemoving(null);
+        }}
+      />
+    </div>
   );
 }
 
@@ -256,14 +343,13 @@ function JournalistFormModal({
   journalist?: Journalist;
 }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const isEdit = !!journalist;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     const form = new FormData(e.currentTarget);
     const str = (k: string) => String(form.get(k) ?? "").trim();
@@ -287,13 +373,20 @@ function JournalistFormModal({
     }).catch(() => null);
 
     if (!res || !res.ok) {
-      setError(res ? await readError(res, isEdit ? "Failed to save journalist" : "Failed to add journalist") : "Network error");
+      toast({
+        title: isEdit ? "Could not save journalist" : "Could not add journalist",
+        description: res
+          ? await readError(res, isEdit ? "Failed to save journalist" : "Failed to add journalist")
+          : "Network error",
+        variant: "error",
+      });
       setLoading(false);
       return;
     }
 
     setLoading(false);
     onOpenChange(false);
+    toast({ title: isEdit ? "Journalist updated" : "Journalist added", variant: "success" });
     router.refresh();
   }
 
@@ -303,11 +396,10 @@ function JournalistFormModal({
       onOpenChange={onOpenChange}
       title={isEdit ? "Edit Journalist" : "Add Journalist"}
       description={isEdit ? `Editing ${journalist!.name}` : "Add a new media contact"}
+      size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormGroup label="Name" htmlFor="j-name" required>
             <Input id="j-name" name="name" defaultValue={journalist?.name} required autoFocus />
           </FormGroup>
@@ -316,7 +408,7 @@ function JournalistFormModal({
           </FormGroup>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormGroup label="Outlet" htmlFor="j-outlet">
             <Input id="j-outlet" name="outlet" defaultValue={journalist?.outlet ?? ""} placeholder="e.g., People en Español" />
           </FormGroup>
@@ -325,7 +417,7 @@ function JournalistFormModal({
           </FormGroup>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <FormGroup label="City" htmlFor="j-city">
             <Input id="j-city" name="city" defaultValue={journalist?.city ?? ""} placeholder="Miami" />
           </FormGroup>
@@ -342,11 +434,16 @@ function JournalistFormModal({
           </FormGroup>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormGroup label="Phone" htmlFor="j-phone">
             <Input id="j-phone" name="phone" defaultValue={journalist?.phone ?? ""} />
           </FormGroup>
-          <FormGroup label="Tags (comma separated)" htmlFor="j-tags">
+          <FormGroup
+            label="Tags"
+            htmlFor="j-tags"
+            hint="comma separated"
+            description="Used to target press release distribution."
+          >
             <Input id="j-tags" name="tags" defaultValue={journalist?.tags.join(", ") ?? ""} placeholder="music, latin, tv" />
           </FormGroup>
         </div>
@@ -355,14 +452,14 @@ function JournalistFormModal({
           <Textarea id="j-notes" name="notes" rows={2} defaultValue={journalist?.notes ?? ""} />
         </FormGroup>
 
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={loading}>
-            {loading ? (isEdit ? "Saving..." : "Adding...") : isEdit ? "Save Changes" : "Add Journalist"}
-          </Button>
+        <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-        </div>
+          <Button type="submit" loading={loading}>
+            {isEdit ? "Save Changes" : "Add Journalist"}
+          </Button>
+        </FormActions>
       </form>
     </Modal>
   );
@@ -458,6 +555,7 @@ const IMPORT_CHUNK = 1000;
 
 function ImportCsvModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [fileName, setFileName] = useState<string | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -506,8 +604,10 @@ function ImportCsvModal({ open, onOpenChange }: { open: boolean; onOpenChange: (
         body: JSON.stringify(chunk),
       }).catch(() => null);
       if (!res || !res.ok) {
-        setError(res ? await readError(res, "Import failed") : "Network error");
+        const msg = res ? await readError(res, "Import failed") : "Network error";
+        setError(msg);
         setProgress(null);
+        toast({ title: "Import stopped", description: msg, variant: "error" });
         // Keep partial results visible
         setResult({ created, skipped, invalid, samples });
         router.refresh();
@@ -525,8 +625,15 @@ function ImportCsvModal({ open, onOpenChange }: { open: boolean; onOpenChange: (
 
     setProgress(null);
     setResult({ created, skipped, invalid, samples });
+    toast({
+      title: `Imported ${created.toLocaleString()} journalist${created === 1 ? "" : "s"}`,
+      description: skipped ? `${skipped.toLocaleString()} duplicate${skipped === 1 ? "" : "s"} skipped.` : undefined,
+      variant: "success",
+    });
     router.refresh();
   }
+
+  const pct = progress ? Math.round((progress.done / progress.total) * 100) : 0;
 
   return (
     <Modal
@@ -534,67 +641,101 @@ function ImportCsvModal({ open, onOpenChange }: { open: boolean; onOpenChange: (
       onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}
       title="Import Journalists from CSV"
       description="Header row with name, email and optionally outlet, beat, phone, city, country, language, notes, tags"
-    >
-      <div className="space-y-4">
-        <input
-          type="file"
-          accept=".csv,text/csv"
-          onChange={onFile}
-          className="block w-full text-sm text-ink-secondary file:mr-3 file:rounded-md file:border file:border-border file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-medium"
-        />
-
-        {parseError && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{parseError}</div>}
-        {error && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-
-        {rows.length > 0 && !result && (
-          <div className="rounded-md bg-surface-1 px-4 py-3 text-sm text-ink-secondary">
-            <p className="font-medium text-ink-primary">{fileName}</p>
-            <p>{rows.length.toLocaleString()} rows ready. Existing emails are skipped, not overwritten.</p>
-            <p className="mt-1 text-xs text-ink-muted">
-              Preview: {rows.slice(0, 3).map((r) => `${r.name} <${r.email}>`).join(" · ")}
-            </p>
-          </div>
-        )}
-
-        {progress && (
-          <div>
-            <div className="flex justify-between text-xs text-ink-muted mb-1">
-              <span>Importing...</span>
-              <span>{progress.done.toLocaleString()} / {progress.total.toLocaleString()}</span>
-            </div>
-            <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
-              <div className="h-full bg-ink-primary transition-all" style={{ width: `${(progress.done / progress.total) * 100}%` }} />
-            </div>
-          </div>
-        )}
-
-        {result && (
-          <div className="rounded-md bg-green-50 px-4 py-3 text-sm text-green-800">
-            <p className="font-medium">Imported {result.created.toLocaleString()} journalists</p>
-            <p className="text-xs mt-0.5">
-              {result.skipped.toLocaleString()} duplicate{result.skipped === 1 ? "" : "s"} skipped
-              {result.invalid ? ` · ${result.invalid.toLocaleString()} invalid row${result.invalid === 1 ? "" : "s"} ignored` : ""}
-            </p>
-            {result.samples.length > 0 && (
-              <ul className="mt-2 text-xs text-green-900/80 list-disc pl-4">
-                {result.samples.map((s) => <li key={s}>{s}</li>)}
-              </ul>
-            )}
-          </div>
-        )}
-
-        <div className="flex gap-3 pt-2">
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => { reset(); onOpenChange(false); }}
+            disabled={!!progress}
+          >
+            {result ? "Close" : "Cancel"}
+          </Button>
           {!result ? (
-            <Button onClick={runImport} disabled={rows.length === 0 || !!progress}>
+            <Button onClick={runImport} disabled={rows.length === 0} loading={!!progress}>
               {progress ? "Importing..." : `Import ${rows.length ? rows.length.toLocaleString() : ""}`.trim()}
             </Button>
           ) : (
             <Button onClick={() => { reset(); onOpenChange(false); }}>Done</Button>
           )}
-          <Button type="button" variant="secondary" onClick={() => { reset(); onOpenChange(false); }} disabled={!!progress}>
-            Cancel
-          </Button>
-        </div>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <FormGroup label="CSV file" htmlFor="csv-file">
+          <input
+            id="csv-file"
+            type="file"
+            accept=".csv,text/csv"
+            onChange={onFile}
+            className="block w-full cursor-pointer rounded-lg border border-border bg-white p-1.5 text-sm text-ink-secondary transition-colors hover:border-border-strong file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ink-primary"
+          />
+        </FormGroup>
+
+        {parseError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {parseError}
+          </div>
+        )}
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        {rows.length > 0 && !result && (
+          <Card padding="sm" className="shadow-none">
+            <div className="flex items-start justify-between gap-3">
+              <p className="min-w-0 truncate text-sm font-medium text-ink-primary">{fileName}</p>
+              <Badge tone="neutral">{rows.length.toLocaleString()} rows</Badge>
+            </div>
+            <p className="mt-1 text-xs text-ink-secondary">
+              Existing emails are skipped, not overwritten.
+            </p>
+            <p className="mt-2 text-xs text-ink-muted">
+              Preview: {rows.slice(0, 3).map((r) => `${r.name} <${r.email}>`).join(" · ")}
+            </p>
+          </Card>
+        )}
+
+        {progress && (
+          <div>
+            <div className="mb-1.5 flex items-center justify-between text-xs">
+              <span className="eyebrow">Importing</span>
+              <span className="text-ink-muted tabular">
+                {progress.done.toLocaleString()} / {progress.total.toLocaleString()} · {pct}%
+              </span>
+            </div>
+            <div
+              className="h-2 overflow-hidden rounded-full bg-surface-2"
+              role="progressbar"
+              aria-valuenow={pct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              <div className="h-full rounded-full bg-ink-primary transition-all duration-300" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        )}
+
+        {result && (
+          <Card padding="sm" className="shadow-none">
+            <p className="text-sm font-medium text-ink-primary">
+              Imported {result.created.toLocaleString()} journalist{result.created === 1 ? "" : "s"}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <Badge tone="neutral">{result.skipped.toLocaleString()} duplicate{result.skipped === 1 ? "" : "s"} skipped</Badge>
+              {result.invalid > 0 && (
+                <Badge tone="warning">{result.invalid.toLocaleString()} invalid row{result.invalid === 1 ? "" : "s"} ignored</Badge>
+              )}
+            </div>
+            {result.samples.length > 0 && (
+              <ul className="mt-3 list-disc space-y-0.5 pl-4 text-xs text-ink-muted">
+                {result.samples.map((s) => <li key={s}>{s}</li>)}
+              </ul>
+            )}
+          </Card>
+        )}
       </div>
     </Modal>
   );

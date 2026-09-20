@@ -1,7 +1,9 @@
 import { requireUser } from "@/lib/auth";
 import { canManageUsers } from "@/lib/permissions";
 import { PageHeader } from "@/components/layout/header";
-import { Calendar, DollarSign, MessageSquare, Mail, Link2, CheckCircle, XCircle } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Calendar, DollarSign, MessageSquare, Mail, Link2 } from "lucide-react";
 
 export const metadata = { title: "Integrations" };
 export const dynamic = "force-dynamic";
@@ -57,44 +59,54 @@ export default async function IntegrationsPage() {
     },
   ];
 
+  const connectedCount = integrations.filter((i) => i.connected).length;
+
   return (
     <>
-      <PageHeader title="Integrations" subtitle="Connect external services" />
+      <PageHeader
+        title="Integrations"
+        subtitle="Connect external services"
+        breadcrumbs={[{ label: "Settings", href: "/settings" }, { label: "Integrations" }]}
+        actions={
+          <Badge tone="neutral" size="md">
+            {connectedCount} of {integrations.length} connected
+          </Badge>
+        }
+      />
 
-      <div className="space-y-4">
+      <div className="space-y-6">
         {integrations.map((integration) => (
-          <div key={integration.name} className="rounded-lg border border-border bg-white p-6">
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 rounded-lg bg-surface-1 p-3 text-ink-muted">
+          <Card key={integration.name} padding="lg">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-ink-secondary">
                 {integration.icon}
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-ink-primary">{integration.name}</h3>
-                  {integration.connected ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
-                      <CheckCircle className="h-3 w-3" /> Connected
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
-                      <XCircle className="h-3 w-3" /> Not Connected
-                    </span>
-                  )}
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-sm font-semibold text-ink-primary">{integration.name}</h3>
+                  <Badge tone={integration.connected ? "success" : "neutral"} dot>
+                    {integration.connected ? "Connected" : "Not connected"}
+                  </Badge>
                 </div>
-                <p className="text-sm text-ink-secondary mt-1">{integration.description}</p>
+                <p className="mt-1 max-w-prose text-sm text-ink-secondary">{integration.description}</p>
                 {integration.instructions && (
-                  <pre className="mt-3 rounded-md bg-surface-1 px-3 py-2 text-xs text-ink-muted whitespace-pre-wrap font-mono">
-                    {integration.instructions}
-                  </pre>
+                  <>
+                    <p className="eyebrow mt-4">
+                      {integration.connected ? "Details" : "Setup steps"}
+                    </p>
+                    <pre className="mt-1.5 overflow-x-auto whitespace-pre-wrap rounded-lg border border-border bg-surface-1 px-3 py-2.5 font-mono text-xs leading-relaxed text-ink-secondary">
+                      {integration.instructions}
+                    </pre>
+                  </>
                 )}
                 {integration.details && (
-                  <p className="mt-2 text-xs text-ink-muted font-mono bg-surface-1 rounded px-2 py-1 inline-block">
+                  <p className="mt-2 overflow-x-auto rounded-lg border border-border bg-surface-1 px-3 py-2 font-mono text-xs text-ink-muted">
                     {integration.details}
                   </p>
                 )}
               </div>
             </div>
-          </div>
+          </Card>
         ))}
       </div>
     </>

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { PageHeader } from "@/components/layout/header";
+import { ClientHeader } from "@/components/clients/client-header";
 import { CampaignList } from "@/components/campaigns/campaign-list";
 
 type Props = { params: Promise<{ clientId: string }> };
@@ -15,7 +15,7 @@ export default async function CampaignsPage({ params }: Props) {
 
   const client = await db.client.findUnique({
     where: { id: clientId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, status: true, monthlyTarget: true, industry: true },
   });
   if (!client) notFound();
 
@@ -37,10 +37,7 @@ export default async function CampaignsPage({ params }: Props) {
 
   return (
     <>
-      <PageHeader
-        title="Campaigns"
-        subtitle={`${client.name} · ${campaigns.length} campaigns`}
-      />
+      <ClientHeader client={client} counts={{ campaigns: campaigns.length }} />
       <CampaignList campaigns={campaigns} clientId={clientId} teamMembers={teamMembers} />
     </>
   );

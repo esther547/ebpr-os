@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
-import { MapPin, Clock, User, FileText, Check, Briefcase } from "lucide-react";
+import { MapPin, Clock, User, FileText, Check, Briefcase, CalendarCheck } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
-import { Button, Textarea, FormGroup } from "@/components/ui/form-field";
+import { Button, Textarea, FormGroup, FormActions } from "@/components/ui/form-field";
+import { Card } from "@/components/ui/card";
+import { Badge, statusTone, humanize } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { useToast } from "@/components/ui/toast";
 import { addDaysKey, formatDayKey, formatInTz } from "@/components/runners/miami-time";
 
 export type ScheduleItem = {
@@ -28,12 +31,6 @@ export type ScheduleItem = {
   runner?: { id: string; name: string } | null;
 };
 
-const STATUS_STYLES: Record<string, string> = {
-  SCHEDULED: "bg-blue-50 text-blue-700",
-  CONFIRMED: "bg-green-50 text-green-700",
-  COMPLETED: "bg-surface-2 text-ink-muted",
-};
-
 const TIME: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
 
 export function MyScheduleView({
@@ -48,20 +45,10 @@ export function MyScheduleView({
   showRunner?: boolean;
 }) {
   const [completeAssignment, setCompleteAssignment] = useState<ScheduleItem | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
   const router = useRouter();
 
-  if (assignments.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 text-center">
-        <p className="text-lg font-medium text-ink-primary">No upcoming assignments</p>
-        <p className="mt-1 text-sm text-ink-muted">You&apos;re all caught up!</p>
-      </div>
-    );
-  }
-
   async function markCompleted(id: string, notes?: string): Promise<boolean> {
-    setError(null);
     try {
       const res = await fetch(`/api/runner-assignments/${id}/complete`, {
         method: "POST",
@@ -70,16 +57,30 @@ export function MyScheduleView({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(typeof data?.error === "string" ? data.error : "Could not mark as completed");
+        toast({
+          title: typeof data?.error === "string" ? data.error : "Could not mark as completed",
+          variant: "error",
+        });
         return false;
       }
       setCompleteAssignment(null);
+      toast({ title: "Marked as completed", variant: "success" });
       router.refresh();
       return true;
     } catch {
-      setError("Network error — please try again");
+      toast({ title: "Network error — please try again", variant: "error" });
       return false;
     }
+  }
+
+  if (assignments.length === 0) {
+    return (
+      <EmptyState
+        icon={<CalendarCheck />}
+        title="No upcoming assignments"
+        description="You're all caught up."
+      />
+    );
   }
 
   // Group by Miami calendar day (same key the server used)
@@ -93,78 +94,82 @@ export function MyScheduleView({
 
   return (
     <>
-      {error && (
-        <div className="mb-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
-      )}
       <div className="space-y-6">
         {Array.from(grouped.entries()).map(([dateKey, items]) => {
+          const isPast = dateKey < todayKey;
           const dayLabel =
             dateKey === todayKey
               ? "Today"
               : dateKey === tomorrowKey
                 ? "Tomorrow"
-                : dateKey < todayKey
-                  ? `${formatDayKey(dateKey, "EEEE, MMMM d")} · Pending completion`
-                  : formatDayKey(dateKey, "EEEE, MMMM d");
+                : formatDayKey(dateKey, "EEEE, MMMM d");
 
           return (
-            <div key={dateKey}>
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-                {dayLabel}
-              </h3>
+            <section key={dateKey}>
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <h3 className="eyebrow">{dayLabel}</h3>
+                {dateKey === todayKey && (
+                  <span className="text-2xs text-ink-muted">
+                    {formatDayKey(dateKey, "MMMM d")}
+                  </span>
+                )}
+                {isPast && <Badge tone="warning" size="xs">Pending completion</Badge>}
+              </div>
+
               <div className="space-y-3">
                 {items.map((a) => (
-                  <div
+                  <Card
                     key={a.id}
                     id={`assignment-${a.id}`}
-                    className="rounded-lg border border-border bg-white p-4 hover:shadow-sm transition-shadow"
+                    padding="sm"
+                    interactive
+                    className="sm:p-5"
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-medium text-ink-primary truncate">{a.eventName}</h4>
-                          <span className={cn("rounded-full px-2 py-0.5 text-2xs font-medium flex-shrink-0", STATUS_STYLES[a.status] || "bg-surface-2 text-ink-secondary")}>
-                            {a.status.charAt(0) + a.status.slice(1).toLowerCase()}
-                          </span>
+                        <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                          <h4 className="min-w-0 truncate text-base font-semibold text-ink-primary">
+                            {a.eventName}
+                          </h4>
+                          <Badge tone={statusTone(a.status)} dot>
+                            {humanize(a.status)}
+                          </Badge>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <div className="mb-3 flex flex-wrap items-center gap-1.5">
                           {a.clientName && (
-                            <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-2 py-0.5 text-2xs font-medium text-ink-primary">
+                            <Badge tone="outline" size="xs">
                               <Briefcase className="h-3 w-3 text-ink-muted" />
                               {a.clientName}
-                            </span>
+                            </Badge>
                           )}
                           {a.itemType && (
-                            <span className="inline-block rounded bg-surface-2 px-2 py-0.5 text-2xs font-medium text-ink-secondary">
-                              {a.itemType}
-                            </span>
+                            <Badge size="xs">{a.itemType}</Badge>
                           )}
                           {showRunner && a.runner && (
-                            <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-2 py-0.5 text-2xs font-medium text-ink-secondary">
+                            <Badge tone="outline" size="xs">
                               <User className="h-3 w-3 text-ink-muted" />
                               {a.runner.name}
-                            </span>
+                            </Badge>
                           )}
                         </div>
 
-                        <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-ink-secondary mt-1">
+                        <div className="flex flex-col gap-1.5 text-sm text-ink-secondary sm:flex-row sm:flex-wrap sm:gap-x-5">
                           <div className="flex items-center gap-1.5">
-                            <Clock className="h-3.5 w-3.5 text-ink-muted" />
-                            {a.arrivalTime && (
-                              <span>Arrive {formatInTz(a.arrivalTime, TIME)}</span>
-                            )}
+                            <Clock className="h-4 w-4 shrink-0 text-ink-muted" />
+                            {a.arrivalTime && <span>Arrive {formatInTz(a.arrivalTime, TIME)}</span>}
                             {a.eventTime ? (
-                              <span className="font-medium">
+                              <span className="font-medium text-ink-primary">
                                 {a.arrivalTime ? "· " : ""}On Air {formatInTz(a.eventTime, TIME)}
                               </span>
                             ) : !a.arrivalTime ? (
                               <span>{formatInTz(a.eventDate, TIME)}</span>
                             ) : null}
                           </div>
+
                           {(a.venueName || a.location) && (
-                            <div className="flex items-center gap-1.5">
-                              <MapPin className="h-3.5 w-3.5 text-ink-muted" />
+                            <div className="flex items-start gap-1.5">
+                              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted" />
                               <span>
                                 {a.venueName}
                                 {a.venueName && a.location ? " · " : ""}
@@ -172,44 +177,48 @@ export function MyScheduleView({
                               </span>
                             </div>
                           )}
+
                           {a.accompanistCount > 0 && (
                             <div className="flex items-center gap-1.5">
-                              <User className="h-3.5 w-3.5 text-ink-muted" />
-                              <span>{a.accompanistCount} accompanist{a.accompanistCount > 1 ? "s" : ""}</span>
+                              <User className="h-4 w-4 shrink-0 text-ink-muted" />
+                              <span>
+                                {a.accompanistCount} accompanist
+                                {a.accompanistCount > 1 ? "s" : ""}
+                              </span>
                             </div>
                           )}
                         </div>
 
                         {a.venueAddress && (
-                          <p className="text-xs text-ink-muted mt-1">{a.venueAddress}</p>
+                          <p className="mt-1.5 text-xs text-ink-muted">{a.venueAddress}</p>
                         )}
 
                         {a.notes && (
-                          <div className="flex items-start gap-1.5 mt-2 text-xs text-ink-secondary">
-                            <FileText className="h-3 w-3 text-ink-muted mt-0.5 flex-shrink-0" />
+                          <div className="mt-3 flex items-start gap-2 rounded-lg bg-surface-1 p-3 text-xs text-ink-secondary">
+                            <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-muted" />
                             <span className="whitespace-pre-line">{a.notes}</span>
                           </div>
                         )}
                       </div>
 
-                      {/* Action buttons for runners */}
+                      {/* Completion action */}
                       {a.status !== "COMPLETED" && a.status !== "CANCELLED" && (
-                        <div className="flex-shrink-0">
-                          <button
-                            type="button"
+                        <div className="shrink-0">
+                          <Button
+                            size="lg"
+                            leftIcon={<Check className="h-4 w-4" />}
                             onClick={() => setCompleteAssignment(a)}
-                            className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 transition-colors"
+                            className="w-full sm:w-auto"
                           >
-                            <Check className="h-3 w-3" />
-                            Complete
-                          </button>
+                            Mark complete
+                          </Button>
                         </div>
                       )}
                     </div>
-                  </div>
+                  </Card>
                 ))}
               </div>
-            </div>
+            </section>
           );
         })}
       </div>
@@ -218,7 +227,9 @@ export function MyScheduleView({
       {completeAssignment && (
         <CompleteModal
           open={!!completeAssignment}
-          onOpenChange={(o) => { if (!o) setCompleteAssignment(null); }}
+          onOpenChange={(o) => {
+            if (!o) setCompleteAssignment(null);
+          }}
           assignment={completeAssignment}
           onComplete={markCompleted}
         />
@@ -250,19 +261,29 @@ function CompleteModal({
   }
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Mark as Completed" description={assignment.eventName}>
+    <Modal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Mark as Completed"
+      description={assignment.eventName}
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <FormGroup label="Post-Event Notes (optional)" htmlFor="comp-notes">
-          <Textarea id="comp-notes" name="notes" rows={4} placeholder="Any feedback, issues, or wins from this event..." />
+        <FormGroup label="Post-event notes" htmlFor="comp-notes" hint="Optional">
+          <Textarea
+            id="comp-notes"
+            name="notes"
+            rows={4}
+            placeholder="Any feedback, issues, or wins from this event…"
+          />
         </FormGroup>
-        <div className="flex gap-3">
-          <Button type="submit" disabled={loading}>
-            {loading ? "Completing..." : "Mark Completed"}
-          </Button>
+        <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-        </div>
+          <Button type="submit" loading={loading} leftIcon={<Check className="h-4 w-4" />}>
+            Mark completed
+          </Button>
+        </FormActions>
       </form>
     </Modal>
   );

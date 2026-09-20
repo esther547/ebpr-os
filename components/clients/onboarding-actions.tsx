@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Select, Input, FormGroup } from "@/components/ui/form-field";
+import { Button, Select, Input, FormGroup, FormActions } from "@/components/ui/form-field";
+import { useToast } from "@/components/ui/toast";
 import { Modal } from "@/components/ui/modal";
 
 const STEPS = [
@@ -25,14 +26,13 @@ export function OnboardingActions({ clientId, status, kickoffDate }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const currentIdx = status ? STEPS.findIndex((s) => s.key === status) : -1;
   const next = currentIdx >= 0 && currentIdx < STEPS.length - 1 ? STEPS[currentIdx + 1] : null;
 
   async function save(body: Record<string, unknown>) {
     setLoading(true);
-    setError(null);
     try {
       const res = await fetch(`/api/onboarding/${clientId}`, {
         method: "PUT",
@@ -41,15 +41,20 @@ export function OnboardingActions({ clientId, status, kickoffDate }: Props) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(typeof data.error === "string" ? data.error : "Could not update onboarding");
+        toast({
+          title: "Could not update onboarding",
+          description: typeof data.error === "string" ? data.error : undefined,
+          variant: "error",
+        });
         setLoading(false);
         return false;
       }
       setLoading(false);
+      toast({ title: "Onboarding updated", variant: "success" });
       router.refresh();
       return true;
     } catch {
-      setError("Network error — could not reach the server");
+      toast({ title: "Network error", description: "Could not reach the server", variant: "error" });
       setLoading(false);
       return false;
     }
@@ -67,25 +72,22 @@ export function OnboardingActions({ clientId, status, kickoffDate }: Props) {
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2">
-        {error && <span className="text-xs text-red-600" role="alert">{error}</span>}
-        {status === null ? (
-          <Button onClick={() => save({ status: "KICKOFF_SCHEDULED" })} disabled={loading}>
-            {loading ? "Starting..." : "Start Onboarding"}
-          </Button>
-        ) : (
-          <>
-            {next && (
-              <Button onClick={() => save({ status: next.key })} disabled={loading}>
-                {loading ? "Saving..." : `Mark "${next.label}"`}
-              </Button>
-            )}
-            <Button variant="secondary" onClick={() => setOpen(true)}>
-              Edit Status
+      {status === null ? (
+        <Button size="sm" onClick={() => save({ status: "KICKOFF_SCHEDULED" })} loading={loading}>
+          Start Onboarding
+        </Button>
+      ) : (
+        <>
+          {next && (
+            <Button size="sm" onClick={() => save({ status: next.key })} loading={loading}>
+              Mark &ldquo;{next.label}&rdquo;
             </Button>
-          </>
-        )}
-      </div>
+          )}
+          <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
+            Edit Status
+          </Button>
+        </>
+      )}
 
       <Modal open={open} onOpenChange={setOpen} title="Edit Onboarding" description="Set the current step and kickoff date">
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -104,10 +106,14 @@ export function OnboardingActions({ clientId, status, kickoffDate }: Props) {
               defaultValue={kickoffDate ? new Date(kickoffDate).toISOString().slice(0, 10) : ""}
             />
           </FormGroup>
-          <div className="flex gap-3 pt-2">
-            <Button type="submit" disabled={loading}>{loading ? "Saving..." : "Save"}</Button>
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
-          </div>
+          <FormActions>
+            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={loading}>
+              Save
+            </Button>
+          </FormActions>
         </form>
       </Modal>
     </>

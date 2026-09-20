@@ -1,82 +1,64 @@
 import Link from "next/link";
-import { cn, formatDate } from "@/lib/utils";
-import type { ClientWithCounts } from "@/types";
+import { Card } from "@/components/ui/card";
+import { Badge, humanize, statusTone } from "@/components/ui/badge";
 
-const STATUS_STYLES = {
-  PROSPECT: "bg-surface-2 text-ink-secondary",
-  ACTIVE: "bg-green-50 text-green-700",
-  PAUSED: "bg-amber-50 text-amber-700",
-  CHURNED: "bg-red-50 text-red-600",
+export type ClientCardData = {
+  id: string;
+  name: string;
+  status: string;
+  industry: string | null;
+  onboardingStatus: string | null;
+  counts: { deliverables: number; campaigns: number; contracts: number };
 };
 
-const STATUS_LABELS = {
-  PROSPECT: "Prospect",
-  ACTIVE: "Active",
-  PAUSED: "Paused",
-  CHURNED: "Churned",
-};
+/** Two-letter monogram from the client name. */
+export function initials(name: string): string {
+  // Strip punctuation so names like "Ana Cisneros (SIMG)" don't yield "A(".
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .map((p) => p.replace(/[^\p{L}\p{N}]/gu, ""))
+    .filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
-type Props = { client: ClientWithCounts };
-
-export function ClientCard({ client }: Props) {
+export function ClientCard({ client }: { client: ClientCardData }) {
   return (
-    <Link
-      href={`/clients/${client.id}`}
-      className="group block rounded-lg border border-border bg-white p-5 hover:border-border-strong hover:shadow-sm transition-all"
-    >
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 mb-4">
-        <div className="min-w-0">
-          <h3 className="truncate font-semibold text-ink-primary group-hover:text-ink-primary">
-            {client.name}
-          </h3>
-          {client.industry && (
-            <p className="mt-0.5 text-sm text-ink-muted truncate">
-              {client.industry}
-            </p>
-          )}
-        </div>
-        <span
-          className={cn(
-            "flex-shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium",
-            STATUS_STYLES[client.status]
-          )}
-        >
-          {STATUS_LABELS[client.status]}
-        </span>
-      </div>
-
-      {/* Onboarding status */}
-      {client.onboarding && client.status === "PROSPECT" && (
-        <p className="mb-3 text-xs text-ink-muted">
-          Onboarding:{" "}
-          <span className="font-medium text-ink-secondary">
-            {client.onboarding.status.replace(/_/g, " ").toLowerCase()}
+    <Link href={`/clients/${client.id}`} className="group block rounded-xl">
+      <Card interactive className="h-full">
+        <div className="mb-4 flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-xs font-semibold text-ink-secondary ring-1 ring-inset ring-border">
+            {initials(client.name)}
           </span>
-        </p>
-      )}
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-sm font-semibold text-ink-primary">{client.name}</h3>
+            <p className="mt-0.5 truncate text-xs text-ink-muted">{client.industry || "No industry set"}</p>
+          </div>
+          <Badge tone={statusTone(client.status)} dot>
+            {humanize(client.status)}
+          </Badge>
+        </div>
 
-      {/* Stats */}
-      <div className="flex items-center gap-4 text-sm text-ink-muted">
-        <span>
-          <span className="font-semibold text-ink-primary">
-            {client._count.deliverables}
-          </span>{" "}
-          deliverables
-        </span>
-        <span>
-          <span className="font-semibold text-ink-primary">
-            {client._count.campaigns}
-          </span>{" "}
-          campaigns
-        </span>
-        <span>
-          <span className="font-semibold text-ink-primary">
-            {client._count.contracts}
-          </span>{" "}
-          contracts
-        </span>
-      </div>
+        {client.onboardingStatus && client.status === "PROSPECT" && (
+          <p className="mb-3 text-xs text-ink-muted">
+            Onboarding: <span className="font-medium text-ink-secondary">{humanize(client.onboardingStatus)}</span>
+          </p>
+        )}
+
+        <div className="flex items-center gap-4 border-t border-border pt-3 text-xs text-ink-muted">
+          <span>
+            <span className="tabular font-semibold text-ink-primary">{client.counts.deliverables}</span> deliverables
+          </span>
+          <span>
+            <span className="tabular font-semibold text-ink-primary">{client.counts.campaigns}</span> campaigns
+          </span>
+          <span>
+            <span className="tabular font-semibold text-ink-primary">{client.counts.contracts}</span> contracts
+          </span>
+        </div>
+      </Card>
     </Link>
   );
 }

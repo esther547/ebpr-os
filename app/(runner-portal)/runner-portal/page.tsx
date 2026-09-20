@@ -1,5 +1,7 @@
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { monthLabel } from "@/lib/utils";
+import { SectionHeader } from "@/components/layout/header";
 import { MyScheduleView } from "@/components/runners/my-schedule-view";
 import { RunnerHoursClient } from "@/components/runners/runner-hours-client";
 import {
@@ -59,24 +61,25 @@ export default async function RunnerPortalPage() {
   ).length;
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-ink-primary">My Schedule</h1>
-        <p className="text-sm text-ink-muted mt-1">
-          Welcome, {user.name} · {upcomingCount} upcoming · {totalHours}h this month
+    <div className="space-y-8">
+      <header>
+        <p className="eyebrow mb-1">{monthLabel(month, year)}</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink-primary">My Schedule</h1>
+        <p className="mt-1 text-sm text-ink-secondary">
+          Welcome, {user.name.split(" ")[0]} &middot;{" "}
+          <span className="tabular">{upcomingCount}</span> upcoming assignment
+          {upcomingCount === 1 ? "" : "s"}
         </p>
-      </div>
+      </header>
 
-      {/* Hours Tracking */}
+      {/* Hours tracking */}
       <RunnerHoursClient hours={hours} totalHours={totalHours} todayKey={todayKey} />
 
       {/* Schedule */}
-      <div className="mt-8">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-          Upcoming Assignments
-        </h2>
+      <section className="space-y-4">
+        <SectionHeader title="Upcoming assignments" className="mb-0" />
         <MyScheduleView assignments={assignments} todayKey={todayKey} />
-      </div>
+      </section>
     </div>
   );
 }

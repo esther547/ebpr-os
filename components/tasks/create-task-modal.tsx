@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/modal";
-import { Button, Input, Select, Textarea, FormGroup } from "@/components/ui/form-field";
+import { Button, Input, Select, Textarea, FormGroup, FormActions } from "@/components/ui/form-field";
+import { useToast } from "@/components/ui/toast";
 
 interface Props {
   open: boolean;
@@ -16,12 +17,11 @@ interface Props {
 export function CreateTaskModal({ open, onOpenChange, clientId, deliverableId, teamMembers }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     const form = new FormData(e.currentTarget);
 
@@ -43,22 +43,24 @@ export function CreateTaskModal({ open, onOpenChange, clientId, deliverableId, t
 
     if (!res.ok) {
       const data = await res.json();
-      setError(data.error || "Failed to create task");
+      toast({
+        title: "Failed to create task",
+        description: typeof data.error === "string" ? data.error : undefined,
+        variant: "error",
+      });
       setLoading(false);
       return;
     }
 
     onOpenChange(false);
+    setLoading(false);
+    toast({ title: "Task created", variant: "success" });
     router.refresh();
   }
 
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="New Task">
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && (
-          <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
-        )}
-
         <FormGroup label="Task Title" htmlFor="task-title" required>
           <Input id="task-title" name="title" placeholder="e.g., Draft media pitch" required autoFocus />
         </FormGroup>
@@ -67,7 +69,7 @@ export function CreateTaskModal({ open, onOpenChange, clientId, deliverableId, t
           <Textarea id="task-desc" name="description" rows={3} placeholder="Details..." />
         </FormGroup>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormGroup label="Priority" htmlFor="task-priority">
             <Select id="task-priority" name="priority" defaultValue="MEDIUM">
               <option value="LOW">Low</option>
@@ -91,14 +93,14 @@ export function CreateTaskModal({ open, onOpenChange, clientId, deliverableId, t
           </Select>
         </FormGroup>
 
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={loading}>
-            {loading ? "Creating..." : "Create Task"}
-          </Button>
+        <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-        </div>
+          <Button type="submit" loading={loading}>
+            Create Task
+          </Button>
+        </FormActions>
       </form>
     </Modal>
   );

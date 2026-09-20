@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/modal";
-import { Button, Input, Textarea, FormGroup } from "@/components/ui/form-field";
+import { Button, Input, Textarea, FormGroup, FormActions, type ButtonProps } from "@/components/ui/form-field";
+import { useToast } from "@/components/ui/toast";
 
 export type StrategyDocFormValues = {
   objective: string | null;
@@ -42,14 +43,13 @@ function dateValue(v: string | Date | null | undefined): string {
 export function StrategyDocumentModal({ open, onOpenChange, clientId, doc }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const keyMessages = Array.isArray(doc?.keyMessages) ? (doc!.keyMessages as string[]) : [];
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     const form = new FormData(e.currentTarget);
     const text = (name: string) => ((form.get(name) as string) ?? "").trim();
@@ -85,15 +85,20 @@ export function StrategyDocumentModal({ open, onOpenChange, clientId, doc }: Pro
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(typeof data.error === "string" ? data.error : "Failed to save strategy brief");
+        toast({
+          title: "Failed to save strategy brief",
+          description: typeof data.error === "string" ? data.error : undefined,
+          variant: "error",
+        });
         setLoading(false);
         return;
       }
       setLoading(false);
       onOpenChange(false);
+      toast({ title: "Strategy brief saved", variant: "success" });
       router.refresh();
     } catch {
-      setError("Network error — could not reach the server");
+      toast({ title: "Network error", description: "Could not reach the server", variant: "error" });
       setLoading(false);
     }
   }
@@ -107,9 +112,7 @@ export function StrategyDocumentModal({ open, onOpenChange, clientId, doc }: Pro
       size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormGroup label="Objetivo" htmlFor="sd-objective">
             <Textarea id="sd-objective" name="objective" rows={3} defaultValue={doc?.objective ?? ""} />
           </FormGroup>
@@ -118,7 +121,7 @@ export function StrategyDocumentModal({ open, onOpenChange, clientId, doc }: Pro
           </FormGroup>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormGroup label="Messaging" htmlFor="sd-messaging">
             <Textarea id="sd-messaging" name="messagingFramework" rows={2} defaultValue={doc?.messagingFramework ?? ""} />
           </FormGroup>
@@ -131,7 +134,7 @@ export function StrategyDocumentModal({ open, onOpenChange, clientId, doc }: Pro
           <Textarea id="sd-keymsgs" name="keyMessages" rows={3} defaultValue={keyMessages.join("\n")} />
         </FormGroup>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <FormGroup label="Fanbase / Audience" htmlFor="sd-audience">
             <Input id="sd-audience" name="targetAudience" defaultValue={doc?.targetAudience ?? ""} />
           </FormGroup>
@@ -143,7 +146,7 @@ export function StrategyDocumentModal({ open, onOpenChange, clientId, doc }: Pro
           </FormGroup>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <FormGroup label="Prep Month Start" htmlFor="sd-prep-start">
             <Input id="sd-prep-start" name="prepMonthStart" type="date" defaultValue={dateValue(doc?.prepMonthStart)} />
           </FormGroup>
@@ -155,8 +158,8 @@ export function StrategyDocumentModal({ open, onOpenChange, clientId, doc }: Pro
           </FormGroup>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-3 rounded-md border border-border p-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-3 rounded-lg border border-border p-3">
             <FormGroup label="Phase 1 Name" htmlFor="sd-p1">
               <Input id="sd-p1" name="phase1Name" defaultValue={doc?.phase1Name ?? ""} />
             </FormGroup>
@@ -169,7 +172,7 @@ export function StrategyDocumentModal({ open, onOpenChange, clientId, doc }: Pro
               </FormGroup>
             </div>
           </div>
-          <div className="space-y-3 rounded-md border border-border p-3">
+          <div className="space-y-3 rounded-lg border border-border p-3">
             <FormGroup label="Phase 2 Name" htmlFor="sd-p2">
               <Input id="sd-p2" name="phase2Name" defaultValue={doc?.phase2Name ?? ""} />
             </FormGroup>
@@ -188,14 +191,14 @@ export function StrategyDocumentModal({ open, onOpenChange, clientId, doc }: Pro
           <Textarea id="sd-exec" name="executionNotes" rows={3} defaultValue={doc?.executionNotes ?? ""} />
         </FormGroup>
 
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={loading}>
-            {loading ? "Saving..." : doc ? "Save Changes" : "Create Brief"}
-          </Button>
+        <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-        </div>
+          <Button type="submit" loading={loading}>
+            {doc ? "Save Changes" : "Create Brief"}
+          </Button>
+        </FormActions>
       </form>
     </Modal>
   );
@@ -207,18 +210,22 @@ export function StrategyDocumentEditButton({
   doc,
   className,
   children,
+  variant = "secondary",
+  size = "sm",
 }: {
   clientId: string;
   doc: StrategyDocFormValues | null;
   className?: string;
   children: React.ReactNode;
+  variant?: ButtonProps["variant"];
+  size?: ButtonProps["size"];
 }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={className}>
+      <Button type="button" variant={variant} size={size} className={className} onClick={() => setOpen(true)}>
         {children}
-      </button>
+      </Button>
       <StrategyDocumentModal open={open} onOpenChange={setOpen} clientId={clientId} doc={doc} />
     </>
   );

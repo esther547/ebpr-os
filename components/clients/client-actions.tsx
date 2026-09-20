@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, Select, FormGroup } from "@/components/ui/form-field";
+import { Button, Input, Select, FormGroup, FormActions } from "@/components/ui/form-field";
 import { Modal } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
 import { Settings2, Pause, Play } from "lucide-react";
 
 interface Props {
@@ -17,13 +18,12 @@ interface Props {
 export function ClientActions({ clientId, clientName, industry, monthlyTarget, status }: Props) {
   const [showEdit, setShowEdit] = useState(false);
   const [toggling, setToggling] = useState(false);
-  const [toggleError, setToggleError] = useState<string | null>(null);
   const router = useRouter();
+  const { toast } = useToast();
 
   async function toggleStatus() {
     const newStatus = status === "ACTIVE" ? "PAUSED" : "ACTIVE";
     setToggling(true);
-    setToggleError(null);
     try {
       const res = await fetch(`/api/clients/${clientId}`, {
         method: "PUT",
@@ -32,12 +32,20 @@ export function ClientActions({ clientId, clientName, industry, monthlyTarget, s
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setToggleError(typeof data.error === "string" ? data.error : "Could not change status");
+        toast({
+          title: "Could not change status",
+          description: typeof data.error === "string" ? data.error : undefined,
+          variant: "error",
+        });
         return;
       }
+      toast({
+        title: newStatus === "PAUSED" ? "Client paused" : "Client reactivated",
+        variant: "success",
+      });
       router.refresh();
     } catch {
-      setToggleError("Network error");
+      toast({ title: "Network error", description: "Could not reach the server", variant: "error" });
     } finally {
       setToggling(false);
     }
@@ -45,37 +53,38 @@ export function ClientActions({ clientId, clientName, industry, monthlyTarget, s
 
   return (
     <>
-      {toggleError && (
-        <span className="self-center text-xs text-red-600" role="alert">{toggleError}</span>
-      )}
-      <button
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={() => setShowEdit(true)}
-        className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-white px-3 text-sm font-medium text-ink-secondary hover:bg-surface-2 transition-colors"
+        leftIcon={<Settings2 className="h-3.5 w-3.5" />}
         title="Edit client settings"
       >
-        <Settings2 className="h-3.5 w-3.5" />
-      </button>
+        Edit
+      </Button>
 
       {status === "ACTIVE" ? (
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={toggleStatus}
-          disabled={toggling}
-          className="inline-flex h-9 items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 text-sm font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
+          loading={toggling}
+          leftIcon={<Pause className="h-3.5 w-3.5" />}
           title="Pause client"
         >
-          <Pause className="h-3.5 w-3.5" />
           Pause
-        </button>
+        </Button>
       ) : status === "PAUSED" ? (
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={toggleStatus}
-          disabled={toggling}
-          className="inline-flex h-9 items-center gap-1.5 rounded-md border border-green-200 bg-green-50 px-3 text-sm font-medium text-green-700 hover:bg-green-100 transition-colors disabled:opacity-50"
+          loading={toggling}
+          leftIcon={<Play className="h-3.5 w-3.5" />}
           title="Reactivate client"
         >
-          <Play className="h-3.5 w-3.5" />
           Reactivate
-        </button>
+        </Button>
       ) : null}
 
       <EditClientModal
@@ -110,12 +119,11 @@ function EditClientModal({
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     const form = new FormData(e.currentTarget);
     const body = {
@@ -134,16 +142,21 @@ function EditClientModal({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(typeof data.error === "string" ? data.error : "Failed to update client");
+        toast({
+          title: "Failed to update client",
+          description: typeof data.error === "string" ? data.error : undefined,
+          variant: "error",
+        });
         setLoading(false);
         return;
       }
 
       onOpenChange(false);
       setLoading(false);
+      toast({ title: "Client updated", variant: "success" });
       router.refresh();
     } catch {
-      setError("Network error — could not reach the server");
+      toast({ title: "Network error", description: "Could not reach the server", variant: "error" });
       setLoading(false);
     }
   }
@@ -151,8 +164,6 @@ function EditClientModal({
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Edit Client" description={clientName}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-
         <FormGroup label="Client Name" htmlFor="ec-name" required>
           <Input id="ec-name" name="name" defaultValue={clientName} required />
         </FormGroup>
@@ -183,14 +194,14 @@ function EditClientModal({
           </Select>
         </FormGroup>
 
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={loading}>
-            {loading ? "Saving..." : "Save Changes"}
-          </Button>
+        <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-        </div>
+          <Button type="submit" loading={loading}>
+            Save Changes
+          </Button>
+        </FormActions>
       </form>
     </Modal>
   );

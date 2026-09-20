@@ -12,7 +12,7 @@ export default async function FollowUpPage() {
   const user = await requireUser();
 
   if (!canViewFollowUp(user)) {
-    return <p className="text-ink-muted py-10 text-center">Access restricted.</p>;
+    return <p className="py-16 text-center text-sm text-ink-muted">Access restricted.</p>;
   }
 
   const now = new Date();
@@ -49,8 +49,9 @@ export default async function FollowUpPage() {
   return (
     <>
       <PageHeader
-        title="Follow-Up Payments & Contracts"
-        subtitle={`${overdueInvoices.length + unsignedContracts.length} items need attention`}
+        eyebrow="Collections"
+        title="Follow-Up"
+        subtitle={`${overdueInvoices.length + unsignedContracts.length} item${overdueInvoices.length + unsignedContracts.length !== 1 ? "s" : ""} need attention across payments and contracts`}
       />
       <FollowUpClient
         overdueInvoices={JSON.parse(JSON.stringify(overdueInvoices))}

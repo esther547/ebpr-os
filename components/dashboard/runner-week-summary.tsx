@@ -1,8 +1,12 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { addDaysKey, formatDayKey } from "@/components/runners/miami-time";
+import { Card, CardHeader } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type Runner = { id: string; name: string };
 type Assignment = {
@@ -25,17 +29,18 @@ type Props = {
   todayKey: string;
 };
 
+/** Up to two initials. */
+function initials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0].toUpperCase())
+    .join("");
+}
+
 export function RunnerWeekSummary({ runners, assignments, weekStartKey, todayKey }: Props) {
   const days = Array.from({ length: 7 }, (_, i) => addDaysKey(weekStartKey, i));
-
-  // Per runner: count of days assigned this week
-  const runnerSummary = runners.map((runner) => {
-    const myAssignments = assignments.filter((a) => a.runnerId === runner.id);
-    const daysWorking = days.filter((d) =>
-      myAssignments.some((a) => a.dayKey === d)
-    ).length;
-    return { ...runner, count: myAssignments.length, daysWorking };
-  });
 
   // Group assignments by runner for detail view
   const byRunner = new Map<string, Assignment[]>();
@@ -46,64 +51,63 @@ export function RunnerWeekSummary({ runners, assignments, weekStartKey, todayKey
   }
 
   return (
-    <div className="rounded-lg border border-border bg-white p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-bold text-ink-primary">Runners</h3>
-        <Link
-          href="/runners/schedule"
-          className="text-xs font-medium text-ink-muted hover:text-ink-primary transition-colors"
-        >
-          Full schedule →
-        </Link>
-      </div>
+    <Card>
+      <CardHeader
+        title="Runners"
+        actions={
+          <Link
+            href="/runners/schedule"
+            className="inline-flex items-center gap-1 text-xs font-medium text-ink-muted transition-colors hover:text-ink-primary"
+          >
+            Full schedule
+            <ArrowRight className="h-3 w-3" />
+          </Link>
+        }
+      />
 
       {runners.length === 0 ? (
-        <p className="text-xs text-ink-muted py-4 text-center">
-          No runners in the system.
-        </p>
+        <EmptyState compact title="No runners" description="No runners in the system yet." />
       ) : (
-        <div className="space-y-3">
-          {runnerSummary.map((runner) => {
+        <div className="divide-y divide-border">
+          {runners.map((runner, idx) => {
             const myItems = byRunner.get(runner.id) ?? [];
             return (
-              <div key={runner.id}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    {/* Avatar */}
-                    <div className="h-6 w-6 rounded-full bg-surface-3 flex items-center justify-center text-2xs font-bold text-ink-secondary flex-shrink-0">
-                      {runner.name[0].toUpperCase()}
-                    </div>
-                    <span className="text-xs font-semibold text-ink-primary">
+              <div key={runner.id} className={cn("py-3", idx === 0 && "pt-0")}>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-2 text-2xs font-semibold text-ink-secondary ring-1 ring-inset ring-border">
+                      {initials(runner.name)}
+                    </span>
+                    <span className="truncate text-sm font-medium text-ink-primary">
                       {runner.name.split(" ")[0]}
                     </span>
                   </div>
-                  <span className="text-2xs text-ink-muted">
-                    {runner.count === 0
-                      ? "Free this week"
-                      : `${runner.count} event${runner.count !== 1 ? "s" : ""}`}
-                  </span>
+                  <Badge tone={myItems.length > 0 ? "dark" : "neutral"} size="xs">
+                    {myItems.length === 0
+                      ? "Free"
+                      : `${myItems.length} event${myItems.length !== 1 ? "s" : ""}`}
+                  </Badge>
                 </div>
 
-                {/* Day availability dots */}
+                {/* Day availability strip */}
                 <div className="flex gap-1">
-                  {days.map((day, i) => {
+                  {days.map((day) => {
                     const event = myItems.find((a) => a.dayKey === day);
-                    const hasEvent = !!event;
                     return (
                       <div
-                        key={i}
+                        key={day}
                         title={
                           event
                             ? `${formatDayKey(day, "EEE MMM d")}: ${event.eventName}`
                             : formatDayKey(day, "EEE MMM d")
                         }
                         className={cn(
-                          "flex-1 h-5 rounded-sm text-center flex items-center justify-center text-2xs font-medium transition-colors",
-                          hasEvent
+                          "flex h-6 flex-1 items-center justify-center rounded-md text-2xs font-medium tabular transition-colors",
+                          event
                             ? "bg-ink-primary text-ink-inverted"
                             : day === todayKey
-                            ? "bg-surface-3 text-ink-secondary"
-                            : "bg-surface-2 text-ink-muted"
+                              ? "bg-surface-3 text-ink-secondary"
+                              : "bg-surface-2 text-ink-muted"
                         )}
                       >
                         {formatDayKey(day, "d")}
@@ -114,29 +118,27 @@ export function RunnerWeekSummary({ runners, assignments, weekStartKey, todayKey
 
                 {/* Assignments detail */}
                 {myItems.length > 0 && (
-                  <div className="mt-1.5 space-y-0.5">
+                  <ul className="mt-2 space-y-0.5">
                     {myItems.slice(0, 3).map((a) => (
-                      <p key={a.id} className="text-2xs text-ink-muted truncate">
+                      <li key={a.id} className="truncate text-2xs text-ink-muted">
                         <span className="font-medium text-ink-secondary">
                           {formatDayKey(a.dayKey, "EEE d")}
                         </span>{" "}
                         · {a.eventName}
                         {a.location && ` · ${a.location}`}
                         {a.status === "COMPLETED" && " · done"}
-                      </p>
+                      </li>
                     ))}
                     {myItems.length > 3 && (
-                      <p className="text-2xs text-ink-muted">
-                        +{myItems.length - 3} more
-                      </p>
+                      <li className="text-2xs text-ink-muted">+{myItems.length - 3} more</li>
                     )}
-                  </div>
+                  </ul>
                 )}
               </div>
             );
           })}
         </div>
       )}
-    </div>
+    </Card>
   );
 }

@@ -4,8 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/form-field";
+import { Card } from "@/components/ui/card";
+import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SectionHeader } from "@/components/layout/header";
 import { CreateTaskModal } from "./create-task-modal";
-import { Circle, CheckCircle2, AlertCircle, Clock, Ban } from "lucide-react";
+import { Circle, CheckCircle2, AlertCircle, Clock, Ban, Plus, ListChecks } from "lucide-react";
 
 type Task = {
   id: string;
@@ -22,15 +26,15 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
   TODO: <Circle className="h-4 w-4 text-ink-muted" />,
   IN_PROGRESS: <Clock className="h-4 w-4 text-blue-500" />,
   BLOCKED: <AlertCircle className="h-4 w-4 text-red-500" />,
-  DONE: <CheckCircle2 className="h-4 w-4 text-green-500" />,
+  DONE: <CheckCircle2 className="h-4 w-4 text-emerald-500" />,
   CANCELLED: <Ban className="h-4 w-4 text-ink-muted" />,
 };
 
-const PRIORITY_STYLES: Record<string, string> = {
-  LOW: "text-ink-muted",
-  MEDIUM: "text-blue-600",
-  HIGH: "text-amber-600 font-medium",
-  URGENT: "text-red-600 font-semibold",
+const PRIORITY_TONES: Record<string, BadgeTone> = {
+  LOW: "neutral",
+  MEDIUM: "info",
+  HIGH: "warning",
+  URGENT: "danger",
 };
 
 interface Props {
@@ -60,36 +64,44 @@ export function TaskList({ tasks, clientId, teamMembers }: Props) {
   }
 
   return (
-    <>
-      <div className="mb-6">
-        <Button onClick={() => setShowCreate(true)}>+ New Task</Button>
-      </div>
+    <div className="space-y-6">
+      <SectionHeader
+        title="Tasks"
+        description={`${openTasks.length} open · ${closedTasks.length} closed`}
+        actions={
+          <Button onClick={() => setShowCreate(true)} leftIcon={<Plus className="h-4 w-4" />}>
+            New Task
+          </Button>
+        }
+      />
 
       {tasks.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-lg font-medium text-ink-primary">No tasks yet</p>
-          <p className="mt-1 text-sm text-ink-muted">Create the first task for this client.</p>
-        </div>
+        <EmptyState
+          icon={<ListChecks />}
+          title="No tasks yet"
+          description="Create the first task for this client."
+          action={
+            <Button onClick={() => setShowCreate(true)} leftIcon={<Plus className="h-4 w-4" />}>
+              New Task
+            </Button>
+          }
+        />
       ) : (
-        <>
+        <div className="space-y-6">
           {openTasks.length > 0 && (
-            <section className="mb-8">
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-                Open ({openTasks.length})
-              </h2>
+            <section>
+              <SectionHeader title={`Open (${openTasks.length})`} />
               <TaskTable tasks={openTasks} onToggle={toggleDone} updating={updating} />
             </section>
           )}
 
           {closedTasks.length > 0 && (
             <section>
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-                Completed ({closedTasks.length})
-              </h2>
+              <SectionHeader title={`Completed (${closedTasks.length})`} />
               <TaskTable tasks={closedTasks} onToggle={toggleDone} updating={updating} />
             </section>
           )}
-        </>
+        </div>
       )}
 
       <CreateTaskModal
@@ -98,7 +110,7 @@ export function TaskList({ tasks, clientId, teamMembers }: Props) {
         clientId={clientId}
         teamMembers={teamMembers}
       />
-    </>
+    </div>
   );
 }
 
@@ -112,54 +124,52 @@ function TaskTable({
   updating: string | null;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-white overflow-hidden">
-      <div className="divide-y divide-border">
+    <Card padding="none">
+      <ul className="divide-y divide-border">
         {tasks.map((task) => (
-          <div
+          <li
             key={task.id}
             className={cn(
-              "flex items-center gap-4 px-5 py-3.5 hover:bg-surface-1 transition-colors",
+              "flex items-start gap-3 px-4 py-3.5 transition-colors hover:bg-surface-1 sm:items-center sm:gap-4 sm:px-5",
               task.status === "DONE" && "opacity-60"
             )}
           >
             <button
+              type="button"
               onClick={() => onToggle(task.id, task.status)}
               disabled={updating === task.id}
-              className="shrink-0"
+              className="mt-0.5 shrink-0 rounded disabled:opacity-50 sm:mt-0"
+              aria-label={task.status === "DONE" ? `Reopen ${task.title}` : `Complete ${task.title}`}
             >
               {STATUS_ICON[task.status]}
             </button>
 
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className={cn("text-sm", task.status === "DONE" ? "line-through text-ink-muted" : "text-ink-primary font-medium")}>
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={cn(
+                    "text-sm",
+                    task.status === "DONE" ? "text-ink-muted line-through" : "font-medium text-ink-primary"
+                  )}
+                >
                   {task.title}
                 </span>
-                <span className={cn("text-2xs", PRIORITY_STYLES[task.priority])}>
-                  {task.priority}
-                </span>
+                <Badge size="xs" tone={PRIORITY_TONES[task.priority] ?? "neutral"} className="capitalize">
+                  {task.priority.toLowerCase()}
+                </Badge>
               </div>
               {task.deliverable && (
-                <p className="text-2xs text-ink-muted mt-0.5">
-                  Linked: {task.deliverable.title}
-                </p>
+                <p className="mt-0.5 truncate text-2xs text-ink-muted">Linked: {task.deliverable.title}</p>
               )}
             </div>
 
-            {task.assignee && (
-              <span className="text-xs text-ink-secondary shrink-0">
-                {task.assignee.name.split(" ")[0]}
-              </span>
-            )}
-
-            {task.dueDate && (
-              <span className="text-xs text-ink-muted shrink-0">
-                {formatDate(task.dueDate)}
-              </span>
-            )}
-          </div>
+            <div className="flex shrink-0 flex-col items-end gap-0.5 text-xs sm:flex-row sm:items-center sm:gap-4">
+              {task.assignee && <span className="text-ink-secondary">{task.assignee.name.split(" ")[0]}</span>}
+              {task.dueDate && <span className="text-ink-muted">{formatDate(task.dueDate)}</span>}
+            </div>
+          </li>
         ))}
-      </div>
-    </div>
+      </ul>
+    </Card>
   );
 }

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { EBPRLogoHorizontal } from "@/components/brand/ebpr-logo";
 import { SignContractClient } from "@/components/legal/sign-contract-client";
+import { ShieldCheck } from "lucide-react";
 
 export const metadata = { title: "Sign Contract — EBPR" };
 export const dynamic = "force-dynamic";
@@ -28,43 +29,51 @@ export default async function SignContractPage({ params }: { params: { token: st
     });
   }
 
+  const rows = [
+    { label: "Signer", value: signature.signerName },
+    { label: "Contract", value: signature.contract.title },
+    { label: "Client", value: signature.contract.client.name },
+  ];
+
   return (
-    <div className="min-h-screen bg-surface-1 flex flex-col items-center justify-center px-4">
-      <div className="w-full max-w-lg">
-        <div className="text-center mb-8">
+    <div className="flex min-h-screen flex-col bg-surface-1 px-4 py-10 sm:justify-center sm:py-14">
+      <div className="page-enter mx-auto w-full max-w-lg">
+        <div className="mb-8 flex justify-center">
           <EBPRLogoHorizontal size="md" />
         </div>
 
-        <div className="rounded-lg border border-border bg-white p-8 shadow-sm">
-          <h1 className="text-xl font-semibold text-ink-primary mb-1">Contract Signature</h1>
-          <p className="text-sm text-ink-muted mb-6">
-            {signature.contract.client.name} — {signature.contract.title}
-          </p>
-
-          <div className="space-y-3 mb-6 text-sm">
-            <div className="flex justify-between py-2 border-b border-border">
-              <span className="text-ink-muted">Signer</span>
-              <span className="font-medium text-ink-primary">{signature.signerName}</span>
-            </div>
-            <div className="flex justify-between py-2 border-b border-border">
-              <span className="text-ink-muted">Contract</span>
-              <span className="font-medium text-ink-primary">{signature.contract.title}</span>
-            </div>
-            <div className="flex justify-between py-2 border-b border-border">
-              <span className="text-ink-muted">Client</span>
-              <span className="font-medium text-ink-primary">{signature.contract.client.name}</span>
-            </div>
+        <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-card">
+          <div className="border-b border-border px-6 py-6 sm:px-8">
+            <p className="eyebrow mb-1.5">Electronic signature</p>
+            <h1 className="text-xl font-semibold tracking-tight text-ink-primary sm:text-2xl">
+              Contract Signature
+            </h1>
+            <p className="mt-1 text-sm text-ink-secondary">
+              {signature.contract.client.name} — {signature.contract.title}
+            </p>
           </div>
 
-          <SignContractClient
-            token={token}
-            alreadySigned={signature.status === "SIGNED"}
-            signedAt={signature.signedAt ? signature.signedAt.toISOString() : null}
-          />
+          <dl className="divide-y divide-border px-6 sm:px-8">
+            {rows.map((row) => (
+              <div key={row.label} className="flex flex-col gap-0.5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+                <dt className="text-xs uppercase tracking-wider text-ink-muted">{row.label}</dt>
+                <dd className="break-words text-sm font-medium text-ink-primary sm:text-right">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
+
+          <div className="border-t border-border px-6 py-6 sm:px-8">
+            <SignContractClient
+              token={token}
+              alreadySigned={signature.status === "SIGNED"}
+              signedAt={signature.signedAt ? signature.signedAt.toISOString() : null}
+            />
+          </div>
         </div>
 
-        <p className="text-center text-xs text-ink-muted mt-6">
-          EB Public Relations · Secure Electronic Signature
+        <p className="mt-6 flex items-center justify-center gap-1.5 text-center text-xs text-ink-muted">
+          <ShieldCheck className="h-3.5 w-3.5" />
+          EB Public Relations · Secure electronic signature
         </p>
       </div>
     </div>

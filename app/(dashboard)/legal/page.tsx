@@ -1,7 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { canViewContracts } from "@/lib/permissions";
 import { db } from "@/lib/db";
-import { PageHeader } from "@/components/layout/header";
 import { LegalPageClient } from "@/components/legal/legal-page-client";
 
 export const metadata = { title: "Legal & Contracts" };
@@ -10,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function LegalPage() {
   const user = await requireUser();
   if (!canViewContracts(user)) {
-    return <p className="text-ink-muted py-10 text-center">Access restricted.</p>;
+    return <p className="py-16 text-center text-sm text-ink-muted">Access restricted.</p>;
   }
 
   const contracts = await db.contract.findMany({
@@ -27,15 +26,9 @@ export default async function LegalPage() {
   });
 
   return (
-    <>
-      <PageHeader
-        title="Legal & Contracts"
-        subtitle={`${contracts.length} contracts · ${contracts.filter((c) => c.status === "DRAFT" || c.status === "SENT").length} need action`}
-      />
-      <LegalPageClient
-        contracts={JSON.parse(JSON.stringify(contracts))}
-        clients={clients}
-      />
-    </>
+    <LegalPageClient
+      contracts={JSON.parse(JSON.stringify(contracts))}
+      clients={clients}
+    />
   );
 }

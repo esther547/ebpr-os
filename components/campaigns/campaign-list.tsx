@@ -1,10 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { cn, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/form-field";
+import { Card } from "@/components/ui/card";
+import { Badge, humanize, statusTone } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SectionHeader } from "@/components/layout/header";
 import { CreateCampaignModal } from "./create-campaign-modal";
-import { Calendar, FileText, CheckSquare, Target } from "lucide-react";
+import { Calendar, FileText, CheckSquare, Target, Plus, Megaphone } from "lucide-react";
 
 type Campaign = {
   id: string;
@@ -17,13 +21,6 @@ type Campaign = {
   _count: { deliverables: number; tasks: number; strategyItems: number };
 };
 
-const STATUS_STYLES: Record<string, string> = {
-  PREPARATION: "bg-amber-50 text-amber-700",
-  ACTIVE: "bg-green-50 text-green-700",
-  PAUSED: "bg-surface-2 text-ink-secondary",
-  COMPLETED: "bg-blue-50 text-blue-700",
-};
-
 interface Props {
   campaigns: Campaign[];
   clientId: string;
@@ -34,53 +31,65 @@ export function CampaignList({ campaigns, clientId, teamMembers }: Props) {
   const [showCreate, setShowCreate] = useState(false);
 
   return (
-    <>
-      <div className="mb-6">
-        <Button onClick={() => setShowCreate(true)}>+ New Campaign</Button>
-      </div>
+    <div className="space-y-6">
+      <SectionHeader
+        title="Campaigns"
+        description={`${campaigns.length} total`}
+        actions={
+          <Button onClick={() => setShowCreate(true)} leftIcon={<Plus className="h-4 w-4" />}>
+            New Campaign
+          </Button>
+        }
+      />
 
       {campaigns.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-lg font-medium text-ink-primary">No campaigns yet</p>
-          <p className="mt-1 text-sm text-ink-muted">Create the first campaign for this client.</p>
-        </div>
+        <EmptyState
+          icon={<Megaphone />}
+          title="No campaigns yet"
+          description="Create the first campaign for this client."
+          action={
+            <Button onClick={() => setShowCreate(true)} leftIcon={<Plus className="h-4 w-4" />}>
+              New Campaign
+            </Button>
+          }
+        />
       ) : (
         <div className="space-y-4">
           {campaigns.map((campaign) => (
-            <div key={campaign.id} className="rounded-lg border border-border bg-white p-5 hover:shadow-sm transition-shadow">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-3">
+            <Card key={campaign.id} interactive>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2.5">
                     <h3 className="text-base font-semibold text-ink-primary">{campaign.name}</h3>
-                    <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_STYLES[campaign.status] || "bg-surface-2 text-ink-secondary")}>
-                      {campaign.status.charAt(0) + campaign.status.slice(1).toLowerCase()}
-                    </span>
+                    <Badge tone={statusTone(campaign.status)} dot>
+                      {humanize(campaign.status)}
+                    </Badge>
                   </div>
                   {campaign.description && (
                     <p className="mt-1 text-sm text-ink-secondary">{campaign.description}</p>
                   )}
                 </div>
-                <div className="flex items-center gap-1 text-xs text-ink-muted">
+                <div className="flex shrink-0 items-center gap-1.5 text-xs text-ink-muted">
                   <Target className="h-3.5 w-3.5" />
-                  {campaign.monthlyTarget}/mo
+                  <span className="tabular">{campaign.monthlyTarget}</span>/mo
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center gap-6 text-xs text-ink-muted">
-                <div className="flex items-center gap-1.5">
+              <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-border pt-3 text-xs text-ink-muted">
+                <span className="flex items-center gap-1.5">
                   <Calendar className="h-3.5 w-3.5" />
                   {formatDate(campaign.startDate)} — {formatDate(campaign.endDate)}
-                </div>
-                <div className="flex items-center gap-1.5">
+                </span>
+                <span className="flex items-center gap-1.5">
                   <FileText className="h-3.5 w-3.5" />
-                  {campaign._count.deliverables} deliverables
-                </div>
-                <div className="flex items-center gap-1.5">
+                  <span className="tabular">{campaign._count.deliverables}</span> deliverables
+                </span>
+                <span className="flex items-center gap-1.5">
                   <CheckSquare className="h-3.5 w-3.5" />
-                  {campaign._count.tasks} tasks
-                </div>
+                  <span className="tabular">{campaign._count.tasks}</span> tasks
+                </span>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
@@ -91,6 +100,6 @@ export function CampaignList({ campaigns, clientId, teamMembers }: Props) {
         clientId={clientId}
         teamMembers={teamMembers}
       />
-    </>
+    </div>
   );
 }

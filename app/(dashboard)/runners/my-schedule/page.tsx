@@ -2,6 +2,8 @@ import { requireUser } from "@/lib/auth";
 import { canViewRunnerSchedule } from "@/lib/permissions";
 import { PageHeader } from "@/components/layout/header";
 import { MyScheduleView } from "@/components/runners/my-schedule-view";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Lock } from "lucide-react";
 import { addDaysKey, dayKeyInTz, tzMidnight } from "@/components/runners/miami-time";
 import { loadScheduleItems } from "@/components/runners/load-schedule";
 
@@ -11,7 +13,15 @@ export const dynamic = "force-dynamic";
 export default async function MySchedulePage() {
   const user = await requireUser();
   if (!canViewRunnerSchedule(user)) {
-    return <p className="text-ink-muted py-10 text-center">Access restricted.</p>;
+    return (
+      <div className="py-16">
+        <EmptyState
+          icon={<Lock />}
+          title="Access restricted"
+          description="You do not have permission to view this page."
+        />
+      </div>
+    );
   }
 
   // Runners see only their own; admins see all
@@ -37,9 +47,11 @@ export default async function MySchedulePage() {
     <>
       <PageHeader
         title="My Schedule"
-        subtitle={`${upcomingCount} upcoming assignments`}
+        subtitle={`${upcomingCount} upcoming assignment${upcomingCount === 1 ? "" : "s"}`}
       />
-      <MyScheduleView assignments={assignments} todayKey={todayKey} showRunner={!runnerId} />
+      <div className="space-y-6">
+        <MyScheduleView assignments={assignments} todayKey={todayKey} showRunner={!runnerId} />
+      </div>
     </>
   );
 }

@@ -2,6 +2,9 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { formatCurrency } from "@/lib/utils";
 import { addDaysKey, dayKeyInTz, formatDayKey, tzMidnight } from "@/components/runners/miami-time";
+import { Card } from "@/components/ui/card";
+import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { ArrowRight, FileSignature, Receipt, CalendarClock } from "lucide-react";
 
 type Props = {
   /** Today, "yyyy-MM-dd" (Miami). */
@@ -71,11 +74,20 @@ export async function DashboardAlerts({ todayKey, canOpenLegalFinance }: Props) 
     }),
   ]);
 
-  const sections = [
+  const sections: {
+    key: string;
+    label: string;
+    href: string | null;
+    tone: BadgeTone;
+    icon: React.ReactNode;
+    items: { id: string; primary: string; secondary: string; meta: string; href: string }[];
+  }[] = [
     {
       key: "signatures",
       label: "Missing signatures",
       href: canOpenLegalFinance ? "/legal" : null,
+      tone: "warning",
+      icon: <FileSignature className="h-3.5 w-3.5" />,
       items: unsignedContracts.map((c) => ({
         id: c.id,
         primary: c.client.name,
@@ -88,10 +100,12 @@ export async function DashboardAlerts({ todayKey, canOpenLegalFinance }: Props) 
       key: "payments",
       label: "Overdue payments",
       href: canOpenLegalFinance ? "/finance" : null,
+      tone: "danger",
+      icon: <Receipt className="h-3.5 w-3.5" />,
       items: overdueInvoices.map((i) => ({
         id: i.id,
         primary: i.client.name,
-        secondary: `${i.invoiceNumber} · ${formatCurrency(Number(i.amount))}`,
+        secondary: `${i.invoiceNumber} \u00b7 ${formatCurrency(Number(i.amount))}`,
         meta: i.dueDate ? `due ${formatDayKey(dayKeyInTz(i.dueDate), "MMM d")}` : "no due date",
         href: `/clients/${i.client.id}`,
       })),
@@ -100,6 +114,8 @@ export async function DashboardAlerts({ todayKey, canOpenLegalFinance }: Props) 
       key: "deliverables",
       label: "Due this week",
       href: null,
+      tone: "info",
+      icon: <CalendarClock className="h-3.5 w-3.5" />,
       items: upcomingDeliverables.map((d) => ({
         id: d.id,
         primary: d.client.name,
@@ -113,48 +129,54 @@ export async function DashboardAlerts({ todayKey, canOpenLegalFinance }: Props) 
   if (sections.every((s) => s.items.length === 0)) return null;
 
   return (
-    <div className="mt-6 grid grid-cols-3 gap-4">
-      {sections.map((section) => (
-        <div
-          key={section.key}
-          className={
-            section.items.length > 0
-              ? "rounded-lg border border-amber-200 bg-amber-50/40 p-4"
-              : "rounded-lg border border-border bg-white p-4"
-          }
-        >
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-              {section.label}
-            </p>
-            <span className="text-xs font-bold tabular-nums text-ink-primary">
-              {section.items.length > MAX_ITEMS ? `${MAX_ITEMS}+` : section.items.length}
-            </span>
-          </div>
-          {section.items.length === 0 ? (
-            <p className="text-xs text-ink-muted">All clear</p>
-          ) : (
-            <ul className="space-y-1">
-              {section.items.slice(0, MAX_ITEMS).map((item) => (
-                <li key={item.id} className="text-xs leading-snug">
-                  <Link href={item.href} className="hover:underline">
-                    <span className="font-medium text-ink-primary">{item.primary}</span>
-                    <span className="text-ink-secondary"> · {item.secondary}</span>
-                  </Link>
-                  {item.meta && <span className="text-ink-muted"> · {item.meta}</span>}
-                </li>
-              ))}
-              {section.href && (
-                <li className="pt-1">
-                  <Link href={section.href} className="text-2xs font-medium text-ink-muted hover:text-ink-primary">
-                    View all →
-                  </Link>
-                </li>
-              )}
-            </ul>
-          )}
-        </div>
-      ))}
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      {sections.map((section) => {
+        const count = section.items.length;
+        return (
+          <Card key={section.key} padding="sm" className="flex flex-col">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className="eyebrow truncate">{section.label}</p>
+              <Badge tone={count > 0 ? section.tone : "neutral"} dot>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="text-ink-muted [&>svg]:h-3.5 [&>svg]:w-3.5">{section.icon}</span>
+                  <span className="tabular">{count > MAX_ITEMS ? `${MAX_ITEMS}+` : count}</span>
+                </span>
+              </Badge>
+            </div>
+
+            {count === 0 ? (
+              <p className="text-sm text-ink-muted">All clear</p>
+            ) : (
+              <ul className="-mx-2 space-y-0.5">
+                {section.items.slice(0, MAX_ITEMS).map((item) => (
+                  <li key={item.id}>
+                    <Link
+                      href={item.href}
+                      className="block rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-1"
+                    >
+                      <p className="truncate text-sm font-medium text-ink-primary">{item.primary}</p>
+                      <p className="truncate text-xs text-ink-muted">
+                        {item.secondary}
+                        {item.meta && ` \u00b7 ${item.meta}`}
+                      </p>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {section.href && count > 0 && (
+              <Link
+                href={section.href}
+                className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-ink-muted transition-colors hover:text-ink-primary"
+              >
+                View all
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            )}
+          </Card>
+        );
+      })}
     </div>
   );
 }

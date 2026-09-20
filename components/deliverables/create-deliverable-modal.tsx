@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/modal";
-import { Button, Input, Select, Textarea, FormGroup } from "@/components/ui/form-field";
+import { Button, Input, Select, Textarea, FormGroup, FormActions } from "@/components/ui/form-field";
+import { useToast } from "@/components/ui/toast";
 
 interface Props {
   open: boolean;
@@ -15,12 +16,11 @@ interface Props {
 export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembers }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     const form = new FormData(e.currentTarget);
     const dueDate = (form.get("dueDate") as string) || undefined;
@@ -51,16 +51,21 @@ export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembe
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(typeof data.error === "string" ? data.error : "Failed to create deliverable");
+        toast({
+          title: "Failed to create deliverable",
+          description: typeof data.error === "string" ? data.error : undefined,
+          variant: "error",
+        });
         setLoading(false);
         return;
       }
 
       onOpenChange(false);
       setLoading(false);
+      toast({ title: "Deliverable created", variant: "success" });
       router.refresh();
     } catch {
-      setError("Network error — could not reach the server");
+      toast({ title: "Network error", description: "Could not reach the server", variant: "error" });
       setLoading(false);
     }
   }
@@ -68,10 +73,6 @@ export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembe
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="New Deliverable" description="Add a new PR deliverable for this client">
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && (
-          <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
-        )}
-
         <FormGroup label="Title" htmlFor="del-title" required>
           <Input id="del-title" name="title" placeholder="e.g., Vogue Feature Pitch" required autoFocus />
         </FormGroup>
@@ -100,23 +101,26 @@ export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembe
           </Select>
         </FormGroup>
 
-        <FormGroup label="Due Date" htmlFor="del-due">
+        <FormGroup
+          label="Due Date"
+          htmlFor="del-due"
+          description="Counts toward the month it is due in (this month if left blank)."
+        >
           <Input id="del-due" name="dueDate" type="date" />
-          <p className="mt-1 text-xs text-ink-muted">Counts toward the month it is due in (this month if left blank).</p>
         </FormGroup>
 
         <FormGroup label="Notes" htmlFor="del-notes">
           <Textarea id="del-notes" name="notes" rows={3} placeholder="Additional context..." />
         </FormGroup>
 
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={loading}>
-            {loading ? "Creating..." : "Create Deliverable"}
-          </Button>
+        <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-        </div>
+          <Button type="submit" loading={loading}>
+            Create Deliverable
+          </Button>
+        </FormActions>
       </form>
     </Modal>
   );

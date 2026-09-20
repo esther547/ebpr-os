@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { PageHeader } from "@/components/layout/header";
+import { ClientHeader } from "@/components/clients/client-header";
 import { TaskList } from "@/components/tasks/task-list";
 
 type Props = { params: Promise<{ clientId: string }> };
@@ -15,7 +15,7 @@ export default async function TasksPage({ params }: Props) {
 
   const client = await db.client.findUnique({
     where: { id: clientId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, status: true, monthlyTarget: true, industry: true },
   });
   if (!client) notFound();
 
@@ -37,12 +37,11 @@ export default async function TasksPage({ params }: Props) {
     select: { id: true, name: true },
   });
 
+  const open = tasks.filter((t) => t.status !== "DONE" && t.status !== "CANCELLED").length;
+
   return (
     <>
-      <PageHeader
-        title="Tasks"
-        subtitle={`${client.name} · ${tasks.filter((t) => t.status !== "DONE" && t.status !== "CANCELLED").length} open`}
-      />
+      <ClientHeader client={client} counts={{ tasks: open }} />
       <TaskList tasks={tasks} clientId={clientId} teamMembers={teamMembers} />
     </>
   );

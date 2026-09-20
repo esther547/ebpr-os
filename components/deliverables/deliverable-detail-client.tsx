@@ -2,11 +2,21 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { cn, formatDate, DELIVERABLE_STATUS_LABELS, DELIVERABLE_STATUS_COLORS, DELIVERABLE_TYPE_LABELS } from "@/lib/utils";
-import { Button, Input, Select, Textarea, FormGroup } from "@/components/ui/form-field";
+import { formatDate, DELIVERABLE_STATUS_LABELS, DELIVERABLE_TYPE_LABELS } from "@/lib/utils";
+import { Button, Input, Select, Textarea, FormGroup, FormActions } from "@/components/ui/form-field";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
-import { ArrowLeft, UserPlus, MapPin, Clock, MessageSquare, Trash2 } from "lucide-react";
+import { Card, CardHeader } from "@/components/ui/card";
+import { Badge, humanize, statusTone } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/layout/header";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuDots,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
+import { useToast } from "@/components/ui/toast";
+import { UserPlus, MapPin, Clock, MessageSquare, Trash2 } from "lucide-react";
 
 type RunnerAssignment = {
   id: string;
@@ -52,21 +62,18 @@ interface Props {
 
 export function DeliverableDetailClient({ deliverable, teamMembers, runners }: Props) {
   const router = useRouter();
+  const { toast } = useToast();
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
   const [showAssignRunner, setShowAssignRunner] = useState(false);
   const [showAddNote, setShowAddNote] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [statusBusy, setStatusBusy] = useState<string | null>(null);
-  const [noteError, setNoteError] = useState<string | null>(null);
+  const [notePosting, setNotePosting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSaving(true);
-    setError(null);
-    setSuccess(false);
 
     const form = new FormData(e.currentTarget);
     const body = {
@@ -89,27 +96,30 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(typeof data.error === "string" ? data.error : "Failed to update");
+        toast({
+          title: "Failed to update",
+          description: typeof data.error === "string" ? data.error : undefined,
+          variant: "error",
+        });
         setSaving(false);
         return;
       }
 
-      setSuccess(true);
       setSaving(false);
+      toast({ title: "Changes saved", variant: "success" });
       router.refresh();
       // Confirmed without a runner: open the assignment prompt right away.
       if (body.status === "CONFIRMED" && deliverable.status !== "CONFIRMED" && !deliverable.runnerAssignment) {
         setShowAssignRunner(true);
       }
     } catch {
-      setError("Network error — could not reach the server");
+      toast({ title: "Network error", description: "Could not reach the server", variant: "error" });
       setSaving(false);
     }
   }
 
   async function quickStatus(status: string) {
     setStatusBusy(status);
-    setError(null);
     try {
       // Dedicated status endpoint: logs the transition and notifies the team.
       const res = await fetch(`/api/deliverables/${deliverable.id}/status`, {
@@ -119,15 +129,23 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(typeof data.error === "string" ? data.error : "Could not change status");
+        toast({
+          title: "Could not change status",
+          description: typeof data.error === "string" ? data.error : undefined,
+          variant: "error",
+        });
         return;
       }
+      toast({
+        title: `Moved to ${DELIVERABLE_STATUS_LABELS[status as keyof typeof DELIVERABLE_STATUS_LABELS] || status}`,
+        variant: "success",
+      });
       router.refresh();
       if (status === "CONFIRMED" && !deliverable.runnerAssignment) {
         setShowAssignRunner(true);
       }
     } catch {
-      setError("Network error — could not reach the server");
+      toast({ title: "Network error", description: "Could not reach the server", variant: "error" });
     } finally {
       setStatusBusy(null);
     }
@@ -138,7 +156,7 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
     const form = new FormData(e.currentTarget);
     const content = form.get("content") as string;
     if (!content.trim()) return;
-    setNoteError(null);
+    setNotePosting(true);
 
     try {
       const res = await fetch(`/api/deliverables/${deliverable.id}/comments`, {
@@ -148,13 +166,21 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setNoteError(typeof data.error === "string" ? data.error : "Could not add note");
+        toast({
+          title: "Could not add note",
+          description: typeof data.error === "string" ? data.error : undefined,
+          variant: "error",
+        });
+        setNotePosting(false);
         return;
       }
       setShowAddNote(false);
+      setNotePosting(false);
+      toast({ title: "Note added", variant: "success" });
       router.refresh();
     } catch {
-      setNoteError("Network error — could not reach the server");
+      toast({ title: "Network error", description: "Could not reach the server", variant: "error" });
+      setNotePosting(false);
     }
   }
 
@@ -164,236 +190,296 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
       const res = await fetch(`/api/deliverables/${deliverable.id}`, { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(typeof data.error === "string" ? data.error : "Could not delete deliverable");
+        toast({
+          title: "Could not delete deliverable",
+          description: typeof data.error === "string" ? data.error : undefined,
+          variant: "error",
+        });
         setShowDelete(false);
         return;
       }
       router.push(`/clients/${deliverable.clientId}/deliverables`);
       router.refresh();
     } catch {
-      setError("Network error — could not reach the server");
+      toast({ title: "Network error", description: "Could not reach the server", variant: "error" });
       setShowDelete(false);
     } finally {
       setDeleting(false);
     }
   }
 
-  const colors = DELIVERABLE_STATUS_COLORS[deliverable.status as keyof typeof DELIVERABLE_STATUS_COLORS];
   const isConfirmedOrLater = ["CONFIRMED", "IN_PROGRESS", "COMPLETED"].includes(deliverable.status);
   const needsRunner = isConfirmedOrLater && !deliverable.runnerAssignment;
 
   return (
-    <div>
-      {/* Back link */}
-      <Link
-        href={`/clients/${deliverable.clientId}/deliverables`}
-        className="inline-flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink-primary transition-colors mb-4"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" /> Back to Deliverables
-      </Link>
+    <>
+      <PageHeader
+        breadcrumbs={[
+          { label: "Clients", href: "/clients" },
+          { label: deliverable.client.name, href: `/clients/${deliverable.clientId}` },
+          { label: "Deliverables", href: `/clients/${deliverable.clientId}/deliverables` },
+        ]}
+        eyebrow={
+          DELIVERABLE_TYPE_LABELS[deliverable.type as keyof typeof DELIVERABLE_TYPE_LABELS] ||
+          deliverable.type
+        }
+        title={deliverable.title}
+        subtitle={
+          <span className="flex flex-wrap items-center gap-2">
+            <Badge tone={statusTone(deliverable.status)} dot>
+              {DELIVERABLE_STATUS_LABELS[deliverable.status as keyof typeof DELIVERABLE_STATUS_LABELS] ||
+                deliverable.status}
+            </Badge>
+            {deliverable.dueDate && <span>Due {formatDate(deliverable.dueDate)}</span>}
+          </span>
+        }
+        actions={
+          <DropdownMenu>
+            <DropdownMenuDots label="Deliverable actions" />
+            <DropdownMenuContent>
+              <DropdownMenuItem destructive icon={<Trash2 />} onSelect={() => setShowDelete(true)}>
+                Delete deliverable
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      />
 
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-bold text-ink-primary">{deliverable.title}</h1>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-sm text-ink-muted">{deliverable.client.name}</span>
-            <span className="text-ink-muted">·</span>
-            <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", colors?.bg, colors?.text)}>
-              {DELIVERABLE_STATUS_LABELS[deliverable.status as keyof typeof DELIVERABLE_STATUS_LABELS] || deliverable.status}
-            </span>
-            <span className="text-ink-muted">·</span>
-            <span className="text-sm text-ink-muted">
-              {DELIVERABLE_TYPE_LABELS[deliverable.type as keyof typeof DELIVERABLE_TYPE_LABELS] || deliverable.type}
-            </span>
-          </div>
-        </div>
-        <Button variant="ghost" size="sm" onClick={() => setShowDelete(true)} leftIcon={<Trash2 className="h-3.5 w-3.5" />}>
-          Delete
-        </Button>
-      </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Edit form */}
+        <div className="space-y-6 lg:col-span-2">
+          <Card padding="lg">
+            <CardHeader title="Details" description="Everything about this deliverable" />
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FormGroup label="Title" htmlFor="d-title" required>
+                  <Input id="d-title" name="title" defaultValue={deliverable.title} required />
+                </FormGroup>
+                <FormGroup label="Type" htmlFor="d-type" required>
+                  <Select id="d-type" name="type" defaultValue={deliverable.type} required>
+                    <option value="PRESS_PLACEMENT">Press Placement</option>
+                    <option value="INTERVIEW">Interview</option>
+                    <option value="INFLUENCER_COLLAB">Influencer Collab</option>
+                    <option value="EVENT_APPEARANCE">Event Appearance</option>
+                    <option value="BRAND_OPPORTUNITY">Brand Opportunity</option>
+                    <option value="INTRODUCTION">Introduction</option>
+                    <option value="SOCIAL_MEDIA">Social Media</option>
+                    <option value="PRESS_RELEASE">Press Release</option>
+                    <option value="OTHER">Other</option>
+                  </Select>
+                </FormGroup>
+              </div>
 
-      {error && <div className="mb-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{error}</div>}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <FormGroup label="Status" htmlFor="d-status">
+                  <Select id="d-status" name="status" defaultValue={deliverable.status}>
+                    {STATUSES.map((s) => (
+                      <option key={s} value={s}>
+                        {DELIVERABLE_STATUS_LABELS[s as keyof typeof DELIVERABLE_STATUS_LABELS] || s}
+                      </option>
+                    ))}
+                  </Select>
+                </FormGroup>
+                <FormGroup label="Strategist" htmlFor="d-assignee">
+                  <Select id="d-assignee" name="assigneeId" defaultValue={deliverable.assignee?.id || ""}>
+                    <option value="">Unassigned</option>
+                    {teamMembers.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </Select>
+                </FormGroup>
+                <FormGroup label="Due Date" htmlFor="d-due">
+                  <Input
+                    id="d-due"
+                    name="dueDate"
+                    type="date"
+                    defaultValue={
+                      deliverable.dueDate ? new Date(deliverable.dueDate).toISOString().split("T")[0] : ""
+                    }
+                  />
+                </FormGroup>
+              </div>
 
-      {/* Quick status buttons */}
-      <div className="flex flex-wrap gap-2 mb-6">
-        {STATUSES.map((s) => (
-          <button
-            key={s}
-            onClick={() => quickStatus(s)}
-            disabled={s === deliverable.status || statusBusy !== null}
-            className={cn(
-              "rounded-full px-3 py-1 text-xs font-medium transition-colors",
-              s === deliverable.status
-                ? "bg-ink-primary text-ink-inverted"
-                : "border border-border text-ink-secondary hover:bg-surface-2"
+              <FormGroup label="Notes" htmlFor="d-notes">
+                <Textarea id="d-notes" name="notes" rows={3} defaultValue={deliverable.notes || ""} placeholder="Internal notes..." />
+              </FormGroup>
+
+              <FormGroup label="Outcome / Win" htmlFor="d-outcome">
+                <Textarea
+                  id="d-outcome"
+                  name="outcome"
+                  rows={2}
+                  defaultValue={deliverable.outcome || ""}
+                  placeholder="What was the result? (shown to client)"
+                />
+              </FormGroup>
+
+              <FormGroup label="Client Visible" htmlFor="d-visible" className="sm:max-w-xs">
+                <Select
+                  id="d-visible"
+                  name="isClientVisible"
+                  defaultValue={deliverable.isClientVisible ? "true" : "false"}
+                >
+                  <option value="true">Yes — visible to client</option>
+                  <option value="false">No — internal only</option>
+                </Select>
+              </FormGroup>
+
+              <FormActions>
+                <Button type="submit" loading={saving}>
+                  Save Changes
+                </Button>
+              </FormActions>
+            </form>
+          </Card>
+
+          {/* Notes & feedback */}
+          <Card padding="lg">
+            <CardHeader
+              title={`Notes & Feedback (${deliverable.comments.length})`}
+              actions={
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowAddNote(true)}
+                  leftIcon={<MessageSquare className="h-3.5 w-3.5" />}
+                >
+                  Add Note
+                </Button>
+              }
+            />
+            {deliverable.comments.length > 0 ? (
+              <ul className="space-y-3">
+                {deliverable.comments.map((c) => (
+                  <li key={c.id} className="rounded-lg border border-border bg-surface-1 p-4">
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-ink-primary">{c.user.name}</span>
+                      <span className="text-xs text-ink-muted">{formatDate(c.createdAt)}</span>
+                    </div>
+                    <p className="text-sm text-ink-secondary">{c.content}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyState
+                compact
+                icon={<MessageSquare />}
+                title="No notes yet"
+                description="Add feedback after the event."
+              />
             )}
-          >
-            {DELIVERABLE_STATUS_LABELS[s as keyof typeof DELIVERABLE_STATUS_LABELS] || s}
-          </button>
-        ))}
-      </div>
-
-      {/* Runner Assignment Banner */}
-      {needsRunner && (
-        <div className="rounded-lg border-2 border-amber-300 bg-amber-50 p-4 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <UserPlus className="h-5 w-5 text-amber-600" />
-              <div>
-                <p className="text-sm font-semibold text-amber-800">Runner Needed</p>
-                <p className="text-xs text-amber-700">This deliverable is confirmed. Assign a runner to handle it.</p>
-              </div>
-            </div>
-            <Button onClick={() => setShowAssignRunner(true)} size="sm">
-              Assign Runner
-            </Button>
-          </div>
+          </Card>
         </div>
-      )}
 
-      {/* Runner Assignment Details */}
-      {deliverable.runnerAssignment && (
-        <div className="rounded-lg border border-border bg-white p-5 mb-6">
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-ink-muted mb-3">Runner Assignment</h3>
-          <div className="flex items-start justify-between">
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <UserPlus className="h-4 w-4 text-ink-muted" />
-                <span className="font-medium text-ink-primary">{deliverable.runnerAssignment.runner?.name || "Unassigned"}</span>
-                <span className={cn("rounded-full px-2 py-0.5 text-2xs font-medium",
-                  deliverable.runnerAssignment.status === "COMPLETED" ? "bg-green-50 text-green-700" :
-                  deliverable.runnerAssignment.status === "CONFIRMED" ? "bg-blue-50 text-blue-700" :
-                  "bg-surface-2 text-ink-secondary"
-                )}>
-                  {deliverable.runnerAssignment.status}
-                </span>
+        {/* Sidebar */}
+        <div className="space-y-6">
+          <Card padding="lg">
+            <CardHeader title="Move status" description="Logs the transition and notifies the team" />
+            <div className="flex flex-wrap gap-2">
+              {STATUSES.map((s) => (
+                <Button
+                  key={s}
+                  size="xs"
+                  variant={s === deliverable.status ? "primary" : "outline"}
+                  onClick={() => quickStatus(s)}
+                  disabled={s === deliverable.status || statusBusy !== null}
+                  loading={statusBusy === s}
+                >
+                  {DELIVERABLE_STATUS_LABELS[s as keyof typeof DELIVERABLE_STATUS_LABELS] || s}
+                </Button>
+              ))}
+            </div>
+          </Card>
+
+          {needsRunner && (
+            <Card padding="lg" className="border-amber-200 bg-amber-50/60">
+              <div className="flex items-start gap-3">
+                <UserPlus className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-amber-800">Runner needed</p>
+                  <p className="mt-0.5 text-xs text-amber-700">
+                    This deliverable is confirmed. Assign a runner to handle it.
+                  </p>
+                  <Button className="mt-3" size="sm" onClick={() => setShowAssignRunner(true)}>
+                    Assign Runner
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-ink-secondary">
-                <Clock className="h-3.5 w-3.5 text-ink-muted" />
-                {formatDate(deliverable.runnerAssignment.eventDate)}
-                {deliverable.runnerAssignment.eventTime && (
-                  <span>at {new Date(deliverable.runnerAssignment.eventTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
+            </Card>
+          )}
+
+          {deliverable.runnerAssignment && (
+            <Card padding="lg">
+              <CardHeader title="Runner Assignment" />
+              <div className="space-y-2.5 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-ink-primary">
+                    {deliverable.runnerAssignment.runner?.name || "Unassigned"}
+                  </span>
+                  <Badge tone={statusTone(deliverable.runnerAssignment.status)}>
+                    {humanize(deliverable.runnerAssignment.status)}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2 text-ink-secondary">
+                  <Clock className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
+                  <span>
+                    {formatDate(deliverable.runnerAssignment.eventDate)}
+                    {deliverable.runnerAssignment.eventTime && (
+                      <>
+                        {" at "}
+                        {new Date(deliverable.runnerAssignment.eventTime).toLocaleTimeString("en-US", {
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </>
+                    )}
+                  </span>
+                </div>
+                {deliverable.runnerAssignment.venueName && (
+                  <div className="flex items-start gap-2 text-ink-secondary">
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-muted" />
+                    <span>
+                      {deliverable.runnerAssignment.venueName}
+                      {deliverable.runnerAssignment.venueAddress && (
+                        <span className="text-ink-muted"> — {deliverable.runnerAssignment.venueAddress}</span>
+                      )}
+                    </span>
+                  </div>
+                )}
+                {deliverable.runnerAssignment.notes && (
+                  <p className="text-xs text-ink-muted">{deliverable.runnerAssignment.notes}</p>
                 )}
               </div>
-              {deliverable.runnerAssignment.venueName && (
-                <div className="flex items-center gap-2 text-ink-secondary">
-                  <MapPin className="h-3.5 w-3.5 text-ink-muted" />
-                  {deliverable.runnerAssignment.venueName}
-                  {deliverable.runnerAssignment.venueAddress && (
-                    <span className="text-ink-muted">— {deliverable.runnerAssignment.venueAddress}</span>
-                  )}
-                </div>
-              )}
-              {deliverable.runnerAssignment.notes && (
-                <p className="text-xs text-ink-muted mt-1">{deliverable.runnerAssignment.notes}</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+            </Card>
+          )}
 
-      {/* Edit Form */}
-      <form onSubmit={handleSubmit} className="rounded-lg border border-border bg-white p-6 space-y-4">
-        {success && <div className="rounded-md bg-green-50 px-4 py-3 text-sm text-green-700">Saved!</div>}
-
-        <div className="grid grid-cols-2 gap-4">
-          <FormGroup label="Title" htmlFor="d-title" required>
-            <Input id="d-title" name="title" defaultValue={deliverable.title} required />
-          </FormGroup>
-          <FormGroup label="Type" htmlFor="d-type" required>
-            <Select id="d-type" name="type" defaultValue={deliverable.type} required>
-              <option value="PRESS_PLACEMENT">Press Placement</option>
-              <option value="INTERVIEW">Interview</option>
-              <option value="INFLUENCER_COLLAB">Influencer Collab</option>
-              <option value="EVENT_APPEARANCE">Event Appearance</option>
-              <option value="BRAND_OPPORTUNITY">Brand Opportunity</option>
-              <option value="INTRODUCTION">Introduction</option>
-              <option value="SOCIAL_MEDIA">Social Media</option>
-              <option value="PRESS_RELEASE">Press Release</option>
-              <option value="OTHER">Other</option>
-            </Select>
-          </FormGroup>
-        </div>
-
-        <div className="grid grid-cols-3 gap-4">
-          <FormGroup label="Status" htmlFor="d-status">
-            <Select id="d-status" name="status" defaultValue={deliverable.status}>
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {DELIVERABLE_STATUS_LABELS[s as keyof typeof DELIVERABLE_STATUS_LABELS] || s}
-                </option>
-              ))}
-            </Select>
-          </FormGroup>
-          <FormGroup label="Strategist" htmlFor="d-assignee">
-            <Select id="d-assignee" name="assigneeId" defaultValue={deliverable.assignee?.id || ""}>
-              <option value="">Unassigned</option>
-              {teamMembers.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </Select>
-          </FormGroup>
-          <FormGroup label="Due Date" htmlFor="d-due">
-            <Input id="d-due" name="dueDate" type="date" defaultValue={deliverable.dueDate ? new Date(deliverable.dueDate).toISOString().split("T")[0] : ""} />
-          </FormGroup>
-        </div>
-
-        <FormGroup label="Notes" htmlFor="d-notes">
-          <Textarea id="d-notes" name="notes" rows={3} defaultValue={deliverable.notes || ""} placeholder="Internal notes..." />
-        </FormGroup>
-
-        <FormGroup label="Outcome / Win" htmlFor="d-outcome">
-          <Textarea id="d-outcome" name="outcome" rows={2} defaultValue={deliverable.outcome || ""} placeholder="What was the result? (shown to client)" />
-        </FormGroup>
-
-        <div className="grid grid-cols-2 gap-4">
-          <FormGroup label="Client Visible" htmlFor="d-visible">
-            <Select id="d-visible" name="isClientVisible" defaultValue={deliverable.isClientVisible ? "true" : "false"}>
-              <option value="true">Yes — visible to client</option>
-              <option value="false">No — internal only</option>
-            </Select>
-          </FormGroup>
-        </div>
-
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={saving}>
-            {saving ? "Saving..." : "Save Changes"}
-          </Button>
-        </div>
-      </form>
-
-      {/* Post-Event Notes / Comments */}
-      <section className="mt-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-ink-muted">
-            Notes & Feedback ({deliverable.comments.length})
-          </h2>
-          <button
-            onClick={() => setShowAddNote(true)}
-            className="inline-flex items-center gap-1 text-xs text-ink-muted hover:text-ink-primary transition-colors"
-          >
-            <MessageSquare className="h-3 w-3" /> Add Note
-          </button>
-        </div>
-        {deliverable.comments.length > 0 ? (
-          <div className="space-y-3">
-            {deliverable.comments.map((c) => (
-              <div key={c.id} className="rounded-lg border border-border bg-white p-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-sm font-medium text-ink-primary">{c.user.name}</span>
-                  <span className="text-xs text-ink-muted">{formatDate(c.createdAt)}</span>
-                </div>
-                <p className="text-sm text-ink-secondary">{c.content}</p>
+          <Card padding="lg">
+            <CardHeader title="Context" />
+            <dl className="space-y-3 text-sm">
+              <div>
+                <dt className="eyebrow">Client</dt>
+                <dd className="mt-0.5 font-medium text-ink-primary">{deliverable.client.name}</dd>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-lg border border-dashed border-border p-6 text-center">
-            <p className="text-xs text-ink-muted">No notes yet. Add feedback after the event.</p>
-          </div>
-        )}
-      </section>
+              <div>
+                <dt className="eyebrow">Campaign</dt>
+                <dd className="mt-0.5 text-ink-secondary">{deliverable.campaign?.name ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="eyebrow">Counts toward</dt>
+                <dd className="tabular mt-0.5 text-ink-secondary">
+                  {deliverable.month}/{deliverable.year}
+                </dd>
+              </div>
+              <div>
+                <dt className="eyebrow">Completed</dt>
+                <dd className="mt-0.5 text-ink-secondary">{formatDate(deliverable.completedAt)}</dd>
+              </div>
+            </dl>
+          </Card>
+        </div>
+      </div>
 
       {/* Assign Runner Modal */}
       <AssignRunnerModal
@@ -416,20 +502,35 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
 
       {/* Add Note Modal */}
       {showAddNote && (
-        <Modal open={showAddNote} onOpenChange={setShowAddNote} title="Add Note" description="Post-event feedback or notes">
+        <Modal
+          open={showAddNote}
+          onOpenChange={setShowAddNote}
+          title="Add Note"
+          description="Post-event feedback or notes"
+        >
           <form onSubmit={addComment} className="space-y-4">
-            {noteError && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{noteError}</div>}
             <FormGroup label="Note" htmlFor="note-content" required>
-              <Textarea id="note-content" name="content" rows={4} placeholder="Any feedback, issues, or wins..." required autoFocus />
+              <Textarea
+                id="note-content"
+                name="content"
+                rows={4}
+                placeholder="Any feedback, issues, or wins..."
+                required
+                autoFocus
+              />
             </FormGroup>
-            <div className="flex gap-3">
-              <Button type="submit">Add Note</Button>
-              <Button type="button" variant="secondary" onClick={() => setShowAddNote(false)}>Cancel</Button>
-            </div>
+            <FormActions>
+              <Button type="button" variant="secondary" onClick={() => setShowAddNote(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={notePosting}>
+                Add Note
+              </Button>
+            </FormActions>
           </form>
         </Modal>
       )}
-    </div>
+    </>
   );
 }
 
@@ -445,9 +546,8 @@ function AssignRunnerModal({
   runners: { id: string; name: string }[];
 }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
 
   // Combine the date + "HH:mm" in the browser's timezone and send an absolute instant,
   // so the time shown later is the one that was typed regardless of server timezone.
@@ -460,8 +560,6 @@ function AssignRunnerModal({
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
-    setWarning(null);
 
     const form = new FormData(e.currentTarget);
     const eventDate = form.get("eventDate") as string;
@@ -477,7 +575,9 @@ function AssignRunnerModal({
       venueName: (form.get("venueName") as string) || undefined,
       venueAddress: (form.get("venueAddress") as string) || undefined,
       location: (form.get("location") as string) || undefined,
-      itemType: DELIVERABLE_TYPE_LABELS[deliverable.type as keyof typeof DELIVERABLE_TYPE_LABELS] || deliverable.type,
+      itemType:
+        DELIVERABLE_TYPE_LABELS[deliverable.type as keyof typeof DELIVERABLE_TYPE_LABELS] ||
+        deliverable.type,
       notes: (form.get("notes") as string) || undefined,
     };
 
@@ -490,58 +590,72 @@ function AssignRunnerModal({
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setError(typeof data.error === "string" ? data.error : "Failed to assign runner");
+        toast({
+          title: "Failed to assign runner",
+          description: typeof data.error === "string" ? data.error : undefined,
+          variant: "error",
+        });
         setLoading(false);
         return;
       }
 
       setLoading(false);
       if (data.conflictWarning) {
-        // Keep the modal open so the warning is seen; the assignment is already saved.
-        setWarning(`${data.conflictWarning}. The assignment was saved.`);
+        // The assignment is saved; surface the scheduling conflict prominently.
+        toast({
+          title: "Scheduling conflict",
+          description: `${data.conflictWarning}. The assignment was saved.`,
+          variant: "error",
+          duration: 10000,
+        });
         router.refresh();
         return;
       }
       onOpenChange(false);
+      toast({ title: "Runner assigned", variant: "success" });
       router.refresh();
     } catch {
-      setError("Network error — could not reach the server");
+      toast({ title: "Network error", description: "Could not reach the server", variant: "error" });
       setLoading(false);
     }
   }
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Assign Runner" description={`${deliverable.title} — ${deliverable.client.name}`}>
+    <Modal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Assign Runner"
+      description={`${deliverable.title} — ${deliverable.client.name}`}
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-        {warning && (
-          <div className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            {warning}{" "}
-            <button type="button" className="underline font-medium" onClick={() => onOpenChange(false)}>
-              Close
-            </button>
-          </div>
-        )}
         {runners.length === 0 && (
-          <div className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            No active runners found. Add a runner in Settings first.
-          </div>
+          <Card padding="sm" className="border-amber-200 bg-amber-50/60">
+            <p className="text-sm text-amber-800">No active runners found. Add a runner in Settings first.</p>
+          </Card>
         )}
 
         <FormGroup label="Runner" htmlFor="ar-runner" required>
           <Select id="ar-runner" name="runnerId" required>
             <option value="">Select runner...</option>
             {runners.map((r) => (
-              <option key={r.id} value={r.id}>{r.name}</option>
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
             ))}
           </Select>
         </FormGroup>
 
         <FormGroup label="Event Date" htmlFor="ar-date" required>
-          <Input id="ar-date" name="eventDate" type="date" required defaultValue={deliverable.dueDate ? new Date(deliverable.dueDate).toISOString().split("T")[0] : ""} />
+          <Input
+            id="ar-date"
+            name="eventDate"
+            type="date"
+            required
+            defaultValue={deliverable.dueDate ? new Date(deliverable.dueDate).toISOString().split("T")[0] : ""}
+          />
         </FormGroup>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormGroup label="Arrival Time" htmlFor="ar-arrival">
             <Input id="ar-arrival" name="arrivalTime" type="time" />
           </FormGroup>
@@ -566,14 +680,14 @@ function AssignRunnerModal({
           <Textarea id="ar-notes" name="notes" rows={2} placeholder="Logistics details..." />
         </FormGroup>
 
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={loading}>
-            {loading ? "Assigning..." : "Assign Runner"}
-          </Button>
+        <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-        </div>
+          <Button type="submit" loading={loading}>
+            Assign Runner
+          </Button>
+        </FormActions>
       </form>
     </Modal>
   );

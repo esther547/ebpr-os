@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { PageHeader } from "@/components/layout/header";
+import { ClientHeader } from "@/components/clients/client-header";
 import { DeliverablesPageClient } from "@/components/deliverables/deliverables-page-client";
 import { currentMonthYear, monthLabel } from "@/lib/utils";
 
@@ -18,7 +18,7 @@ export default async function DeliverablesPage({ params }: Props) {
 
   const client = await db.client.findUnique({
     where: { id: clientId },
-    select: { id: true, name: true, monthlyTarget: true, status: true },
+    select: { id: true, name: true, monthlyTarget: true, status: true, industry: true },
   });
   if (!client) notFound();
 
@@ -33,7 +33,7 @@ export default async function DeliverablesPage({ params }: Props) {
     orderBy: { createdAt: "desc" },
   });
 
-  // Confirmed-or-later deliverables that still have no runner assignment (yellow prompt on the board)
+  // Confirmed-or-later deliverables that still have no runner assignment (warning prompt on the board)
   const assignments = await db.runnerAssignment.findMany({
     where: { deliverableId: { in: deliverables.map((d) => d.id) }, status: { not: "CANCELLED" } },
     select: { deliverableId: true },
@@ -53,10 +53,7 @@ export default async function DeliverablesPage({ params }: Props) {
 
   return (
     <>
-      <PageHeader
-        title="Deliverables"
-        subtitle={`${client.name} · ${monthLabel(month, year)} · Target: ${client.monthlyTarget}`}
-      />
+      <ClientHeader client={client} counts={{ deliverables: deliverables.length }} />
       <DeliverablesPageClient
         deliverables={JSON.parse(JSON.stringify(deliverables))}
         clientId={client.id}
@@ -64,6 +61,7 @@ export default async function DeliverablesPage({ params }: Props) {
         teamMembers={teamMembers}
         runnerNeededIds={runnerNeededIds}
         clientStatus={client.status}
+        monthLabel={monthLabel(month, year)}
       />
     </>
   );

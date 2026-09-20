@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { PageHeader } from "@/components/layout/header";
+import { ClientHeader } from "@/components/clients/client-header";
 import { AgendaMonthSection } from "@/components/agenda/agenda-month-section";
 import { AgendaAddItemButton } from "@/components/agenda/create-agenda-item-modal";
+import { EmptyState } from "@/components/ui/empty-state";
+import { CalendarDays } from "lucide-react";
 import { format, getMonth } from "date-fns";
 
 type Props = { params: { clientId: string } };
@@ -16,7 +18,7 @@ export default async function AgendaPage({ params }: Props) {
 
   const client = await db.client.findUnique({
     where: { id: params.clientId },
-    select: { id: true, name: true, status: true },
+    select: { id: true, name: true, status: true, monthlyTarget: true, industry: true },
   });
   if (!client) notFound();
 
@@ -62,8 +64,7 @@ export default async function AgendaPage({ params }: Props) {
   // Group by monthNumber (or derive from date)
   const byMonth = new Map<number, typeof items>();
   for (const item of items) {
-    const monthKey =
-      item.monthNumber ?? (getMonth(new Date(item.eventDate)) + 1);
+    const monthKey = item.monthNumber ?? getMonth(new Date(item.eventDate)) + 1;
     const arr = byMonth.get(monthKey) ?? [];
     arr.push(item);
     byMonth.set(monthKey, arr);
@@ -73,9 +74,9 @@ export default async function AgendaPage({ params }: Props) {
 
   return (
     <>
-      <PageHeader
-        title="Agenda"
-        subtitle={`${client.name} · ${items.length} scheduled items`}
+      <ClientHeader
+        client={client}
+        counts={{ agenda: items.length }}
         actions={
           <AgendaAddItemButton
             clientId={client.id}
@@ -87,12 +88,11 @@ export default async function AgendaPage({ params }: Props) {
       />
 
       {items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-24 text-center">
-          <p className="text-sm font-medium text-ink-primary">No agenda items yet</p>
-          <p className="mt-1 text-sm text-ink-muted">
-            Add scheduled appearances, TV slots, events, and red carpets.
-          </p>
-        </div>
+        <EmptyState
+          icon={<CalendarDays />}
+          title="No agenda items yet"
+          description="Add scheduled appearances, TV slots, events, and red carpets."
+        />
       ) : (
         <div className="space-y-8">
           {sortedMonths.map((monthNum) => {

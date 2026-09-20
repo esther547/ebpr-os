@@ -81,6 +81,11 @@ export function PortalReportsClient({
     return acc;
   }, {} as Record<string, number>);
 
+  const breakdownRows = Object.entries(typeBreakdown)
+    .map(([type, count]) => ({ type, count }))
+    .sort((a, b) => b.count - a.count);
+  const breakdownMax = breakdownRows.length > 0 ? breakdownRows[0].count : 0;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -154,17 +159,29 @@ export function PortalReportsClient({
           </Card>
 
           {/* Type Breakdown */}
-          {Object.keys(typeBreakdown).length > 0 && (
+          {breakdownRows.length > 0 && (
             <section>
-              <SectionHeader title="Media Breakdown" />
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(typeBreakdown).map(([type, count]) => (
-                  <Badge key={type} tone="neutral" size="md">
-                    {DELIVERABLE_TYPE_LABELS[type as keyof typeof DELIVERABLE_TYPE_LABELS] || type}
-                    <span className="text-ink-primary tabular">{count}</span>
-                  </Badge>
-                ))}
-              </div>
+              <SectionHeader title="Media Breakdown" description={`${completed.length} wins by type`} />
+              <Card padding="md">
+                <ul className="space-y-3.5">
+                  {breakdownRows.map(({ type, count }) => (
+                    <li key={type}>
+                      <div className="flex items-baseline justify-between gap-4">
+                        <span className="min-w-0 truncate text-sm text-ink-primary">
+                          {DELIVERABLE_TYPE_LABELS[type as keyof typeof DELIVERABLE_TYPE_LABELS] || type}
+                        </span>
+                        <span className="shrink-0 text-sm font-medium text-ink-primary tabular">{count}</span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-2">
+                        <div
+                          className="h-full rounded-full bg-ink-primary transition-all duration-500"
+                          style={{ width: `${breakdownMax > 0 ? (count / breakdownMax) * 100 : 0}%` }}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
             </section>
           )}
 

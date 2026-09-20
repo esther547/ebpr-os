@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/modal";
-import { Button, Input, Select, Textarea, FormGroup } from "@/components/ui/form-field";
+import { Button, Input, Select, Textarea, FormGroup, FormActions } from "@/components/ui/form-field";
+import { useToast } from "@/components/ui/toast";
 
 interface Props {
   open: boolean;
@@ -14,12 +15,11 @@ interface Props {
 export function CreateStrategyItemModal({ open, onOpenChange, clientId }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     const form = new FormData(e.currentTarget);
 
@@ -40,22 +40,24 @@ export function CreateStrategyItemModal({ open, onOpenChange, clientId }: Props)
 
     if (!res.ok) {
       const data = await res.json();
-      setError(data.error || "Failed to create strategy item");
+      toast({
+        title: "Failed to create strategy item",
+        description: typeof data.error === "string" ? data.error : undefined,
+        variant: "error",
+      });
       setLoading(false);
       return;
     }
 
     onOpenChange(false);
+    setLoading(false);
+    toast({ title: "Strategy item added", variant: "success" });
     router.refresh();
   }
 
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Add Strategy Item" description="Add to the strategy wishlist">
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && (
-          <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
-        )}
-
         <FormGroup label="Title" htmlFor="si-title" required>
           <Input id="si-title" name="title" placeholder="e.g., Vogue Latin America Feature" required autoFocus />
         </FormGroup>
@@ -76,7 +78,7 @@ export function CreateStrategyItemModal({ open, onOpenChange, clientId }: Props)
           <Input id="si-target" name="targetName" placeholder="e.g., Vogue, Rolling Stone, Billboard" />
         </FormGroup>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormGroup label="Phase" htmlFor="si-phase">
             <Select id="si-phase" name="phase">
               <option value="">Any</option>
@@ -97,14 +99,14 @@ export function CreateStrategyItemModal({ open, onOpenChange, clientId }: Props)
           <Textarea id="si-notes" name="notes" rows={3} placeholder="Context, angles, contacts..." />
         </FormGroup>
 
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={loading}>
-            {loading ? "Adding..." : "Add Item"}
-          </Button>
+        <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-        </div>
+          <Button type="submit" loading={loading}>
+            Add Item
+          </Button>
+        </FormActions>
       </form>
     </Modal>
   );

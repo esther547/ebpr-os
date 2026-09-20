@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, FormGroup } from "@/components/ui/form-field";
+import { Button, Input, FormGroup, FormActions } from "@/components/ui/form-field";
 import { Modal } from "@/components/ui/modal";
+import { Card } from "@/components/ui/card";
+import { useToast } from "@/components/ui/toast";
 import { ExternalLink, FileText, Pencil, Download } from "lucide-react";
 
 interface Props {
@@ -14,40 +16,45 @@ interface Props {
 export function StrategyDocLink({ clientId, strategyDocUrl }: Props) {
   const [showEdit, setShowEdit] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const router = useRouter();
+  const { toast } = useToast();
 
   async function importStrategy() {
     setImporting(true);
-    setImportResult(null);
 
     try {
       const res = await fetch(`/api/clients/${clientId}/import-strategy`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
-        setImportResult(`✅ ${data.message ?? "Import complete"}`);
+        toast({ title: data.message ?? "Import complete", variant: "success" });
         router.refresh();
       } else {
-        setImportResult(`❌ ${typeof data.error === "string" ? data.error : "Import failed"}`);
+        toast({
+          title: "Import failed",
+          description: typeof data.error === "string" ? data.error : undefined,
+          variant: "error",
+        });
       }
     } catch {
-      setImportResult("❌ Network error — could not reach the server");
+      toast({ title: "Network error", description: "Could not reach the server", variant: "error" });
     }
     setImporting(false);
   }
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setSaveError(null);
     setSaving(true);
     const form = new FormData(e.currentTarget);
     const url = ((form.get("url") as string) || "").trim() || null;
 
     if (url && !/^https:\/\/docs\.google\.com\/document\/d\/[A-Za-z0-9_-]+/.test(url)) {
-      setSaveError("That doesn't look like a Google Doc link (https://docs.google.com/document/d/...)");
+      toast({
+        title: "That doesn't look like a Google Doc link",
+        description: "Expected https://docs.google.com/document/d/…",
+        variant: "error",
+      });
       setSaving(false);
       return;
     }
@@ -60,77 +67,83 @@ export function StrategyDocLink({ clientId, strategyDocUrl }: Props) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setSaveError(typeof data.error === "string" ? data.error : "Could not save link");
+        toast({
+          title: "Could not save link",
+          description: typeof data.error === "string" ? data.error : undefined,
+          variant: "error",
+        });
         setSaving(false);
         return;
       }
       setSaving(false);
       setShowEdit(false);
+      toast({ title: "Strategy document link saved", variant: "success" });
       router.refresh();
     } catch {
-      setSaveError("Network error — could not reach the server");
+      toast({ title: "Network error", description: "Could not reach the server", variant: "error" });
       setSaving(false);
     }
   }
 
   return (
     <>
-      <div className="rounded-lg border border-border bg-white p-5 mb-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
-              <FileText className="h-5 w-5 text-blue-600" />
-            </div>
-            <div>
+      <Card>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-ink-secondary">
+              <FileText className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
               <h3 className="text-sm font-semibold text-ink-primary">Strategy Document</h3>
-              <p className="text-xs text-ink-muted">Google Doc with full strategy details</p>
+              <p className="text-xs text-ink-muted">
+                {strategyDocUrl ? "Google Doc with full strategy details" : "No document linked"}
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {strategyDocUrl ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {strategyDocUrl && (
               <>
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={importStrategy}
-                  disabled={importing}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-md bg-green-600 px-4 text-sm font-medium text-white hover:bg-green-700 transition-colors disabled:opacity-50"
+                  loading={importing}
+                  leftIcon={<Download className="h-3.5 w-3.5" />}
                 >
-                  <Download className="h-3.5 w-3.5" />
-                  {importing ? "Importing..." : "Import as Tasks"}
-                </button>
-                <a
-                  href={strategyDocUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex h-9 items-center gap-1.5 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  Open Document
-                </a>
+                  Import as Tasks
+                </Button>
+                <Button asChild size="sm">
+                  <a href={strategyDocUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Open Document
+                  </a>
+                </Button>
               </>
-            ) : (
-              <span className="text-sm text-ink-muted">No document linked</span>
             )}
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setShowEdit(true)}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-white px-3 text-sm font-medium text-ink-secondary hover:bg-surface-2 transition-colors"
+              leftIcon={<Pencil className="h-3.5 w-3.5" />}
             >
-              <Pencil className="h-3.5 w-3.5" />
               {strategyDocUrl ? "Edit" : "Add Link"}
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
+      </Card>
 
-      {importResult && (
-        <div className={`rounded-md px-4 py-3 text-sm mb-4 ${importResult.startsWith("✅") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
-          {importResult}
-        </div>
-      )}
-
-      <Modal open={showEdit} onOpenChange={setShowEdit} title="Strategy Document Link" description="Paste a Google Doc link for this client's strategy">
+      <Modal
+        open={showEdit}
+        onOpenChange={setShowEdit}
+        title="Strategy Document Link"
+        description="Paste a Google Doc link for this client's strategy"
+      >
         <form onSubmit={handleSave} className="space-y-4">
-          {saveError && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{saveError}</div>}
-          <FormGroup label="Google Doc URL" htmlFor="sd-url">
+          <FormGroup
+            label="Google Doc URL"
+            htmlFor="sd-url"
+            description="Make sure the document is shared with your team."
+          >
             <Input
               id="sd-url"
               name="url"
@@ -140,15 +153,14 @@ export function StrategyDocLink({ clientId, strategyDocUrl }: Props) {
               autoFocus
             />
           </FormGroup>
-          <p className="text-xs text-ink-muted">
-            Paste the Google Doc link here. Make sure the document is shared with your team.
-          </p>
-          <div className="flex gap-3 pt-2">
-            <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save Link"}</Button>
+          <FormActions>
             <Button type="button" variant="secondary" onClick={() => setShowEdit(false)}>
               Cancel
             </Button>
-          </div>
+            <Button type="submit" loading={saving}>
+              Save Link
+            </Button>
+          </FormActions>
         </form>
       </Modal>
     </>

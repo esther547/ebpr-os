@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { addDaysKey, formatDayKey } from "@/components/runners/miami-time";
+import { Card, CardHeader, CardFooter } from "@/components/ui/card";
 
 type Event = {
   id: string;
@@ -24,12 +25,12 @@ type Props = {
 
 const STATUS_DOT: Record<string, string> = {
   SCHEDULED: "bg-blue-500",
-  CONFIRMED: "bg-green-500",
+  CONFIRMED: "bg-emerald-500",
   COMPLETED: "bg-ink-muted",
   CANCELLED: "bg-red-400",
 };
 
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
 export function WeekCalendarStrip({ events, weekStartKey, todayKey }: Props) {
   const days = DAYS.map((label, i) => ({
@@ -40,25 +41,25 @@ export function WeekCalendarStrip({ events, weekStartKey, todayKey }: Props) {
   const hasEvents = events.length > 0;
 
   return (
-    <div className="rounded-lg border border-border bg-white p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-bold text-ink-primary">This Week</h3>
-        <span className="text-xs text-ink-muted">
-          {formatDayKey(weekStartKey, "MMM d")} –{" "}
-          {formatDayKey(addDaysKey(weekStartKey, 6), "MMM d")}
-        </span>
-      </div>
+    <Card>
+      <CardHeader
+        title="This Week"
+        actions={
+          <span className="text-xs text-ink-muted">
+            {formatDayKey(weekStartKey, "MMM d")} –{" "}
+            {formatDayKey(addDaysKey(weekStartKey, 6), "MMM d")}
+          </span>
+        }
+      />
 
       {/* Day headers */}
-      <div className="grid grid-cols-7 gap-0.5 mb-2">
+      <div className="grid grid-cols-7 gap-1">
         {days.map(({ label, key }) => (
-          <div key={label} className="text-center">
-            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">
-              {label}
-            </p>
+          <div key={key} className="text-center">
+            <p className="eyebrow">{label}</p>
             <p
               className={cn(
-                "mt-0.5 text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center mx-auto",
+                "mx-auto mt-1 flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold tabular",
                 key === todayKey
                   ? "bg-ink-primary text-ink-inverted"
                   : "text-ink-secondary"
@@ -70,48 +71,46 @@ export function WeekCalendarStrip({ events, weekStartKey, todayKey }: Props) {
         ))}
       </div>
 
-      {/* Event dots per day */}
-      <div className="grid grid-cols-7 gap-0.5 min-h-[48px]">
-        {days.map(({ key }, i) => {
-          const dayEvents = events.filter((e) => e.dayKey === key);
-          return (
-            <div key={i} className="flex flex-col gap-1 min-h-[48px]">
-              {dayEvents.map((e) => (
-                <div
-                  key={e.id}
-                  title={`${e.eventName}${e.location ? ` · ${e.location}` : ""}`}
-                  className="rounded px-1 py-0.5 bg-surface-2 hover:bg-surface-3 cursor-default transition-colors"
-                >
-                  <div className="flex items-center gap-1">
-                    <div
+      {/* Event chips per day */}
+      {hasEvents ? (
+        <div className="mt-2 grid min-h-[56px] grid-cols-7 gap-1">
+          {days.map(({ key }) => {
+            const dayEvents = events.filter((e) => e.dayKey === key);
+            return (
+              <div key={key} className="flex min-h-[56px] flex-col gap-1">
+                {dayEvents.map((e) => (
+                  <div
+                    key={e.id}
+                    title={`${e.eventName}${e.location ? ` · ${e.location}` : ""}`}
+                    className="rounded-md bg-surface-2 px-1 py-1 transition-colors hover:bg-surface-3"
+                  >
+                    <span
                       className={cn(
-                        "h-1.5 w-1.5 rounded-full flex-shrink-0",
+                        "mx-auto block h-1.5 w-1.5 rounded-full",
                         STATUS_DOT[e.status] ?? "bg-ink-muted"
                       )}
                     />
-                    <p className="text-2xs text-ink-primary font-medium truncate leading-tight">
+                    <p className="mt-0.5 truncate text-center text-2xs font-medium leading-tight text-ink-primary">
                       {e.eventName}
                     </p>
                   </div>
-                </div>
-              ))}
-            </div>
-          );
-        })}
-      </div>
-
-      {!hasEvents && (
-        <p className="text-xs text-ink-muted text-center py-4">
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="mt-4 rounded-lg border border-dashed border-border py-6 text-center text-xs text-ink-muted">
           No events scheduled this week.
         </p>
       )}
 
-      <div className="mt-3 pt-3 border-t border-border">
+      <CardFooter>
         <p className="text-xs text-ink-muted">
-          <span className="font-semibold text-ink-primary">{events.length}</span>{" "}
+          <span className="font-semibold tabular text-ink-primary">{events.length}</span>{" "}
           event{events.length !== 1 ? "s" : ""} this week
         </p>
-      </div>
-    </div>
+      </CardFooter>
+    </Card>
   );
 }

@@ -2,11 +2,37 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { cn, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/form-field";
-import { Modal } from "@/components/ui/modal";
-import { Input, Select, Textarea, FormGroup } from "@/components/ui/form-field";
-import { FileText, Send, Clock, Check } from "lucide-react";
+import { Modal, ConfirmModal } from "@/components/ui/modal";
+import { Input, Select, Textarea, FormGroup, FormActions } from "@/components/ui/form-field";
+import { Card } from "@/components/ui/card";
+import { TableWrap, Table, Th, Td } from "@/components/ui/table";
+import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { StatTile } from "@/components/ui/stat-tile";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SectionHeader } from "@/components/layout/header";
+import { useToast } from "@/components/ui/toast";
+import {
+  DropdownMenu,
+  DropdownMenuDots,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  FileText,
+  Send,
+  Clock,
+  Check,
+  Plus,
+  CalendarClock,
+  Undo2,
+  ThumbsUp,
+  Ban,
+  Trash2,
+  RotateCcw,
+} from "lucide-react";
 
 type Release = {
   id: string;
@@ -24,13 +50,13 @@ type Release = {
   tags: string[];
 };
 
-const STATUS_STYLES: Record<string, string> = {
-  DRAFT: "bg-surface-2 text-ink-secondary",
-  PENDING_APPROVAL: "bg-amber-50 text-amber-700",
-  APPROVED: "bg-blue-50 text-blue-700",
-  SCHEDULED: "bg-purple-50 text-purple-700",
-  SENT: "bg-green-50 text-green-700",
-  CANCELLED: "bg-red-50 text-red-600",
+const STATUS_TONES: Record<string, BadgeTone> = {
+  DRAFT: "neutral",
+  PENDING_APPROVAL: "warning",
+  APPROVED: "info",
+  SCHEDULED: "purple",
+  SENT: "success",
+  CANCELLED: "danger",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -75,13 +101,13 @@ export function PressReleasesClient({ releases, clients }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [scheduling, setScheduling] = useState<Release | null>(null);
   const [sending, setSending] = useState<Release | null>(null);
+  const [deleting, setDeleting] = useState<Release | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { toast } = useToast();
 
   async function updateStatus(id: string, status: string, extra: Record<string, unknown> = {}) {
     setBusyId(id);
-    setError(null);
     const res = await fetch(`/api/press-releases/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -89,175 +115,242 @@ export function PressReleasesClient({ releases, clients }: Props) {
     }).catch(() => null);
     setBusyId(null);
     if (!res || !res.ok) {
-      const msg = res ? await readError(res, "Failed to update press release") : "Network error";
-      setError(msg);
+      toast({
+        title: "Could not update press release",
+        description: res ? await readError(res, "Failed to update press release") : "Network error",
+        variant: "error",
+      });
       return false;
     }
+    toast({ title: `Moved to ${STATUS_LABELS[status] ?? status}`, variant: "success" });
     router.refresh();
     return true;
   }
 
   async function remove(r: Release) {
-    if (!confirm(`Delete "${r.title}"? This can't be undone.`)) return;
     setBusyId(r.id);
-    setError(null);
     const res = await fetch(`/api/press-releases/${r.id}`, { method: "DELETE" }).catch(() => null);
     setBusyId(null);
     if (!res || !res.ok) {
-      setError(res ? await readError(res, "Failed to delete press release") : "Network error");
-      return;
+      toast({
+        title: "Could not delete press release",
+        description: res ? await readError(res, "Failed to delete press release") : "Network error",
+        variant: "error",
+      });
+      return false;
     }
+    toast({ title: "Press release deleted", variant: "success" });
     router.refresh();
+    return true;
   }
 
   const drafts = releases.filter((r) => r.status === "DRAFT" || r.status === "PENDING_APPROVAL");
   const approved = releases.filter((r) => r.status === "APPROVED" || r.status === "SCHEDULED");
   const sent = releases.filter((r) => r.status === "SENT");
-
-  const actionLink = "text-xs hover:underline disabled:opacity-40 disabled:no-underline";
+  const pendingApproval = releases.filter((r) => r.status === "PENDING_APPROVAL");
 
   return (
-    <>
-      <div className="mb-6">
-        <Button onClick={() => setShowCreate(true)}>+ New Press Release</Button>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="max-w-prose text-xs text-ink-muted">
+          Drafts move through approval, scheduling and distribution. Recipients come from the journalist database.
+        </p>
+        <Button onClick={() => setShowCreate(true)} leftIcon={<Plus className="h-4 w-4" />}>
+          New Press Release
+        </Button>
       </div>
 
-      {error && (
-        <div className="mb-4 flex items-start justify-between gap-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-xs underline">Dismiss</button>
-        </div>
-      )}
-
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
-        <div className="rounded-lg border border-border bg-white p-4 text-center">
-          <FileText className="mx-auto h-4 w-4 text-ink-muted mb-1" />
-          <p className="text-xl font-bold text-ink-primary">{drafts.length}</p>
-          <p className="text-xs text-ink-muted">Drafts</p>
-        </div>
-        <div className="rounded-lg border border-border bg-white p-4 text-center">
-          <Clock className="mx-auto h-4 w-4 text-amber-500 mb-1" />
-          <p className="text-xl font-bold text-ink-primary">{releases.filter((r) => r.status === "PENDING_APPROVAL").length}</p>
-          <p className="text-xs text-ink-muted">Pending Approval</p>
-        </div>
-        <div className="rounded-lg border border-border bg-white p-4 text-center">
-          <Send className="mx-auto h-4 w-4 text-purple-500 mb-1" />
-          <p className="text-xl font-bold text-ink-primary">{approved.length}</p>
-          <p className="text-xs text-ink-muted">Ready to Send</p>
-        </div>
-        <div className="rounded-lg border border-border bg-white p-4 text-center">
-          <Check className="mx-auto h-4 w-4 text-green-500 mb-1" />
-          <p className="text-xl font-bold text-ink-primary">{sent.length}</p>
-          <p className="text-xs text-ink-muted">Sent</p>
-        </div>
+      {/* Pipeline stats */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatTile label="Drafts" value={drafts.length} icon={<FileText />} />
+        <StatTile
+          label="Pending Approval"
+          value={pendingApproval.length}
+          icon={<Clock />}
+          tone={pendingApproval.length > 0 ? "warning" : "neutral"}
+          hint={pendingApproval.length > 0 ? "needs review" : "nothing waiting"}
+        />
+        <StatTile label="Ready to Send" value={approved.length} icon={<Send />} />
+        <StatTile label="Sent" value={sent.length} icon={<Check />} />
       </div>
 
-      {/* Releases Table */}
-      <div className="rounded-lg border border-border bg-white overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-surface-1">
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Title</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Client</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Status</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Scheduled</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {releases.map((r) => {
-              const busy = busyId === r.id;
-              return (
-                <tr key={r.id} className="hover:bg-surface-1 transition-colors">
-                  <td className="px-5 py-4">
-                    <p className="font-medium text-ink-primary">{r.title}</p>
-                    <p className="text-xs text-ink-muted mt-0.5">
-                      {r.createdBy.name} · {formatDate(r.createdAt)}
-                      {r.tags.length > 0 && <> · targets: {r.tags.join(", ")}</>}
-                      {r.tags.length === 0 && <> · targets: all journalists</>}
-                    </p>
-                  </td>
-                  <td className="px-5 py-4 text-ink-secondary">{r.client.name}</td>
-                  <td className="px-5 py-4">
-                    <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_STYLES[r.status])}>
-                      {STATUS_LABELS[r.status] || r.status}
-                    </span>
-                    {r.status === "SENT" && r.recipientCount != null && (
-                      <p className="text-2xs text-ink-muted mt-1">{r.recipientCount} recipients · {formatDate(r.sentAt)}</p>
-                    )}
-                    {r.approvedBy && r.status !== "SENT" && r.status !== "DRAFT" && (
-                      <p className="text-2xs text-ink-muted mt-1">Approved by {r.approvedBy}</p>
-                    )}
-                  </td>
-                  <td className="px-5 py-4 text-ink-secondary">{formatDate(r.scheduledDate)}</td>
-                  <td className="px-5 py-4">
-                    <div className="flex flex-wrap gap-3">
-                      {r.status === "DRAFT" && (
-                        <button disabled={busy} onClick={() => updateStatus(r.id, "PENDING_APPROVAL")} className={cn(actionLink, "text-amber-600")}>
-                          Submit for Approval
-                        </button>
-                      )}
-                      {r.status === "PENDING_APPROVAL" && (
-                        <>
-                          <button disabled={busy} onClick={() => updateStatus(r.id, "APPROVED")} className={cn(actionLink, "text-blue-600")}>
-                            Approve
-                          </button>
-                          <button disabled={busy} onClick={() => updateStatus(r.id, "DRAFT")} className={cn(actionLink, "text-ink-muted")}>
-                            Back to Draft
-                          </button>
-                        </>
-                      )}
-                      {r.status === "APPROVED" && (
-                        <>
-                          <button disabled={busy} onClick={() => setScheduling(r)} className={cn(actionLink, "text-purple-600")}>
-                            Schedule
-                          </button>
-                          <button disabled={busy} onClick={() => updateStatus(r.id, "DRAFT")} className={cn(actionLink, "text-ink-muted")}>
-                            Back to Draft
-                          </button>
-                        </>
-                      )}
-                      {r.status === "SCHEDULED" && (
-                        <>
-                          <button disabled={busy} onClick={() => setSending(r)} className={cn(actionLink, "text-green-600")}>
-                            Mark Sent
-                          </button>
-                          <button disabled={busy} onClick={() => setScheduling(r)} className={cn(actionLink, "text-purple-600")}>
-                            Reschedule
-                          </button>
-                        </>
-                      )}
-                      {r.status === "CANCELLED" && (
-                        <button disabled={busy} onClick={() => updateStatus(r.id, "DRAFT")} className={cn(actionLink, "text-ink-muted")}>
-                          Restore as Draft
-                        </button>
-                      )}
-                      {r.status !== "SENT" && r.status !== "CANCELLED" && (
-                        <button disabled={busy} onClick={() => updateStatus(r.id, "CANCELLED")} className={cn(actionLink, "text-red-600")}>
-                          Cancel
-                        </button>
-                      )}
-                      {r.status !== "SENT" && (
-                        <button disabled={busy} onClick={() => remove(r)} className={cn(actionLink, "text-red-600")}>
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-            {releases.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-5 py-12 text-center text-ink-muted">
-                  No press releases yet. Create the first one.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <section>
+        <SectionHeader
+          title="All Press Releases"
+          description={`${releases.length} total`}
+        />
+        {releases.length === 0 ? (
+          <EmptyState
+            icon={<FileText />}
+            title="No press releases yet"
+            description="Draft a release for a client, route it for approval, then schedule distribution."
+            action={
+              <Button onClick={() => setShowCreate(true)} leftIcon={<Plus className="h-4 w-4" />}>
+                New Press Release
+              </Button>
+            }
+          />
+        ) : (
+          <Card padding="none" className="overflow-hidden">
+            <TableWrap className="rounded-none border-0 shadow-none">
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>Title</Th>
+                    <Th>Client</Th>
+                    <Th>Status</Th>
+                    <Th>Scheduled</Th>
+                    <Th align="right"><span className="sr-only">Actions</span></Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {releases.map((r) => {
+                    const busy = busyId === r.id;
+                    return (
+                      <tr key={r.id}>
+                        <Td>
+                          <p className="font-medium text-ink-primary">{r.title}</p>
+                          <p className="mt-0.5 text-xs text-ink-muted">
+                            {r.createdBy.name} · {formatDate(r.createdAt)}
+                            {r.tags.length > 0 ? ` · targets: ${r.tags.join(", ")}` : " · targets: all journalists"}
+                          </p>
+                        </Td>
+                        <Td className="text-ink-secondary">{r.client.name}</Td>
+                        <Td>
+                          <Badge tone={STATUS_TONES[r.status] ?? "neutral"} dot>
+                            {STATUS_LABELS[r.status] || r.status}
+                          </Badge>
+                          {r.status === "SENT" && r.recipientCount != null && (
+                            <p className="mt-1 text-2xs text-ink-muted">
+                              {r.recipientCount} recipients · {formatDate(r.sentAt)}
+                            </p>
+                          )}
+                          {r.approvedBy && r.status !== "SENT" && r.status !== "DRAFT" && (
+                            <p className="mt-1 text-2xs text-ink-muted">Approved by {r.approvedBy}</p>
+                          )}
+                        </Td>
+                        <Td className="whitespace-nowrap text-ink-secondary tabular">
+                          {formatDate(r.scheduledDate)}
+                        </Td>
+                        <Td align="right">
+                          <div className="flex justify-end">
+                            <DropdownMenu>
+                              <DropdownMenuDots
+                                label={`Actions for ${r.title}`}
+                                className={busy ? "pointer-events-none opacity-50" : undefined}
+                              />
+                              <DropdownMenuContent>
+                                {r.status === "DRAFT" && (
+                                  <DropdownMenuItem
+                                    icon={<Clock />}
+                                    disabled={busy}
+                                    onSelect={() => void updateStatus(r.id, "PENDING_APPROVAL")}
+                                  >
+                                    Submit for Approval
+                                  </DropdownMenuItem>
+                                )}
+                                {r.status === "PENDING_APPROVAL" && (
+                                  <>
+                                    <DropdownMenuItem
+                                      icon={<ThumbsUp />}
+                                      disabled={busy}
+                                      onSelect={() => void updateStatus(r.id, "APPROVED")}
+                                    >
+                                      Approve
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      icon={<Undo2 />}
+                                      disabled={busy}
+                                      onSelect={() => void updateStatus(r.id, "DRAFT")}
+                                    >
+                                      Back to Draft
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {r.status === "APPROVED" && (
+                                  <>
+                                    <DropdownMenuItem
+                                      icon={<CalendarClock />}
+                                      disabled={busy}
+                                      onSelect={() => setScheduling(r)}
+                                    >
+                                      Schedule
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      icon={<Undo2 />}
+                                      disabled={busy}
+                                      onSelect={() => void updateStatus(r.id, "DRAFT")}
+                                    >
+                                      Back to Draft
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {r.status === "SCHEDULED" && (
+                                  <>
+                                    <DropdownMenuItem
+                                      icon={<Send />}
+                                      disabled={busy}
+                                      onSelect={() => setSending(r)}
+                                    >
+                                      Mark Sent
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      icon={<CalendarClock />}
+                                      disabled={busy}
+                                      onSelect={() => setScheduling(r)}
+                                    >
+                                      Reschedule
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {r.status === "CANCELLED" && (
+                                  <DropdownMenuItem
+                                    icon={<RotateCcw />}
+                                    disabled={busy}
+                                    onSelect={() => void updateStatus(r.id, "DRAFT")}
+                                  >
+                                    Restore as Draft
+                                  </DropdownMenuItem>
+                                )}
+                                {r.status !== "SENT" && r.status !== "CANCELLED" && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      icon={<Ban />}
+                                      destructive
+                                      disabled={busy}
+                                      onSelect={() => void updateStatus(r.id, "CANCELLED")}
+                                    >
+                                      Cancel
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {r.status !== "SENT" && (
+                                  <>
+                                    {r.status === "CANCELLED" && <DropdownMenuSeparator />}
+                                    <DropdownMenuItem
+                                      icon={<Trash2 />}
+                                      destructive
+                                      disabled={busy}
+                                      onSelect={() => setDeleting(r)}
+                                    >
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </Td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            </TableWrap>
+          </Card>
+        )}
+      </section>
 
       <CreateReleaseModal open={showCreate} onOpenChange={setShowCreate} clients={clients} />
 
@@ -284,7 +377,22 @@ export function PressReleasesClient({ releases, clients }: Props) {
           }}
         />
       )}
-    </>
+
+      <ConfirmModal
+        open={!!deleting}
+        onOpenChange={(o) => { if (!o) setDeleting(null); }}
+        title={deleting ? `Delete "${deleting.title}"?` : "Delete press release?"}
+        description="This can't be undone. The draft and its content are removed permanently."
+        confirmLabel="Delete"
+        destructive
+        loading={!!deleting && busyId === deleting.id}
+        onConfirm={async () => {
+          if (!deleting) return;
+          const ok = await remove(deleting);
+          if (ok) setDeleting(null);
+        }}
+      />
+    </div>
   );
 }
 
@@ -302,7 +410,7 @@ function ScheduleModal({
   const initial = release.scheduledDate ? release.scheduledDate.slice(0, 10) : nextWeekdayYmd();
   const [date, setDate] = useState(initial);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const weekend = !!date && isWeekend(date);
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -313,30 +421,50 @@ function ScheduleModal({
     e.preventDefault();
     if (!date) return;
     if (weekend) {
-      setError("Press releases go out on weekdays only — pick a Monday to Friday date.");
+      toast({
+        title: "Weekdays only",
+        description: "Press releases go out Monday to Friday — pick a weekday.",
+        variant: "error",
+      });
       return;
     }
     setLoading(true);
-    setError(null);
-    const ok = await onSchedule(date);
+    await onSchedule(date);
     setLoading(false);
-    if (!ok) setError("Could not schedule — see the message above the table.");
   }
 
   return (
-    <Modal open onOpenChange={(o) => { if (!o) onClose(); }} title="Schedule Distribution" description={release.title}>
+    <Modal
+      open
+      onOpenChange={(o) => { if (!o) onClose(); }}
+      title="Schedule Distribution"
+      description={release.title}
+      size="sm"
+    >
       <form onSubmit={submit} className="space-y-4">
-        {error && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-        <FormGroup label="Send date (weekdays only)" htmlFor="pr-date" required>
-          <Input id="pr-date" type="date" value={date} min={min} onChange={(e) => setDate(e.target.value)} required />
-          {weekend && <p className="text-xs text-red-600">That&apos;s a weekend. Choose Monday–Friday.</p>}
+        <FormGroup
+          label="Send date"
+          htmlFor="pr-date"
+          hint="weekdays only"
+          required
+          description="Distribution days are Monday through Friday."
+        >
+          <Input
+            id="pr-date"
+            type="date"
+            value={date}
+            min={min}
+            onChange={(e) => setDate(e.target.value)}
+            error={weekend ? "That's a weekend. Choose Monday–Friday." : undefined}
+            required
+          />
         </FormGroup>
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={loading || !date || weekend}>
-            {loading ? "Scheduling..." : "Schedule"}
-          </Button>
+        <FormActions>
           <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
-        </div>
+          <Button type="submit" loading={loading} disabled={!date || weekend}>
+            Schedule
+          </Button>
+        </FormActions>
       </form>
     </Modal>
   );
@@ -366,44 +494,58 @@ function SendModal({
   }, [release.tags]);
 
   return (
-    <Modal open onOpenChange={(o) => { if (!o) onClose(); }} title="Mark as Sent" description={release.title}>
-      <div className="space-y-4 text-sm text-ink-secondary">
-        <p>
-          Recipients are the active journalists matching{" "}
+    <Modal
+      open
+      onOpenChange={(o) => { if (!o) onClose(); }}
+      title="Mark as Sent"
+      description={release.title}
+      size="sm"
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button
+            loading={loading}
+            onClick={async () => {
+              setLoading(true);
+              const ok = await onConfirm();
+              setLoading(false);
+              if (!ok) onClose();
+            }}
+          >
+            Mark Sent
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="eyebrow">Targeting</span>
           {release.tags.length ? (
-            <>beat/tags <span className="font-medium text-ink-primary">{release.tags.join(", ")}</span></>
+            release.tags.map((t) => <Badge key={t} tone="info">{t}</Badge>)
           ) : (
-            <span className="font-medium text-ink-primary">any beat (no tags set)</span>
-          )}
-          .
-        </p>
-        <div className="rounded-md bg-surface-1 px-4 py-3">
-          {countError ? (
-            <span className="text-red-600">Could not load the recipient count.</span>
-          ) : count === null ? (
-            "Counting recipients..."
-          ) : (
-            <>
-              <span className="text-2xl font-bold text-ink-primary">{count.toLocaleString()}</span>{" "}
-              journalist{count === 1 ? "" : "s"} will be recorded as recipients
-            </>
+            <Badge tone="neutral">Any beat (no tags set)</Badge>
           )}
         </div>
+
+        <StatTile
+          label="Recipients"
+          value={countError ? "—" : count === null ? "…" : count.toLocaleString()}
+          tone={countError ? "danger" : "neutral"}
+          hint={
+            countError
+              ? "Could not load the recipient count."
+              : count === null
+                ? "Counting active journalists…"
+                : `active journalist${count === 1 ? "" : "s"} will be recorded as recipients`
+          }
+        />
+
         {release.scheduledDate && (
           <p className="text-xs text-ink-muted">Scheduled for {formatDate(release.scheduledDate)}.</p>
         )}
         <p className="text-xs text-ink-muted">
           This records the release as sent with today&apos;s date. It does not email journalists from here.
         </p>
-        <div className="flex gap-3 pt-2">
-          <Button
-            onClick={async () => { setLoading(true); const ok = await onConfirm(); setLoading(false); if (!ok) onClose(); }}
-            disabled={loading}
-          >
-            {loading ? "Saving..." : "Mark Sent"}
-          </Button>
-          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
-        </div>
       </div>
     </Modal>
   );
@@ -413,13 +555,12 @@ function SendModal({
 
 function CreateReleaseModal({ open, onOpenChange, clients }: { open: boolean; onOpenChange: (o: boolean) => void; clients: { id: string; name: string }[] }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     const form = new FormData(e.currentTarget);
     const body = {
@@ -436,21 +577,30 @@ function CreateReleaseModal({ open, onOpenChange, clients }: { open: boolean; on
     }).catch(() => null);
 
     if (!res || !res.ok) {
-      setError(res ? await readError(res, "Failed to create press release") : "Network error");
+      toast({
+        title: "Could not create press release",
+        description: res ? await readError(res, "Failed to create press release") : "Network error",
+        variant: "error",
+      });
       setLoading(false);
       return;
     }
 
     setLoading(false);
     onOpenChange(false);
+    toast({ title: "Draft created", description: body.title, variant: "success" });
     router.refresh();
   }
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="New Press Release" description="Draft a press release for a client">
+    <Modal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="New Press Release"
+      description="Draft a press release for a client"
+      size="lg"
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-
         <FormGroup label="Client" htmlFor="pr-client" required>
           <Select id="pr-client" name="clientId" required defaultValue="">
             <option value="" disabled>Select client...</option>
@@ -464,23 +614,27 @@ function CreateReleaseModal({ open, onOpenChange, clients }: { open: boolean; on
           <Input id="pr-title" name="title" placeholder="e.g., Reykon Announces World Tour 2026" required autoFocus />
         </FormGroup>
 
-        <FormGroup label="Target beats / tags (comma separated)" htmlFor="pr-tags">
+        <FormGroup
+          label="Target beats / tags"
+          htmlFor="pr-tags"
+          hint="comma separated"
+          description="Journalists whose beat or tags match are the recipients. Leave empty to target everyone."
+        >
           <Input id="pr-tags" name="tags" placeholder="e.g., Music, Entertainment, latin" />
-          <p className="text-xs text-ink-muted">Journalists whose beat or tags match are the recipients. Leave empty to target everyone.</p>
         </FormGroup>
 
         <FormGroup label="Content" htmlFor="pr-content" required>
           <Textarea id="pr-content" name="content" rows={10} placeholder="Write the press release..." required />
         </FormGroup>
 
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={loading}>
-            {loading ? "Creating..." : "Create Draft"}
-          </Button>
+        <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-        </div>
+          <Button type="submit" loading={loading}>
+            Create Draft
+          </Button>
+        </FormActions>
       </form>
     </Modal>
   );

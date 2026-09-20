@@ -1,6 +1,10 @@
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { daysSince, overdueInvoiceWhere } from "@/components/finance/invoice-status";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardHeader } from "@/components/ui/card";
+import { StatTile } from "@/components/ui/stat-tile";
+import { Table, Th, Td, TableEmpty } from "@/components/ui/table";
 import { AlertTriangle, FileText } from "lucide-react";
 
 export const metadata = { title: "Overdue Follow-Ups — EBPR" };
@@ -62,122 +66,114 @@ export default async function AssistantPortalPage() {
   const totalIssues = overdueClients.length + unsignedClients.length;
 
   return (
-    <div>
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-ink-primary">Overdue Follow-Ups</h1>
-        <p className="text-sm text-ink-muted mt-1">
-          Welcome, {user.name} · {totalIssues} item{totalIssues !== 1 ? "s" : ""} need attention
-        </p>
-      </div>
+    <div className="space-y-6">
+      <p className="text-sm text-ink-secondary">
+        Welcome, {user.name} · {totalIssues} item{totalIssues !== 1 ? "s" : ""} need attention
+      </p>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4 mb-8">
-        <div className="rounded-lg border border-border bg-white p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="h-4 w-4 text-red-500" />
-            <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Overdue Payments</span>
-          </div>
-          <p className="text-3xl font-bold text-red-600">{overdueClients.length}</p>
-          <p className="text-xs text-ink-muted mt-1">clients with outstanding balances</p>
-        </div>
-        <div className="rounded-lg border border-border bg-white p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <FileText className="h-4 w-4 text-amber-500" />
-            <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Pending Signatures</span>
-          </div>
-          <p className="text-3xl font-bold text-amber-600">{unsignedClients.length}</p>
-          <p className="text-xs text-ink-muted mt-1">contracts awaiting signature</p>
-        </div>
+      {/* Summary */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <StatTile
+          label="Overdue Payments"
+          value={overdueClients.length}
+          tone={overdueClients.length > 0 ? "danger" : "neutral"}
+          icon={<AlertTriangle />}
+          hint="clients with outstanding balances"
+        />
+        <StatTile
+          label="Pending Signatures"
+          value={unsignedClients.length}
+          tone={unsignedClients.length > 0 ? "warning" : "neutral"}
+          icon={<FileText />}
+          hint="contracts awaiting signature"
+        />
       </div>
 
       {/* Overdue Payments */}
-      <section className="mb-10">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-          Overdue Payments — Follow Up Immediately
-        </h2>
-
-        {overdueClients.length > 0 ? (
-          <div className="rounded-lg border border-border bg-white overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-surface-1">
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Client</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Days Overdue</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Priority</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {overdueClients.map((client, i) => (
-                  <tr key={i} className="hover:bg-surface-1 transition-colors border-l-4 border-l-red-500">
-                    <td className="px-5 py-4 font-medium text-ink-primary">{client.name}</td>
-                    <td className="px-5 py-4">
-                      <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-600">
+      <Card padding="none" className="overflow-hidden">
+        <CardHeader
+          className="mb-0 border-b border-border px-5 py-4"
+          eyebrow="Follow up immediately"
+          title="Overdue payments"
+          description="Clients with an invoice past its due date"
+        />
+        <div className="overflow-x-auto">
+          <Table className="min-w-[460px]">
+            <thead>
+              <tr>
+                <Th>Client</Th>
+                <Th>Days overdue</Th>
+                <Th>Priority</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {overdueClients.length === 0 ? (
+                <TableEmpty colSpan={3}>No overdue payments. All caught up.</TableEmpty>
+              ) : (
+                overdueClients.map((client, i) => (
+                  <tr key={i}>
+                    <Td className="font-medium text-ink-primary">{client.name}</Td>
+                    <Td>
+                      <Badge tone="danger" size="xs">
                         {client.daysOverdue} day{client.daysOverdue !== 1 ? "s" : ""}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4">
+                      </Badge>
+                    </Td>
+                    <Td>
                       {client.daysOverdue >= 7 ? (
-                        <span className="text-xs font-bold text-red-600">URGENT</span>
+                        <Badge tone="danger" size="xs">Urgent</Badge>
                       ) : client.daysOverdue >= 3 ? (
-                        <span className="text-xs font-semibold text-amber-600">HIGH</span>
+                        <Badge tone="warning" size="xs">High</Badge>
                       ) : (
-                        <span className="text-xs font-medium text-ink-secondary">NORMAL</span>
+                        <Badge tone="neutral" size="xs">Normal</Badge>
                       )}
-                    </td>
+                    </Td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="rounded-lg border border-border bg-white p-8 text-center">
-            <p className="text-sm text-ink-muted">No overdue payments. All caught up! ✅</p>
-          </div>
-        )}
-      </section>
+                ))
+              )}
+            </tbody>
+          </Table>
+        </div>
+      </Card>
 
       {/* Unsigned Contracts */}
-      <section>
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-          Pending Contract Signatures — Follow Up
-        </h2>
-
-        {unsignedClients.length > 0 ? (
-          <div className="rounded-lg border border-border bg-white overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-surface-1">
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Client</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Status</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Days Pending</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {unsignedClients.map((client, i) => (
-                  <tr key={i} className="hover:bg-surface-1 transition-colors border-l-4 border-l-amber-500">
-                    <td className="px-5 py-4 font-medium text-ink-primary">{client.name}</td>
-                    <td className="px-5 py-4">
-                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        client.status === "SENT" ? "bg-amber-50 text-amber-700" : "bg-surface-2 text-ink-secondary"
-                      }`}>
-                        {client.status === "SENT" ? "Awaiting Signature" : "Draft"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-ink-secondary">
+      <Card padding="none" className="overflow-hidden">
+        <CardHeader
+          className="mb-0 border-b border-border px-5 py-4"
+          eyebrow="Follow up"
+          title="Pending contract signatures"
+          description="Contracts still in draft or awaiting a signature"
+        />
+        <div className="overflow-x-auto">
+          <Table className="min-w-[460px]">
+            <thead>
+              <tr>
+                <Th>Client</Th>
+                <Th>Status</Th>
+                <Th>Days pending</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {unsignedClients.length === 0 ? (
+                <TableEmpty colSpan={3}>No pending signatures.</TableEmpty>
+              ) : (
+                unsignedClients.map((client, i) => (
+                  <tr key={i}>
+                    <Td className="font-medium text-ink-primary">{client.name}</Td>
+                    <Td>
+                      <Badge tone={client.status === "SENT" ? "warning" : "neutral"} size="xs">
+                        {client.status === "SENT" ? "Awaiting signature" : "Draft"}
+                      </Badge>
+                    </Td>
+                    <Td className="whitespace-nowrap tabular text-ink-secondary">
                       {client.daysPending > 0 ? `${client.daysPending} day${client.daysPending !== 1 ? "s" : ""}` : "Today"}
-                    </td>
+                    </Td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="rounded-lg border border-border bg-white p-8 text-center">
-            <p className="text-sm text-ink-muted">No pending signatures. ✅</p>
-          </div>
-        )}
-      </section>
+                ))
+              )}
+            </tbody>
+          </Table>
+        </div>
+      </Card>
     </div>
   );
 }

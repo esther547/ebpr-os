@@ -2,12 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { cn, formatDate } from "@/lib/utils";
-import { Button } from "@/components/ui/form-field";
+import { formatDate } from "@/lib/utils";
+import { Button, Input, FormGroup, FormActions } from "@/components/ui/form-field";
 import { CreateContractModal } from "@/components/contracts/create-contract-modal";
 import { Modal } from "@/components/ui/modal";
-import { Input, FormGroup } from "@/components/ui/form-field";
-import { Send, Upload, FileText, Check, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { TableWrap, Table, Th, Td } from "@/components/ui/table";
+import { useToast } from "@/components/ui/toast";
+import { PageHeader, SectionHeader } from "@/components/layout/header";
+import { Send, Upload, FileText, Check, X, Plus, Copy, Scale } from "lucide-react";
 import { apiErrorMessage } from "@/components/finance/invoice-status";
 
 type ContractRow = {
@@ -24,14 +28,6 @@ type ContractRow = {
   fileName: string | null;
 };
 
-const STATUS_STYLES: Record<string, string> = {
-  DRAFT: "bg-surface-2 text-ink-secondary",
-  SENT: "bg-amber-50 text-amber-700",
-  SIGNED: "bg-green-50 text-green-700",
-  EXPIRED: "bg-red-50 text-red-600",
-  TERMINATED: "bg-red-50 text-red-600",
-};
-
 interface Props {
   contracts: ContractRow[];
   clients: { id: string; name: string }[];
@@ -41,17 +37,18 @@ export function LegalPageClient({ contracts, clients }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [sendContract, setSendContract] = useState<ContractRow | null>(null);
   const [uploadContract, setUploadContract] = useState<ContractRow | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { toast } = useToast();
 
   const notSigned = contracts.filter(
     (c) => c.status !== "SIGNED" && c.status !== "EXPIRED" && c.status !== "TERMINATED"
   );
   const signed = contracts.filter((c) => c.status === "SIGNED");
+  const ended = contracts.filter((c) => c.status === "EXPIRED" || c.status === "TERMINATED");
+  const needsAction = contracts.filter((c) => c.status === "DRAFT" || c.status === "SENT").length;
 
   async function toggleStatus(contractId: string, currentStatus: string) {
     const newStatus = currentStatus === "SIGNED" ? "SENT" : "SIGNED";
-    setError(null);
     try {
       const res = await fetch(`/api/contracts/${contractId}`, {
         method: "PUT",
@@ -60,65 +57,75 @@ export function LegalPageClient({ contracts, clients }: Props) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        setError(apiErrorMessage(data, "Failed to update contract status"));
+        toast({ title: apiErrorMessage(data, "Failed to update contract status"), variant: "error" });
         return;
       }
+      toast({ title: newStatus === "SIGNED" ? "Marked as signed" : "Marked as not signed", variant: "success" });
       router.refresh();
     } catch {
-      setError("Network error — status not updated");
+      toast({ title: "Network error — status not updated", variant: "error" });
     }
   }
 
   return (
     <>
-      <div className="mb-6">
-        <Button onClick={() => setShowCreate(true)}>+ New Contract</Button>
+      <PageHeader
+        title="Legal & Contracts"
+        subtitle={`${contracts.length} contract${contracts.length !== 1 ? "s" : ""} · ${needsAction} need action`}
+        actions={
+          <Button onClick={() => setShowCreate(true)} leftIcon={<Plus className="h-4 w-4" />}>
+            New Contract
+          </Button>
+        }
+      />
+
+      <div className="space-y-6 pb-10">
+        {contracts.length === 0 ? (
+          <EmptyState
+            icon={<Scale />}
+            title="No contracts yet"
+            description="Create the first contract to start tracking signatures and files."
+            action={
+              <Button onClick={() => setShowCreate(true)} leftIcon={<Plus className="h-4 w-4" />}>
+                New Contract
+              </Button>
+            }
+          />
+        ) : (
+          <>
+            {notSigned.length > 0 && (
+              <section>
+                <SectionHeader
+                  title={`Not signed (${notSigned.length})`}
+                  description="Awaiting signature or still in draft"
+                />
+                <ContractTable
+                  contracts={notSigned}
+                  onSend={setSendContract}
+                  onUpload={setUploadContract}
+                  onToggleStatus={toggleStatus}
+                />
+              </section>
+            )}
+
+            {signed.length > 0 && (
+              <section>
+                <SectionHeader title={`Signed (${signed.length})`} description="Executed contracts" />
+                <ContractTable contracts={signed} onToggleStatus={toggleStatus} />
+              </section>
+            )}
+
+            {ended.length > 0 && (
+              <section>
+                <SectionHeader title={`Ended (${ended.length})`} description="Expired or terminated contracts" />
+                <ContractTable contracts={ended} onToggleStatus={toggleStatus} />
+              </section>
+            )}
+          </>
+        )}
       </div>
 
-      {error && (
-        <div className="mb-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
-      )}
-
-      {/* Not Signed */}
-      {notSigned.length > 0 && (
-        <section className="mb-8">
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-            Not Signed ({notSigned.length})
-          </h2>
-          <ContractTable
-            contracts={notSigned}
-            onSend={setSendContract}
-            onUpload={setUploadContract}
-            onToggleStatus={toggleStatus}
-          />
-        </section>
-      )}
-
-      {/* Signed */}
-      {signed.length > 0 && (
-        <section className="mb-8">
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-            Signed ({signed.length})
-          </h2>
-          <ContractTable
-            contracts={signed}
-            onToggleStatus={toggleStatus}
-          />
-        </section>
-      )}
-
-      {contracts.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-lg font-medium text-ink-primary">No contracts yet</p>
-          <p className="mt-1 text-sm text-ink-muted">Create the first contract.</p>
-        </div>
-      )}
-
-      <CreateContractModal
-        open={showCreate}
-        onOpenChange={setShowCreate}
-        clients={clients}
-      />
+      <CreateContractModal open={showCreate} onOpenChange={setShowCreate} clients={clients} />
 
       {sendContract && (
         <SendForSignatureModal
@@ -139,6 +146,8 @@ export function LegalPageClient({ contracts, clients }: Props) {
   );
 }
 
+// ─── Contract table ──────────────────────────────────────
+
 function ContractTable({
   contracts,
   onSend,
@@ -151,103 +160,106 @@ function ContractTable({
   onToggleStatus: (id: string, status: string) => void;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-white overflow-hidden">
-      <table className="w-full text-sm">
+    <TableWrap>
+      <Table>
         <thead>
-          <tr className="border-b border-border bg-surface-1">
-            <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Contract</th>
-            <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Client</th>
-            <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Status</th>
-            <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">File</th>
-            <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Signed</th>
-            <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Actions</th>
+          <tr>
+            <Th>Contract</Th>
+            <Th>Client</Th>
+            <Th>Status</Th>
+            <Th>File</Th>
+            <Th>Signed</Th>
+            <Th align="right">Actions</Th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-border">
-          {contracts.map((contract) => (
-            <tr key={contract.id} className="hover:bg-surface-1 transition-colors">
-              <td className="px-5 py-4 font-medium text-ink-primary">{contract.title}</td>
-              <td className="px-5 py-4 text-ink-secondary">{contract.client.name}</td>
-              <td className="px-5 py-4">
-                <button
-                  onClick={() => onToggleStatus(contract.id, contract.status)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity",
-                    contract.status === "SIGNED"
-                      ? "bg-green-50 text-green-700"
-                      : "bg-red-50 text-red-600"
-                  )}
-                  title={contract.status === "SIGNED" ? "Click to mark as Not Signed" : "Click to mark as Signed"}
-                >
-                  {contract.status === "SIGNED" ? (
-                    <><Check className="h-3 w-3" /> Signed</>
-                  ) : (
-                    <><X className="h-3 w-3" /> Not Signed</>
-                  )}
-                </button>
-              </td>
-              <td className="px-5 py-4">
-                {contract.fileUrl ? (
-                  <a
-                    href={contract.fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+        <tbody>
+          {contracts.map((contract) => {
+            const isSigned = contract.status === "SIGNED";
+            return (
+              <tr key={contract.id}>
+                <Td className="font-medium text-ink-primary">{contract.title}</Td>
+                <Td className="text-ink-secondary">{contract.client.name}</Td>
+                <Td>
+                  <button
+                    type="button"
+                    onClick={() => onToggleStatus(contract.id, contract.status)}
+                    className="rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-primary/25 focus-visible:ring-offset-2"
+                    title={isSigned ? "Click to mark as not signed" : "Click to mark as signed"}
                   >
-                    <FileText className="h-3 w-3" />
-                    {contract.fileName || "View PDF"}
-                  </a>
-                ) : (
-                  <span className="text-xs text-ink-muted">No file</span>
-                )}
-              </td>
-              <td className="px-5 py-4 text-ink-secondary">{formatDate(contract.signedAt)}</td>
-              <td className="px-5 py-4">
-                <div className="flex gap-2">
-                  {onUpload && (
-                    <button
-                      onClick={() => onUpload(contract)}
-                      className="inline-flex items-center gap-1 text-xs text-purple-600 hover:underline"
+                    <Badge tone={isSigned ? "success" : "danger"}>
+                      {isSigned ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                      {isSigned ? "Signed" : "Not signed"}
+                    </Badge>
+                  </button>
+                </Td>
+                <Td>
+                  {contract.fileUrl ? (
+                    <a
+                      href={contract.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex max-w-[200px] items-center gap-1.5 truncate text-xs text-ink-primary underline-offset-2 hover:underline"
                     >
-                      <Upload className="h-3 w-3" />
-                      Upload PDF
-                    </button>
+                      <FileText className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
+                      <span className="truncate">{contract.fileName || "View PDF"}</span>
+                    </a>
+                  ) : (
+                    <span className="text-xs text-ink-muted">No file</span>
                   )}
-                  {onSend && (contract.status === "DRAFT" || contract.status === "SENT") && (
-                    <button
-                      onClick={() => onSend(contract)}
-                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-                    >
-                      <Send className="h-3 w-3" />
-                      Send for Signature
-                    </button>
-                  )}
-                </div>
-              </td>
-            </tr>
-          ))}
+                </Td>
+                <Td className="whitespace-nowrap tabular text-ink-secondary">
+                  {formatDate(contract.signedAt) || "—"}
+                </Td>
+                <Td align="right">
+                  <div className="flex items-center justify-end gap-2">
+                    {onUpload && (
+                      <Button
+                        size="xs"
+                        variant="secondary"
+                        leftIcon={<Upload className="h-3 w-3" />}
+                        onClick={() => onUpload(contract)}
+                      >
+                        Upload PDF
+                      </Button>
+                    )}
+                    {onSend && (contract.status === "DRAFT" || contract.status === "SENT") && (
+                      <Button
+                        size="xs"
+                        variant="secondary"
+                        leftIcon={<Send className="h-3 w-3" />}
+                        onClick={() => onSend(contract)}
+                      >
+                        Send for signature
+                      </Button>
+                    )}
+                  </div>
+                </Td>
+              </tr>
+            );
+          })}
         </tbody>
-      </table>
-    </div>
+      </Table>
+    </TableWrap>
   );
 }
 
+// ─── Upload PDF link ─────────────────────────────────────
+
 function UploadContractModal({ open, onOpenChange, contract }: { open: boolean; onOpenChange: (o: boolean) => void; contract: ContractRow }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     const form = new FormData(e.currentTarget);
     const fileUrl = form.get("fileUrl") as string;
     const fileName = form.get("fileName") as string;
 
     if (!fileUrl) {
-      setError("Please enter a file URL");
+      toast({ title: "Please enter a file URL", variant: "error" });
       setLoading(false);
       return;
     }
@@ -260,27 +272,27 @@ function UploadContractModal({ open, onOpenChange, contract }: { open: boolean; 
         body: JSON.stringify({ fileUrl, fileName: fileName || "Contract.pdf" }),
       });
     } catch {
-      setError("Network error — link not saved");
+      toast({ title: "Network error — link not saved", variant: "error" });
       setLoading(false);
       return;
     }
 
     if (!res.ok) {
       const data = await res.json().catch(() => null);
-      setError(apiErrorMessage(data, "Failed to update contract"));
+      toast({ title: apiErrorMessage(data, "Failed to update contract"), variant: "error" });
       setLoading(false);
       return;
     }
 
+    setLoading(false);
     onOpenChange(false);
+    toast({ title: "PDF link saved", variant: "success" });
     router.refresh();
   }
 
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Upload Contract PDF" description={`${contract.title} — ${contract.client.name}`}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-
         <p className="text-sm text-ink-secondary">
           Upload your contract PDF to Google Drive or Dropbox, then paste the link here.
         </p>
@@ -293,29 +305,30 @@ function UploadContractModal({ open, onOpenChange, contract }: { open: boolean; 
           <Input id="up-name" name="fileName" placeholder="e.g., Reykon_Contract_2026.pdf" defaultValue={contract.fileName || ""} />
         </FormGroup>
 
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={loading}>
-            {loading ? "Saving..." : "Save PDF Link"}
-          </Button>
+        <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-        </div>
+          <Button type="submit" loading={loading}>
+            Save PDF Link
+          </Button>
+        </FormActions>
       </form>
     </Modal>
   );
 }
 
+// ─── Send for signature ──────────────────────────────────
+
 function SendForSignatureModal({ open, onOpenChange, contract }: { open: boolean; onOpenChange: (o: boolean) => void; contract: ContractRow }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [signingUrl, setSigningUrl] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     const form = new FormData(e.currentTarget);
     const body = {
@@ -331,7 +344,7 @@ function SendForSignatureModal({ open, onOpenChange, contract }: { open: boolean
         body: JSON.stringify(body),
       });
     } catch {
-      setError("Network error — link not generated");
+      toast({ title: "Network error — link not generated", variant: "error" });
       setLoading(false);
       return;
     }
@@ -339,7 +352,7 @@ function SendForSignatureModal({ open, onOpenChange, contract }: { open: boolean
     const data = await res.json().catch(() => null);
 
     if (!res.ok) {
-      setError(apiErrorMessage(data, "Failed to send"));
+      toast({ title: apiErrorMessage(data, "Failed to send"), variant: "error" });
       setLoading(false);
       return;
     }
@@ -351,13 +364,30 @@ function SendForSignatureModal({ open, onOpenChange, contract }: { open: boolean
 
   if (signingUrl) {
     return (
-      <Modal open={open} onOpenChange={onOpenChange} title="Signing Link Ready" description={`Contract: ${contract.title}`}>
+      <Modal
+        open={open}
+        onOpenChange={onOpenChange}
+        title="Signing Link Ready"
+        description={`Contract: ${contract.title}`}
+        footer={
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+            Done
+          </Button>
+        }
+      >
         <div className="space-y-4">
           <p className="text-sm text-ink-secondary">Share this link with the signer:</p>
-          <div className="rounded-md bg-surface-1 p-3 text-sm break-all font-mono text-ink-primary border border-border">
+          <div className="break-all rounded-lg border border-border bg-surface-1 p-3 font-mono text-xs text-ink-primary">
             {signingUrl}
           </div>
-          <Button onClick={() => { navigator.clipboard?.writeText(signingUrl).catch(() => {}); }} className="w-full">
+          <Button
+            className="w-full"
+            leftIcon={<Copy className="h-4 w-4" />}
+            onClick={() => {
+              navigator.clipboard?.writeText(signingUrl).catch(() => {});
+              toast({ title: "Signing link copied", variant: "success" });
+            }}
+          >
             Copy Link
           </Button>
         </div>
@@ -368,21 +398,20 @@ function SendForSignatureModal({ open, onOpenChange, contract }: { open: boolean
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Send for Signature" description={`${contract.title} — ${contract.client.name}`}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
         <FormGroup label="Signer Name" htmlFor="sig-name" required>
           <Input id="sig-name" name="signerName" placeholder="e.g., John Smith" required autoFocus />
         </FormGroup>
         <FormGroup label="Signer Email" htmlFor="sig-email" required>
           <Input id="sig-email" name="signerEmail" type="email" placeholder="e.g., john@client.com" required />
         </FormGroup>
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={loading}>
-            {loading ? "Generating..." : "Generate Signing Link"}
-          </Button>
+        <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-        </div>
+          <Button type="submit" loading={loading}>
+            Generate Signing Link
+          </Button>
+        </FormActions>
       </form>
     </Modal>
   );

@@ -3,9 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
-import { Button, Input, FormGroup, Select } from "@/components/ui/form-field";
+import { Button, Input, FormGroup, Select, FormActions } from "@/components/ui/form-field";
 import { Modal } from "@/components/ui/modal";
-import { Bell, Check, Plus } from "lucide-react";
+import { Card, CardHeader } from "@/components/ui/card";
+import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/toast";
+import { Plus } from "lucide-react";
 
 type Reminder = {
   id: string;
@@ -22,73 +25,72 @@ interface Props {
   reminders: Reminder[];
 }
 
-const TYPE_STYLES: Record<string, string> = {
-  event: "bg-purple-50 text-purple-700",
-  deliverable: "bg-blue-50 text-blue-700",
-  payment: "bg-amber-50 text-amber-700",
-  general: "bg-surface-2 text-ink-secondary",
+const TYPE_TONES: Record<string, BadgeTone> = {
+  event: "purple",
+  deliverable: "info",
+  payment: "warning",
+  general: "neutral",
 };
 
 export function ClientReminders({ clientId, reminders }: Props) {
   const [showAdd, setShowAdd] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { toast } = useToast();
 
   async function markDone(id: string) {
-    setError(null);
     try {
       const res = await fetch(`/api/reminders/${id}`, { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(typeof data.error === "string" ? data.error : "Could not complete reminder");
+        toast({
+          title: "Could not complete reminder",
+          description: typeof data.error === "string" ? data.error : undefined,
+          variant: "error",
+        });
         return;
       }
       router.refresh();
     } catch {
-      setError("Network error");
+      toast({ title: "Network error", description: "Could not reach the server", variant: "error" });
     }
   }
 
   const active = reminders.filter((r) => !r.isDone);
 
   return (
-    <section className="rounded-lg border border-border bg-white p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Bell className="h-4 w-4 text-ink-muted" />
-          <h2 className="font-semibold text-ink-primary">Reminders</h2>
-        </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="inline-flex items-center gap-1 text-xs text-ink-muted hover:text-ink-primary transition-colors"
-        >
-          <Plus className="h-3 w-3" /> Add
-        </button>
-      </div>
-
-      {error && <p className="mb-2 text-xs text-red-600" role="alert">{error}</p>}
+    <Card padding="lg">
+      <CardHeader
+        title="Reminders"
+        actions={
+          <Button variant="ghost" size="sm" onClick={() => setShowAdd(true)} leftIcon={<Plus className="h-3.5 w-3.5" />}>
+            Add
+          </Button>
+        }
+      />
 
       {active.length > 0 ? (
-        <ul className="space-y-2">
+        <ul className="space-y-2.5">
           {active.map((r) => {
             const isPast = new Date(r.remindAt) < new Date();
             return (
-              <li key={r.id} className="flex items-start gap-2 text-sm">
+              <li key={r.id} className="flex items-start gap-2.5 text-sm">
                 <button
+                  type="button"
                   onClick={() => markDone(r.id)}
-                  className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border border-border hover:border-green-500 hover:bg-green-50 transition-colors"
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border border-border transition-colors hover:border-ink-primary hover:bg-surface-2"
                   title="Mark done"
+                  aria-label={`Mark "${r.title}" done`}
                 />
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-ink-primary">{r.title}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className={`text-xs ${isPast ? "text-red-600 font-medium" : "text-ink-muted"}`}>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <span className={isPast ? "text-xs font-medium text-red-600" : "text-xs text-ink-muted"}>
                       {formatDate(r.remindAt)}
                     </span>
                     {r.type && (
-                      <span className={`rounded-full px-1.5 py-0.5 text-2xs font-medium ${TYPE_STYLES[r.type] || TYPE_STYLES.general}`}>
+                      <Badge size="xs" tone={TYPE_TONES[r.type] ?? "neutral"} className="capitalize">
                         {r.type}
-                      </span>
+                      </Badge>
                     )}
                   </div>
                 </div>
@@ -101,19 +103,26 @@ export function ClientReminders({ clientId, reminders }: Props) {
       )}
 
       <AddReminderModal open={showAdd} onOpenChange={setShowAdd} clientId={clientId} />
-    </section>
+    </Card>
   );
 }
 
-function AddReminderModal({ open, onOpenChange, clientId }: { open: boolean; onOpenChange: (o: boolean) => void; clientId: string }) {
+function AddReminderModal({
+  open,
+  onOpenChange,
+  clientId,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  clientId: string;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     const form = new FormData(e.currentTarget);
     const body = {
@@ -131,15 +140,20 @@ function AddReminderModal({ open, onOpenChange, clientId }: { open: boolean; onO
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(typeof data.error === "string" ? data.error : "Could not add reminder");
+        toast({
+          title: "Could not add reminder",
+          description: typeof data.error === "string" ? data.error : undefined,
+          variant: "error",
+        });
         setLoading(false);
         return;
       }
       onOpenChange(false);
       setLoading(false);
+      toast({ title: "Reminder added", variant: "success" });
       router.refresh();
     } catch {
-      setError("Network error — could not reach the server");
+      toast({ title: "Network error", description: "Could not reach the server", variant: "error" });
       setLoading(false);
     }
   }
@@ -147,11 +161,10 @@ function AddReminderModal({ open, onOpenChange, clientId }: { open: boolean; onO
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Add Reminder" description="Set a reminder for this client">
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
         <FormGroup label="Reminder" htmlFor="rem-title" required>
           <Input id="rem-title" name="title" placeholder="e.g., Follow up on interview" required autoFocus />
         </FormGroup>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormGroup label="Date" htmlFor="rem-date" required>
             <Input id="rem-date" name="remindAt" type="date" required />
           </FormGroup>
@@ -164,14 +177,14 @@ function AddReminderModal({ open, onOpenChange, clientId }: { open: boolean; onO
             </Select>
           </FormGroup>
         </div>
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={loading}>
-            {loading ? "Adding..." : "Add Reminder"}
-          </Button>
+        <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-        </div>
+          <Button type="submit" loading={loading}>
+            Add Reminder
+          </Button>
+        </FormActions>
       </form>
     </Modal>
   );

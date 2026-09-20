@@ -2,6 +2,8 @@ import { requireUser } from "@/lib/auth";
 import { canViewRunnerSchedule } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { RunnerScheduleClient } from "@/components/runners/runner-schedule-client";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Lock } from "lucide-react";
 import {
   addDaysKey,
   dayKeyInTz,
@@ -15,7 +17,15 @@ export const dynamic = "force-dynamic";
 export default async function RunnerSchedulePage() {
   const user = await requireUser();
   if (!canViewRunnerSchedule(user)) {
-    return <p className="text-ink-muted py-10 text-center">Access restricted.</p>;
+    return (
+      <div className="py-16">
+        <EmptyState
+          icon={<Lock />}
+          title="Access restricted"
+          description="You do not have permission to view this page."
+        />
+      </div>
+    );
   }
 
   // Week boundaries in Miami time (weeks start Monday), independent of server TZ.

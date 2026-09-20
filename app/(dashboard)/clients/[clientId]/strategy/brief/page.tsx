@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { formatDate, cn } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { EBPRLogoHorizontal } from "@/components/brand/ebpr-logo";
 import { PrintButton } from "@/components/strategy/print-button";
+import { Button } from "@/components/ui/form-field";
+import { ArrowLeft } from "lucide-react";
 
 type Props = { params: { clientId: string } };
 
@@ -60,25 +62,25 @@ export default async function StrategyBriefPage({ params }: Props) {
   return (
     <div className="min-h-screen bg-white">
       {/* Print controls — hidden in print */}
-      <div className="no-print sticky top-0 z-10 flex items-center justify-between border-b border-border bg-white/95 backdrop-blur px-8 py-3">
-        <a
-          href={`/clients/${client.id}/strategy`}
-          className="text-xs text-ink-muted hover:text-ink-primary transition-colors"
-        >
-          ← Back to Strategy
-        </a>
-        <PrintButton className="inline-flex h-8 items-center rounded-md bg-ink-primary px-4 text-xs font-medium text-ink-inverted hover:bg-ink-primary/90 transition-colors" />
+      <div className="no-print sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-white/95 px-4 py-3 backdrop-blur sm:px-8">
+        <Button asChild variant="ghost" size="sm">
+          <a href={`/clients/${client.id}/strategy`}>
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to Strategy
+          </a>
+        </Button>
+        <PrintButton />
       </div>
 
       {/* Brief content */}
-      <div className="mx-auto max-w-4xl px-8 py-10 space-y-10">
+      <div className="mx-auto max-w-4xl space-y-10 px-4 py-10 sm:px-8">
         {/* Page header */}
-        <div className="flex items-start justify-between border-b border-border pb-6">
+        <div className="flex flex-col-reverse items-start justify-between gap-4 border-b border-border pb-6 sm:flex-row sm:items-start">
           <div>
-            <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted mb-1">
+            <p className="eyebrow mb-1">
               Confidential · EB Public Relations
             </p>
-            <h1 className="text-3xl font-bold text-ink-primary">{client.name}</h1>
+            <h1 className="text-3xl font-semibold tracking-tight text-ink-primary">{client.name}</h1>
             <p className="mt-1 text-sm text-ink-secondary">
               Strategy Brief
               {doc?.year ? ` · ${doc.year}` : ""}
@@ -90,10 +92,10 @@ export default async function StrategyBriefPage({ params }: Props) {
 
         {/* Prep + Campaign dates */}
         {doc && (doc.prepMonthStart || doc.campaignStart) && (
-          <div className="flex items-center gap-8 rounded-lg border border-border bg-surface-1 px-6 py-4">
+          <div className="flex flex-wrap items-center gap-8 rounded-xl border border-border bg-surface-1 px-6 py-4">
             {doc.prepMonthStart && doc.prepMonthEnd && (
               <div>
-                <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted">
+                <p className="eyebrow">
                   Prep Month
                 </p>
                 <p className="text-sm font-medium text-ink-primary mt-0.5">
@@ -103,7 +105,7 @@ export default async function StrategyBriefPage({ params }: Props) {
             )}
             {doc.campaignStart && (
               <div>
-                <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted">
+                <p className="eyebrow">
                   Campaign Start
                 </p>
                 <p className="text-sm font-medium text-ink-primary mt-0.5">
@@ -116,13 +118,13 @@ export default async function StrategyBriefPage({ params }: Props) {
 
         {/* Phases */}
         {hasPhases && (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {doc?.phase1Name && (
-              <div className="rounded-lg border border-border px-5 py-4">
-                <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted mb-1">
+              <div className="rounded-xl border border-border px-5 py-4">
+                <p className="eyebrow mb-1">
                   Phase 1
                 </p>
-                <p className="font-bold text-ink-primary">{doc.phase1Name}</p>
+                <p className="font-semibold text-ink-primary">{doc.phase1Name}</p>
                 {(doc.phase1Start || doc.phase1End) && (
                   <p className="mt-1 text-xs text-ink-muted">
                     {formatDate(doc.phase1Start)} – {formatDate(doc.phase1End)}
@@ -131,11 +133,11 @@ export default async function StrategyBriefPage({ params }: Props) {
               </div>
             )}
             {doc?.phase2Name && (
-              <div className="rounded-lg border border-border px-5 py-4">
-                <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted mb-1">
+              <div className="rounded-xl border border-border px-5 py-4">
+                <p className="eyebrow mb-1">
                   Phase 2
                 </p>
-                <p className="font-bold text-ink-primary">{doc.phase2Name}</p>
+                <p className="font-semibold text-ink-primary">{doc.phase2Name}</p>
                 {(doc.phase2Start || doc.phase2End) && (
                   <p className="mt-1 text-xs text-ink-muted">
                     {formatDate(doc.phase2Start)} – {formatDate(doc.phase2End)}
@@ -148,10 +150,10 @@ export default async function StrategyBriefPage({ params }: Props) {
 
         {/* Narrative — Objective + Path */}
         {doc && (doc.objective || doc.strategicPath) && (
-          <div className="grid grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
             {doc.objective && (
               <div>
-                <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted mb-2">
+                <p className="eyebrow mb-2">
                   Objetivo
                 </p>
                 <p className="text-sm text-ink-secondary leading-relaxed whitespace-pre-wrap">
@@ -161,7 +163,7 @@ export default async function StrategyBriefPage({ params }: Props) {
             )}
             {doc.strategicPath && (
               <div>
-                <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted mb-2">
+                <p className="eyebrow mb-2">
                   Camino Estratégico
                 </p>
                 <p className="text-sm text-ink-secondary leading-relaxed whitespace-pre-wrap">
@@ -174,10 +176,10 @@ export default async function StrategyBriefPage({ params }: Props) {
 
         {/* Messaging + Persona */}
         {doc && (doc.messagingFramework || doc.clientPersona) && (
-          <div className="grid grid-cols-2 gap-8 border-t border-border pt-8">
+          <div className="grid grid-cols-1 gap-8 border-t border-border pt-8 sm:grid-cols-2">
             {doc.messagingFramework && (
               <div>
-                <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted mb-2">
+                <p className="eyebrow mb-2">
                   Messaging
                 </p>
                 <p className="text-sm text-ink-secondary leading-relaxed">
@@ -187,7 +189,7 @@ export default async function StrategyBriefPage({ params }: Props) {
             )}
             {doc.clientPersona && (
               <div>
-                <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted mb-2">
+                <p className="eyebrow mb-2">
                   Personaje
                 </p>
                 <p className="text-sm text-ink-secondary leading-relaxed">
@@ -201,14 +203,14 @@ export default async function StrategyBriefPage({ params }: Props) {
         {/* Key Messages */}
         {keyMessages && keyMessages.length > 0 && (
           <div className="border-t border-border pt-8">
-            <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted mb-3">
+            <p className="eyebrow mb-3">
               Key Messages
             </p>
             <div className="space-y-2">
               {keyMessages.map((msg, i) => (
                 <div key={i} className="flex items-start gap-3">
-                  <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-ink-primary" />
-                  <p className="text-sm font-semibold text-ink-primary italic">"{msg}"</p>
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-ink-primary" />
+                  <p className="text-sm font-semibold italic text-ink-primary">"{msg}"</p>
                 </div>
               ))}
             </div>
@@ -218,7 +220,7 @@ export default async function StrategyBriefPage({ params }: Props) {
         {/* Target Audience */}
         {doc?.targetAudience && (
           <div className="border-t border-border pt-8">
-            <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted mb-2">
+            <p className="eyebrow mb-2">
               Fanbase / Target Audience
             </p>
             <p className="text-sm text-ink-secondary">{doc.targetAudience}</p>
@@ -228,7 +230,7 @@ export default async function StrategyBriefPage({ params }: Props) {
         {/* Big Wins */}
         {bigWins.length > 0 && (
           <div className="border-t border-border pt-8">
-            <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted mb-3">
+            <p className="eyebrow mb-3">
               ★ Big Wins
             </p>
             <div className="space-y-1.5">
@@ -250,7 +252,7 @@ export default async function StrategyBriefPage({ params }: Props) {
         {/* Brand Deals */}
         {brandDeals.length > 0 && (
           <div className="border-t border-border pt-8">
-            <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted mb-4">
+            <p className="eyebrow mb-4">
               Brand Deals
             </p>
             <div className="space-y-4">
@@ -261,7 +263,7 @@ export default async function StrategyBriefPage({ params }: Props) {
                     {catItems.map((item) => (
                       <span
                         key={item.id}
-                        className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-ink-secondary"
+                        className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-ink-secondary"
                       >
                         {item.targetName ?? item.title}
                       </span>
@@ -286,21 +288,21 @@ export default async function StrategyBriefPage({ params }: Props) {
         {/* Events */}
         {events.length > 0 && (
           <div className="border-t border-border pt-8">
-            <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted mb-3">
+            <p className="eyebrow mb-3">
               Events
             </p>
             <div className="space-y-2">
               {events.map((item) => (
                 <div key={item.id} className="flex items-center gap-4">
                   {item.scheduledDate ? (
-                    <span className="flex-shrink-0 w-20 text-right text-xs font-semibold text-ink-primary">
+                    <span className="tabular w-20 shrink-0 text-right text-xs font-semibold text-ink-primary">
                       {new Date(item.scheduledDate).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
                       })}
                     </span>
                   ) : (
-                    <span className="flex-shrink-0 w-20 text-right text-xs text-ink-muted">TBC</span>
+                    <span className="w-20 shrink-0 text-right text-xs text-ink-muted">TBC</span>
                   )}
                   <span className="text-sm text-ink-primary">
                     {item.targetName ?? item.title}
@@ -322,7 +324,7 @@ export default async function StrategyBriefPage({ params }: Props) {
         {/* Execution Notes */}
         {doc?.executionNotes && (
           <div className="border-t border-border pt-8">
-            <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted mb-2">
+            <p className="eyebrow mb-2">
               Execution Notes
             </p>
             <p className="text-sm text-ink-secondary leading-relaxed whitespace-pre-wrap">
@@ -334,14 +336,14 @@ export default async function StrategyBriefPage({ params }: Props) {
         {/* External Team */}
         {externalCollabs && externalCollabs.length > 0 && (
           <div className="border-t border-border pt-8">
-            <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted mb-3">
+            <p className="eyebrow mb-3">
               External Team
             </p>
             <div className="flex flex-wrap gap-2">
               {externalCollabs.map((c, i) => (
                 <span
                   key={i}
-                  className="rounded-md border border-border px-3 py-1.5 text-xs"
+                  className="rounded-lg border border-border px-3 py-1.5 text-xs"
                 >
                   <span className="font-medium text-ink-primary">{c.name}</span>
                   {c.role && <span className="text-ink-muted"> · {c.role}</span>}
@@ -355,7 +357,7 @@ export default async function StrategyBriefPage({ params }: Props) {
         )}
 
         {/* Footer */}
-        <div className="border-t border-border pt-6 flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-6">
           <p className="text-2xs text-ink-muted">
             EB Public Relations · Miami, FL · Confidential
           </p>
@@ -393,14 +395,14 @@ function BriefItemList({
 
   return (
     <div className="border-t border-border pt-8">
-      <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted mb-3">
+      <p className="eyebrow mb-3">
         {title}{" "}
         <span className="font-normal text-ink-muted ml-1">({items.length})</span>
       </p>
 
       {phase1.length > 0 && (
         <div className="mb-3">
-          <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted/60 mb-1.5">
+          <p className="eyebrow mb-1.5 opacity-70">
             Phase 1
           </p>
           <div className="flex flex-wrap gap-x-4 gap-y-1">
@@ -418,7 +420,7 @@ function BriefItemList({
 
       {phase2.length > 0 && (
         <div className="mb-3">
-          <p className="text-2xs font-bold uppercase tracking-widest text-ink-muted/60 mb-1.5">
+          <p className="eyebrow mb-1.5 opacity-70">
             Phase 2
           </p>
           <div className="flex flex-wrap gap-x-4 gap-y-1">

@@ -1,6 +1,7 @@
 "use client";
 
-import { cn, formatDateTime } from "@/lib/utils";
+import { formatDateTime } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   FileText, Upload, CheckCircle, Send, MessageSquare,
   UserPlus, PenLine, Zap, AlertCircle
@@ -35,7 +36,12 @@ const ACTION_ICONS: Record<string, React.ReactNode> = {
 export function ActivityTimeline({ entries }: { entries: ActivityEntry[] }) {
   if (entries.length === 0) {
     return (
-      <p className="text-sm text-ink-muted py-6 text-center">No activity yet.</p>
+      <EmptyState
+        compact
+        icon={<Zap />}
+        title="No activity yet"
+        description="Updates to this client will show up here."
+      />
     );
   }
 

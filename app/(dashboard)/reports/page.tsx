@@ -1,10 +1,20 @@
 import { requireUser } from "@/lib/auth";
 import { canViewReports } from "@/lib/permissions";
 import { db } from "@/lib/db";
-import { PageHeader } from "@/components/layout/header";
-import { monthLabel, cn, DELIVERABLE_TYPE_LABELS } from "@/lib/utils";
+import { PageHeader, SectionHeader } from "@/components/layout/header";
+import { monthLabel, DELIVERABLE_TYPE_LABELS } from "@/lib/utils";
 import { currentMonthYearInTz } from "@/components/runners/miami-time";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { StatTile } from "@/components/ui/stat-tile";
+import { Table, Th, Td, TableEmpty } from "@/components/ui/table";
+import { ChevronLeft, ChevronRight, Download, Users, CheckCircle2, TrendingUp } from "lucide-react";
 import Link from "next/link";
+import { EmptyState } from "@/components/ui/empty-state";
+
+/** Matches buttonVariants({ variant: "secondary", size: "xs" }). */
+const EXPORT_LINK_CLASS =
+  "inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-white px-2.5 py-0 text-xs font-medium text-ink-primary shadow-sm transition-all duration-150 hover:border-border-strong hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-primary/25 focus-visible:ring-offset-2 h-7";
 
 export const metadata = { title: "Reports" };
 export const dynamic = "force-dynamic";
@@ -26,7 +36,11 @@ export default async function ReportsPage({
 }) {
   const user = await requireUser();
   if (!canViewReports(user)) {
-    return <p className="text-ink-muted py-10 text-center">Access restricted.</p>;
+    return (
+      <div className="py-16">
+        <EmptyState title="Access restricted" description="You do not have permission to view reports." />
+      </div>
+    );
   }
 
   const { month, year } = parseMonthYear(searchParams ?? {});
@@ -72,165 +86,157 @@ export default async function ReportsPage({
   const totalTarget = deliverableStats.reduce((s, c) => s + c.monthlyTarget, 0);
 
   const monthHref = (m: { month: number; year: number }) => `/reports?month=${m.month}&year=${m.year}`;
+  const overallRate = totalTarget > 0 ? Math.round((totalCompleted / totalTarget) * 100) : 0;
 
   return (
     <>
       <PageHeader
+        eyebrow="Agency overview"
         title="Reports"
-        subtitle={`${monthLabel(month, year)} · Agency Overview`}
+        subtitle={`Client pacing for ${monthLabel(month, year)}`}
         actions={
-          <div className="flex items-center gap-1 text-xs">
-            <Link href={monthHref(prev)} className="rounded-md border border-border px-2.5 py-1.5 text-ink-secondary hover:bg-surface-2">
-              ← {monthLabel(prev.month, prev.year)}
+          /* Month navigation — segmented control */
+          <div className="inline-flex items-center overflow-hidden rounded-lg border border-border bg-white shadow-sm">
+            <Link
+              href={monthHref(prev)}
+              aria-label={`Previous month: ${monthLabel(prev.month, prev.year)}`}
+              className="inline-flex h-9 items-center gap-1 px-3 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-2 hover:text-ink-primary"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{monthLabel(prev.month, prev.year)}</span>
             </Link>
-            <Link href={monthHref(next)} className="rounded-md border border-border px-2.5 py-1.5 text-ink-secondary hover:bg-surface-2">
-              {monthLabel(next.month, next.year)} →
+            <span className="h-9 border-x border-border bg-surface-2 px-4 text-xs font-semibold leading-9 text-ink-primary">
+              {monthLabel(month, year)}
+            </span>
+            <Link
+              href={monthHref(next)}
+              aria-label={`Next month: ${monthLabel(next.month, next.year)}`}
+              className="inline-flex h-9 items-center gap-1 px-3 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-2 hover:text-ink-primary"
+            >
+              <span className="hidden sm:inline">{monthLabel(next.month, next.year)}</span>
+              <ChevronRight className="h-3.5 w-3.5" />
             </Link>
           </div>
         }
       />
 
-      {/* Summary stats */}
-      <div className="mb-8 grid grid-cols-3 gap-6">
-        <div className="rounded-lg border border-border bg-white p-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-            Active Clients
-          </p>
-          <p className="mt-2 text-4xl font-bold text-ink-primary">
-            {clients.length}
-          </p>
+      <div className="space-y-6">
+        {/* Summary stats */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StatTile label="Active Clients" value={clients.length} icon={<Users />} />
+          <StatTile
+            label="Deliverables Completed"
+            value={`${totalCompleted}/${totalTarget}`}
+            hint={monthLabel(month, year)}
+            icon={<CheckCircle2 />}
+          />
+          <StatTile
+            label="Overall Completion Rate"
+            value={`${overallRate}%`}
+            hint={overallRate >= 100 ? "Target met" : `${100 - overallRate}% to target`}
+            tone={overallRate >= 80 ? "success" : overallRate < 50 ? "warning" : "neutral"}
+            icon={<TrendingUp />}
+          />
         </div>
-        <div className="rounded-lg border border-border bg-white p-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-            Deliverables Completed
-          </p>
-          <p className="mt-2 text-4xl font-bold text-ink-primary">
-            {totalCompleted}
-            <span className="text-lg font-medium text-ink-muted ml-1">
-              / {totalTarget}
-            </span>
-          </p>
-        </div>
-        <div className="rounded-lg border border-border bg-white p-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-            Overall Completion Rate
-          </p>
-          <p className="mt-2 text-4xl font-bold text-ink-primary">
-            {totalTarget > 0
-              ? Math.round((totalCompleted / totalTarget) * 100)
-              : 0}
-            %
-          </p>
-        </div>
-      </div>
 
-      {/* Per-client table */}
-      <section>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-          Client Pacing — {monthLabel(month, year)}
-        </h2>
-        <div className="rounded-lg border border-border bg-white overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-surface-1">
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Client</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Target</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Completed</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">In Progress</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Media</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Rate</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Status</th>
-                <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-ink-muted">Report</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {deliverableStats.map((client) => {
-                const rate =
-                  client.monthlyTarget > 0
-                    ? Math.round((client.completed / client.monthlyTarget) * 100)
-                    : 0;
-                const isOnTarget = client.completed >= client.monthlyTarget;
-                const isOnTrack = rate >= 60;
-                const media = Object.entries(client.media);
-
-                return (
-                  <tr key={client.id} className="hover:bg-surface-1 transition-colors">
-                    <td className="px-5 py-4 font-medium text-ink-primary">
-                      <Link href={`/clients/${client.id}`} className="hover:underline">
-                        {client.name}
-                      </Link>
-                    </td>
-                    <td className="px-5 py-4 text-ink-secondary">
-                      {client.monthlyTarget}
-                    </td>
-                    <td className="px-5 py-4 font-semibold text-ink-primary">
-                      {client.completed}
-                    </td>
-                    <td className="px-5 py-4 text-ink-secondary">
-                      {client.inProgress}
-                    </td>
-                    <td className="px-5 py-4">
-                      {media.length === 0 ? (
-                        <span className="text-xs text-ink-muted">—</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-1">
-                          {media.map(([type, count]) => (
-                            <span key={type} className="rounded-full bg-surface-2 px-2 py-0.5 text-2xs font-medium text-ink-secondary">
-                              {DELIVERABLE_TYPE_LABELS[type as keyof typeof DELIVERABLE_TYPE_LABELS] ?? type}: {count}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-20 h-1.5 rounded-full bg-surface-3 overflow-hidden">
-                          <div
-                            className="h-full bg-ink-primary rounded-full transition-all"
-                            style={{ width: `${Math.min(rate, 100)}%` }}
-                          />
-                        </div>
-                        <span className="text-ink-secondary">{rate}%</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span
-                        className={cn(
-                          "rounded-full px-2.5 py-0.5 text-xs font-medium",
-                          isOnTarget
-                            ? "bg-green-50 text-green-700"
-                            : isOnTrack
-                            ? "bg-amber-50 text-amber-700"
-                            : "bg-red-50 text-red-600"
-                        )}
-                      >
-                        {isOnTarget ? "On Target" : isOnTrack ? "On Track" : "Behind"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      <a
-                        href={`/api/reports/${client.id}/export?month=${month}&year=${year}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs font-medium text-ink-secondary hover:text-ink-primary hover:underline"
-                      >
-                        Export
-                      </a>
-                    </td>
+        {/* Per-client table */}
+        <section>
+          <SectionHeader title={`Client pacing — ${monthLabel(month, year)}`} />
+          <Card padding="none" className="overflow-hidden">
+            <div className="overflow-auto">
+              <Table className="min-w-[900px]">
+                <thead>
+                  <tr>
+                    <Th>Client</Th>
+                    <Th align="right">Target</Th>
+                    <Th align="right">Completed</Th>
+                    <Th align="right">In Progress</Th>
+                    <Th>Media</Th>
+                    <Th>Rate</Th>
+                    <Th>Status</Th>
+                    <Th align="right">Report</Th>
                   </tr>
-                );
-              })}
-              {deliverableStats.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-ink-muted">
-                    No active clients.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+                </thead>
+                <tbody>
+                  {deliverableStats.map((client) => {
+                    const rate =
+                      client.monthlyTarget > 0
+                        ? Math.round((client.completed / client.monthlyTarget) * 100)
+                        : 0;
+                    const isOnTarget = client.completed >= client.monthlyTarget;
+                    const isOnTrack = rate >= 60;
+                    const media = Object.entries(client.media);
+
+                    return (
+                      <tr key={client.id}>
+                        <Td className="font-medium">
+                          <Link href={`/clients/${client.id}`} className="hover:underline">
+                            {client.name}
+                          </Link>
+                        </Td>
+                        <Td align="right" numeric className="text-ink-secondary">
+                          {client.monthlyTarget}
+                        </Td>
+                        <Td align="right" numeric className="font-semibold">
+                          {client.completed}
+                        </Td>
+                        <Td align="right" numeric className="text-ink-secondary">
+                          {client.inProgress}
+                        </Td>
+                        <Td>
+                          {media.length === 0 ? (
+                            <span className="text-xs text-ink-muted">&mdash;</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {media.map(([type, count]) => (
+                                <Badge key={type} size="xs">
+                                  {DELIVERABLE_TYPE_LABELS[type as keyof typeof DELIVERABLE_TYPE_LABELS] ?? type}: {count}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </Td>
+                        <Td>
+                          <div className="flex items-center gap-2">
+                            <div className="h-1.5 w-20 overflow-hidden rounded-full bg-surface-3">
+                              <div
+                                className="h-full rounded-full bg-ink-primary transition-all"
+                                style={{ width: `${Math.min(rate, 100)}%` }}
+                              />
+                            </div>
+                            <span className="w-9 text-right text-xs tabular text-ink-secondary">{rate}%</span>
+                          </div>
+                        </Td>
+                        <Td>
+                          <Badge tone={isOnTarget ? "success" : isOnTrack ? "warning" : "danger"} dot>
+                            {isOnTarget ? "On Target" : isOnTrack ? "On Track" : "Behind"}
+                          </Badge>
+                        </Td>
+                        <Td align="right">
+                          {/* Styled as a secondary xs Button; <Button asChild> is
+                              currently broken app-wide (Slot receives >1 child). */}
+                          <a
+                            href={`/api/reports/${client.id}/export?month=${month}&year=${year}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={EXPORT_LINK_CLASS}
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            Export
+                          </a>
+                        </Td>
+                      </tr>
+                    );
+                  })}
+                  {deliverableStats.length === 0 && (
+                    <TableEmpty colSpan={8}>No active clients.</TableEmpty>
+                  )}
+                </tbody>
+              </Table>
+            </div>
+          </Card>
+        </section>
+      </div>
     </>
   );
 }

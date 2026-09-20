@@ -2,7 +2,14 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, FileText, Check, MessageSquare, X } from "lucide-react";
+import { AlertTriangle, FileText, Check, MessageSquare } from "lucide-react";
+import { Button } from "@/components/ui/form-field";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardHeader } from "@/components/ui/card";
+import { StatTile } from "@/components/ui/stat-tile";
+import { Table, Th, Td, TableEmpty } from "@/components/ui/table";
+import { ConfirmModal } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
 import { apiErrorMessage, daysSince, localDateInputValue } from "@/components/finance/invoice-status";
 
 // Client names only — this component never receives or shows amounts.
@@ -30,10 +37,12 @@ interface Props {
   canEdit: boolean;
 }
 
-function priorityLabel(days: number) {
-  if (days >= 7) return <span className="text-xs font-bold text-red-600">URGENT</span>;
-  if (days >= 3) return <span className="text-xs font-semibold text-amber-600">HIGH</span>;
-  return <span className="text-xs font-medium text-ink-secondary">NORMAL</span>;
+type Pending = { kind: "invoice" | "contract"; id: string; label: string };
+
+function PriorityBadge({ days }: { days: number }) {
+  if (days >= 7) return <Badge tone="danger" size="xs">Urgent</Badge>;
+  if (days >= 3) return <Badge tone="warning" size="xs">High</Badge>;
+  return <Badge tone="neutral" size="xs">Normal</Badge>;
 }
 
 // ─── Editable Note Cell ──────────────────────────────────
@@ -48,24 +57,25 @@ function EditableNote({ value, onSave, placeholder }: {
 
   if (!editing) {
     return (
-      <div
-        className="cursor-pointer hover:bg-surface-1 rounded px-2 py-1 -mx-1 min-h-[28px] flex items-center gap-1 group"
+      <button
+        type="button"
+        className="-mx-1.5 flex min-h-[28px] w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-primary/20"
         onClick={() => { setDraft(value); setEditing(true); }}
       >
         {value ? (
           <span className="text-sm text-ink-secondary">{value}</span>
         ) : (
-          <span className="text-sm text-ink-muted flex items-center gap-1">
-            <MessageSquare className="h-3 w-3" /> {placeholder || "Add note..."}
+          <span className="flex items-center gap-1.5 text-sm text-ink-muted">
+            <MessageSquare className="h-3.5 w-3.5" /> {placeholder || "Add note…"}
           </span>
         )}
-      </div>
+      </button>
     );
   }
 
   return (
     <textarea
-      className="w-full rounded border border-border bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ink-primary resize-none"
+      className="w-full resize-none rounded-lg border border-ink-primary bg-white px-2 py-1.5 text-sm text-ink-primary shadow-inset focus:outline-none focus:ring-2 focus:ring-ink-primary/15"
       value={draft}
       rows={2}
       autoFocus
@@ -81,12 +91,12 @@ function EditableNote({ value, onSave, placeholder }: {
 
 export function FollowUpClient({ overdueInvoices, unsignedContracts, canEdit }: Props) {
   const router = useRouter();
+  const { toast } = useToast();
   const [marking, setMarking] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState<Pending | null>(null);
 
   // PUT helper: surfaces API errors instead of silently refreshing.
   const update = useCallback(async (url: string, body: Record<string, unknown>, fallback: string) => {
-    setError(null);
     try {
       const res = await fetch(url, {
         method: "PUT",
@@ -95,16 +105,16 @@ export function FollowUpClient({ overdueInvoices, unsignedContracts, canEdit }: 
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        setError(apiErrorMessage(data, fallback));
+        toast({ title: apiErrorMessage(data, fallback), variant: "error" });
         return false;
       }
       router.refresh();
       return true;
     } catch {
-      setError(fallback);
+      toast({ title: fallback, variant: "error" });
       return false;
     }
-  }, [router]);
+  }, [router, toast]);
 
   const saveInvoiceNotes = useCallback((invoiceId: string, notes: string) =>
     update(`/api/invoices/${invoiceId}`, { notes: notes || null }, "Failed to save note"), [update]);
@@ -115,15 +125,25 @@ export function FollowUpClient({ overdueInvoices, unsignedContracts, canEdit }: 
   const markInvoicePaid = useCallback(async (invoiceId: string) => {
     setMarking(invoiceId);
     // Send the user's calendar date (YYYY-MM-DD), not a timestamp, so the paid date never shifts.
-    await update(`/api/invoices/${invoiceId}`, { status: "PAID", paidAt: localDateInputValue() }, "Failed to mark paid");
+    const ok = await update(`/api/invoices/${invoiceId}`, { status: "PAID", paidAt: localDateInputValue() }, "Failed to mark paid");
+    if (ok) toast({ title: "Invoice marked paid", variant: "success" });
     setMarking(null);
-  }, [update]);
+  }, [update, toast]);
 
   const markContractSigned = useCallback(async (contractId: string) => {
     setMarking(contractId);
-    await update(`/api/contracts/${contractId}`, { status: "SIGNED" }, "Failed to mark signed");
+    const ok = await update(`/api/contracts/${contractId}`, { status: "SIGNED" }, "Failed to mark signed");
+    if (ok) toast({ title: "Contract marked signed", variant: "success" });
     setMarking(null);
-  }, [update]);
+  }, [update, toast]);
+
+  async function confirmPending() {
+    if (!pending) return;
+    const target = pending;
+    setPending(null);
+    if (target.kind === "invoice") await markInvoicePaid(target.id);
+    else await markContractSigned(target.id);
+  }
 
   // Deduplicate overdue by client (group invoices)
   const overdueByClient = new Map<string, { name: string; invoices: OverdueInvoice[] }>();
@@ -149,182 +169,183 @@ export function FollowUpClient({ overdueInvoices, unsignedContracts, canEdit }: 
   }
   const unsignedClients = Array.from(contractsByClient.values());
 
-  return (
-    <>
-      {error && (
-        <div className="mb-4 flex items-start justify-between gap-3 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700" aria-label="Dismiss">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
+  const overdueCols = canEdit ? 6 : 5;
+  const contractCols = canEdit ? 5 : 4;
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4 mb-8">
-        <div className="rounded-lg border border-border bg-white p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="h-4 w-4 text-red-500" />
-            <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Overdue Payments</span>
-          </div>
-          <p className="text-3xl font-bold text-red-600">{overdueInvoices.length}</p>
-          <p className="text-xs text-ink-muted mt-1">{overdueClients.length} client{overdueClients.length !== 1 ? "s" : ""} with outstanding balances</p>
-        </div>
-        <div className="rounded-lg border border-border bg-white p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <FileText className="h-4 w-4 text-amber-500" />
-            <span className="text-xs font-medium text-ink-muted uppercase tracking-wider">Pending Signatures</span>
-          </div>
-          <p className="text-3xl font-bold text-amber-600">{unsignedContracts.length}</p>
-          <p className="text-xs text-ink-muted mt-1">{unsignedClients.length} client{unsignedClients.length !== 1 ? "s" : ""} awaiting signature</p>
-        </div>
+  return (
+    <div className="space-y-6 pb-10">
+      {/* Summary */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <StatTile
+          label="Overdue Payments"
+          value={overdueInvoices.length}
+          tone={overdueInvoices.length > 0 ? "danger" : "neutral"}
+          icon={<AlertTriangle />}
+          hint={`${overdueClients.length} client${overdueClients.length !== 1 ? "s" : ""} with outstanding balances`}
+        />
+        <StatTile
+          label="Pending Signatures"
+          value={unsignedContracts.length}
+          tone={unsignedContracts.length > 0 ? "warning" : "neutral"}
+          icon={<FileText />}
+          hint={`${unsignedClients.length} client${unsignedClients.length !== 1 ? "s" : ""} awaiting signature`}
+        />
       </div>
 
       {/* Overdue Payments */}
-      <section className="mb-10">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-          Overdue Payments — Follow Up Immediately
-        </h2>
-
-        {overdueClients.length > 0 ? (
-          <div className="rounded-lg border border-border bg-white overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-surface-1">
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Client</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Invoice</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Days Overdue</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Priority</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Follow-Up Notes</th>
-                  {canEdit && <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Actions</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {overdueClients.map((group) =>
+      <Card padding="none" className="overflow-hidden">
+        <CardHeader
+          className="mb-0 border-b border-border px-5 py-4"
+          eyebrow="Follow up immediately"
+          title="Overdue payments"
+          description="Invoices at least one day past their due date"
+        />
+        <div className="overflow-x-auto">
+          <Table>
+            <thead>
+              <tr>
+                <Th>Client</Th>
+                <Th>Invoice</Th>
+                <Th>Days overdue</Th>
+                <Th>Priority</Th>
+                <Th className="min-w-[220px]">Follow-up notes</Th>
+                {canEdit && <Th align="right">Actions</Th>}
+              </tr>
+            </thead>
+            <tbody>
+              {overdueClients.length === 0 ? (
+                <TableEmpty colSpan={overdueCols}>No overdue payments. All caught up.</TableEmpty>
+              ) : (
+                overdueClients.map((group) =>
                   group.invoices.map((inv, i) => {
                     const days = daysSince(inv.dueDate);
                     return (
-                      <tr key={inv.id} className="hover:bg-surface-1 transition-colors border-l-4 border-l-red-500">
-                        <td className="px-5 py-3 font-medium text-ink-primary">
+                      <tr key={inv.id}>
+                        <Td className="whitespace-nowrap font-medium text-ink-primary">
                           {i === 0 ? group.name : ""}
-                        </td>
-                        <td className="px-5 py-3 text-ink-muted text-xs">{inv.invoiceNumber}</td>
-                        <td className="px-5 py-3">
-                          <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-600">
+                        </Td>
+                        <Td className="whitespace-nowrap font-mono text-xs text-ink-muted">{inv.invoiceNumber}</Td>
+                        <Td>
+                          <Badge tone="danger" size="xs">
                             {days} day{days !== 1 ? "s" : ""}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3">{priorityLabel(days)}</td>
-                        <td className="px-5 py-3 min-w-[200px]">
+                          </Badge>
+                        </Td>
+                        <Td><PriorityBadge days={days} /></Td>
+                        <Td className="min-w-[220px]">
                           {canEdit ? (
                             <EditableNote
                               value={inv.notes || ""}
                               onSave={(v) => saveInvoiceNotes(inv.id, v)}
-                              placeholder="Add follow-up note..."
+                              placeholder="Add follow-up note…"
                             />
                           ) : (
                             <span className="text-ink-muted">{inv.notes || "—"}</span>
                           )}
-                        </td>
+                        </Td>
                         {canEdit && (
-                          <td className="px-5 py-3">
-                            <button
-                              onClick={() => markInvoicePaid(inv.id)}
-                              disabled={marking === inv.id}
-                              className="inline-flex items-center gap-1 rounded-md bg-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700 transition-colors disabled:opacity-50"
+                          <Td align="right">
+                            <Button
+                              size="xs"
+                              variant="secondary"
+                              leftIcon={<Check className="h-3 w-3" />}
+                              loading={marking === inv.id}
+                              onClick={() => setPending({ kind: "invoice", id: inv.id, label: `${group.name} · ${inv.invoiceNumber}` })}
                             >
-                              <Check className="h-3 w-3" />
-                              {marking === inv.id ? "..." : "Mark Paid"}
-                            </button>
-                          </td>
+                              Mark paid
+                            </Button>
+                          </Td>
                         )}
                       </tr>
                     );
                   })
-                )}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="rounded-lg border border-border bg-white p-8 text-center">
-            <p className="text-sm text-ink-muted">No overdue payments. All caught up!</p>
-          </div>
-        )}
-      </section>
+                )
+              )}
+            </tbody>
+          </Table>
+        </div>
+      </Card>
 
-      {/* Unsigned Contracts */}
-      <section>
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-          Pending Contract Signatures — Follow Up
-        </h2>
-
-        {unsignedClients.length > 0 ? (
-          <div className="rounded-lg border border-border bg-white overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-surface-1">
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Client</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Status</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Days Pending</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Follow-Up Notes</th>
-                  {canEdit && <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">Actions</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {unsignedClients.map((group) =>
+      {/* Pending signatures */}
+      <Card padding="none" className="overflow-hidden">
+        <CardHeader
+          className="mb-0 border-b border-border px-5 py-4"
+          eyebrow="Follow up"
+          title="Pending contract signatures"
+          description="Contracts still in draft or awaiting a signature"
+        />
+        <div className="overflow-x-auto">
+          <Table>
+            <thead>
+              <tr>
+                <Th>Client</Th>
+                <Th>Status</Th>
+                <Th>Days pending</Th>
+                <Th className="min-w-[220px]">Follow-up notes</Th>
+                {canEdit && <Th align="right">Actions</Th>}
+              </tr>
+            </thead>
+            <tbody>
+              {unsignedClients.length === 0 ? (
+                <TableEmpty colSpan={contractCols}>No pending signatures.</TableEmpty>
+              ) : (
+                unsignedClients.map((group) =>
                   group.contracts.map((c, i) => {
                     const days = daysSince(c.sentAt ?? c.createdAt);
                     return (
-                      <tr key={c.id} className="hover:bg-surface-1 transition-colors border-l-4 border-l-amber-500">
-                        <td className="px-5 py-3 font-medium text-ink-primary">
+                      <tr key={c.id}>
+                        <Td className="whitespace-nowrap font-medium text-ink-primary">
                           {i === 0 ? group.name : ""}
-                        </td>
-                        <td className="px-5 py-3">
-                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            c.status === "SENT" ? "bg-amber-50 text-amber-700" : "bg-surface-2 text-ink-secondary"
-                          }`}>
-                            {c.status === "SENT" ? "Awaiting Signature" : "Draft"}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3 text-ink-secondary">
+                        </Td>
+                        <Td>
+                          <Badge tone={c.status === "SENT" ? "warning" : "neutral"} size="xs">
+                            {c.status === "SENT" ? "Awaiting signature" : "Draft"}
+                          </Badge>
+                        </Td>
+                        <Td className="whitespace-nowrap tabular text-ink-secondary">
                           {days > 0 ? `${days} day${days !== 1 ? "s" : ""}` : "Today"}
-                        </td>
-                        <td className="px-5 py-3 min-w-[200px]">
+                        </Td>
+                        <Td className="min-w-[220px]">
                           {canEdit ? (
                             <EditableNote
                               value={c.notes || ""}
                               onSave={(v) => saveContractNotes(c.id, v)}
-                              placeholder="Add follow-up note..."
+                              placeholder="Add follow-up note…"
                             />
                           ) : (
                             <span className="text-ink-muted">{c.notes || "—"}</span>
                           )}
-                        </td>
+                        </Td>
                         {canEdit && (
-                          <td className="px-5 py-3">
-                            <button
-                              onClick={() => markContractSigned(c.id)}
-                              disabled={marking === c.id}
-                              className="inline-flex items-center gap-1 rounded-md bg-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700 transition-colors disabled:opacity-50"
+                          <Td align="right">
+                            <Button
+                              size="xs"
+                              variant="secondary"
+                              leftIcon={<Check className="h-3 w-3" />}
+                              loading={marking === c.id}
+                              onClick={() => setPending({ kind: "contract", id: c.id, label: group.name })}
                             >
-                              <Check className="h-3 w-3" />
-                              {marking === c.id ? "..." : "Mark Signed"}
-                            </button>
-                          </td>
+                              Mark signed
+                            </Button>
+                          </Td>
                         )}
                       </tr>
                     );
                   })
-                )}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="rounded-lg border border-border bg-white p-8 text-center">
-            <p className="text-sm text-ink-muted">No pending signatures.</p>
-          </div>
-        )}
-      </section>
-    </>
+                )
+              )}
+            </tbody>
+          </Table>
+        </div>
+      </Card>
+
+      <ConfirmModal
+        open={!!pending}
+        onOpenChange={(o) => { if (!o) setPending(null); }}
+        title={pending?.kind === "contract" ? "Mark contract as signed?" : "Mark invoice as paid?"}
+        description={pending ? `${pending.label} — this updates the record for everyone.` : undefined}
+        confirmLabel={pending?.kind === "contract" ? "Mark signed" : "Mark paid"}
+        onConfirm={confirmPending}
+      />
+    </div>
   );
 }

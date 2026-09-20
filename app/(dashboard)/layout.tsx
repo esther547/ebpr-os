@@ -17,13 +17,13 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="min-h-screen">
       <Sidebar
         userRole={user.role}
         userName={user.name}
         userEmail={user.email}
       />
-      <main className="min-w-0 flex-1 md:ml-[240px]">
+      <main className="min-w-0 md:ml-[240px]">
         <div className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
           {children}
         </div>

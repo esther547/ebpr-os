@@ -1,7 +1,9 @@
 "use client";
 
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { TableWrap, Table, Th, Td } from "@/components/ui/table";
+import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { SectionHeader } from "@/components/layout/header";
 
 type AgendaItem = {
   id: string;
@@ -26,12 +28,12 @@ type Props = {
   runners?: { id: string; name: string }[];
 };
 
-const STATUS_STYLES: Record<string, string> = {
-  SCHEDULED: "bg-stone-100 text-stone-600 border-stone-200",
-  CONFIRMED: "bg-stone-800 text-white border-stone-800",
-  IN_PROGRESS: "bg-stone-200 text-stone-700 border-stone-300",
-  COMPLETED: "bg-black text-white border-black",
-  CANCELLED: "bg-red-50 text-red-600 border-red-100 line-through",
+const STATUS_TONES: Record<string, BadgeTone> = {
+  SCHEDULED: "neutral",
+  CONFIRMED: "warning",
+  IN_PROGRESS: "info",
+  COMPLETED: "success",
+  CANCELLED: "danger",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -42,20 +44,7 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelled",
 };
 
-const TYPE_STYLES: Record<string, string> = {
-  TV: "bg-black text-white",
-  PODCAST: "bg-stone-700 text-white",
-  "RED CARPET": "bg-stone-500 text-white",
-  EVENT: "bg-stone-300 text-stone-800",
-  INTERVIEW: "bg-stone-200 text-stone-700",
-  PHOTOSHOOT: "bg-stone-100 text-stone-600",
-  RADIO: "bg-stone-400 text-white",
-  DIGITAL: "bg-stone-600 text-white",
-  PRESS: "bg-stone-350 text-white",
-  "AWARD SHOW": "bg-stone-800 text-white",
-};
-
-export function AgendaMonthSection({ monthNumber, monthLabel: _monthLabel, items, runners: _runners }: Props) {
+export function AgendaMonthSection({ monthNumber, monthLabel, items, runners: _runners }: Props) {
   const sorted = [...items].sort((a, b) => {
     if (a.agendaSequence !== null && b.agendaSequence !== null) {
       return a.agendaSequence - b.agendaSequence;
@@ -65,179 +54,105 @@ export function AgendaMonthSection({ monthNumber, monthLabel: _monthLabel, items
 
   return (
     <section>
-      {/* Month header */}
-      <div className="mb-3 flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-full bg-black text-white flex items-center justify-center text-xs font-bold">
-            {monthNumber}
-          </div>
-          <span className="text-sm font-bold uppercase tracking-widest text-ink-primary">
-            MES {monthNumber}
-          </span>
-        </div>
-        <div className="flex-1 h-px bg-border" />
-        <span className="text-xs text-ink-muted">{items.length} items</span>
-      </div>
+      <SectionHeader
+        title={`Mes ${monthNumber}`}
+        description={monthLabel}
+        actions={<span className="tabular text-xs text-ink-muted">{items.length} items</span>}
+      />
 
-      {/* Table */}
-      <div className="rounded-lg border border-border bg-white overflow-hidden">
-        <table className="w-full text-sm">
+      <TableWrap>
+        <Table>
           <thead>
-            <tr className="border-b border-border bg-surface-1">
-              <th className="w-8 px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                #
-              </th>
-              <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                Date
-              </th>
-              <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                Arrival / Time
-              </th>
-              <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                Venue
-              </th>
-              <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                Item
-              </th>
-              <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                PR Runner
-              </th>
-              <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                Status
-              </th>
+            <tr>
+              <Th className="w-10">#</Th>
+              <Th>Date</Th>
+              <Th>Arrival / Time</Th>
+              <Th>Venue</Th>
+              <Th>Item</Th>
+              <Th>PR Runner</Th>
+              <Th>Status</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border">
+          <tbody>
             {sorted.map((item, i) => (
-              <AgendaItemRow
-                key={item.id}
-                item={item}
-                seq={item.agendaSequence ?? i + 1}
-              />
+              <AgendaItemRow key={item.id} item={item} seq={item.agendaSequence ?? i + 1} />
             ))}
           </tbody>
-        </table>
-      </div>
+        </Table>
+      </TableWrap>
     </section>
   );
 }
 
-function AgendaItemRow({
-  item,
-  seq,
-}: {
-  item: AgendaItem;
-  seq: number;
-}) {
+function AgendaItemRow({ item, seq }: { item: AgendaItem; seq: number }) {
   const date = new Date(item.eventDate);
   const arrivalTime = item.arrivalTime ? new Date(item.arrivalTime) : null;
   const eventTime = item.eventTime ? new Date(item.eventTime) : null;
 
   return (
-    <tr className="hover:bg-surface-1 transition-colors">
-      {/* # */}
-      <td className="px-3 py-3.5 text-xs font-semibold text-ink-muted">
+    <tr>
+      <Td numeric className="text-xs font-semibold text-ink-muted">
         {seq}
-      </td>
+      </Td>
 
-      {/* Date */}
-      <td className="px-3 py-3.5">
-        <p className="text-xs font-semibold text-ink-primary">
-          {format(date, "EEE")}
-        </p>
-        <p className="text-xs text-ink-secondary">
-          {format(date, "MM/dd/yy")}
-        </p>
-      </td>
+      <Td>
+        <p className="text-xs font-semibold text-ink-primary">{format(date, "EEE")}</p>
+        <p className="tabular text-xs text-ink-secondary">{format(date, "MM/dd/yy")}</p>
+      </Td>
 
-      {/* Arrival / Air time */}
-      <td className="px-3 py-3.5">
+      <Td>
         {arrivalTime && (
-          <p className="text-[10px] text-ink-muted">
-            Llegada: {format(arrivalTime, "h:mm a")}
-          </p>
+          <p className="tabular text-2xs text-ink-muted">Llegada: {format(arrivalTime, "h:mm a")}</p>
         )}
-        <p className="text-xs font-medium text-ink-primary">
+        <p className="tabular text-xs font-medium text-ink-primary">
           {eventTime ? format(eventTime, "h:mm a") : "—"}
         </p>
-      </td>
+      </Td>
 
-      {/* Venue */}
-      <td className="px-3 py-3.5 max-w-[200px]">
+      <Td className="max-w-[200px]">
         {item.venueName ? (
           <>
-            <p className="text-xs font-medium text-ink-primary truncate">
-              {item.venueName}
-            </p>
-            {item.venueAddress && (
-              <p className="text-[10px] text-ink-muted truncate">
-                {item.venueAddress}
-              </p>
-            )}
+            <p className="truncate text-xs font-medium text-ink-primary">{item.venueName}</p>
+            {item.venueAddress && <p className="truncate text-2xs text-ink-muted">{item.venueAddress}</p>}
           </>
         ) : (
           <span className="text-xs text-ink-muted">—</span>
         )}
-      </td>
+      </Td>
 
-      {/* Item name + type */}
-      <td className="px-3 py-3.5">
-        <div className="flex flex-col gap-1">
+      <Td>
+        <div className="flex flex-col items-start gap-1">
           {item.itemType && (
-            <span
-              className={cn(
-                "self-start rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                TYPE_STYLES[item.itemType.toUpperCase()] ??
-                  "bg-surface-2 text-ink-secondary"
-              )}
-            >
+            <Badge size="xs" tone="outline" className="uppercase tracking-wide">
               {item.itemType}
-            </span>
+            </Badge>
           )}
-          <p className="text-xs font-medium text-ink-primary">
-            {item.eventName || item.notes || "—"}
-          </p>
-          {item.eventName && item.notes && (
-            <p className="text-[10px] text-ink-muted">{item.notes}</p>
-          )}
+          <p className="text-xs font-medium text-ink-primary">{item.eventName || item.notes || "—"}</p>
+          {item.eventName && item.notes && <p className="text-2xs text-ink-muted">{item.notes}</p>}
           {(item.accompanistCount ?? 0) > 0 && (
-            <p className="text-[10px] text-ink-muted">
-              Acompañante +{item.accompanistCount}
-            </p>
+            <p className="text-2xs text-ink-muted">Acompañante +{item.accompanistCount}</p>
           )}
         </div>
-      </td>
+      </Td>
 
-      {/* Runner */}
-      <td className="px-3 py-3.5">
+      <Td>
         {item.runner ? (
           <div className="flex items-center gap-1.5">
-            <div className="h-5 w-5 rounded-full bg-surface-3 flex items-center justify-center text-[10px] font-bold text-ink-secondary flex-shrink-0">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-2 text-2xs font-semibold text-ink-secondary ring-1 ring-inset ring-border">
               {(item.runner.name?.[0] ?? "?").toUpperCase()}
-            </div>
-            <div>
-              <span className="text-xs text-ink-secondary block">
-                {item.runner.name.split(" ")[0]}
-              </span>
-            </div>
+            </span>
+            <span className="text-xs text-ink-secondary">{item.runner.name.split(" ")[0]}</span>
           </div>
         ) : (
           <span className="text-xs text-ink-muted">—</span>
         )}
-      </td>
+      </Td>
 
-      {/* Status */}
-      <td className="px-3 py-3.5">
-        <span
-          className={cn(
-            "rounded-full border px-2.5 py-0.5 text-[10px] font-semibold",
-            STATUS_STYLES[item.status] ??
-              "bg-surface-2 text-ink-secondary border-border"
-          )}
-        >
+      <Td>
+        <Badge size="xs" tone={STATUS_TONES[item.status] ?? "neutral"} dot>
           {STATUS_LABELS[item.status] ?? item.status}
-        </span>
-      </td>
+        </Badge>
+      </Td>
     </tr>
   );
 }

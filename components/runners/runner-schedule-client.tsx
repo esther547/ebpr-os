@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/layout/header";
 import { RunnerScheduleView, type ScheduleAssignment } from "./runner-schedule-view";
 import { CreateAssignmentModal } from "./create-assignment-modal";
 import { Button } from "@/components/ui/form-field";
+import { Plus } from "lucide-react";
 
 interface Props {
   assignments: ScheduleAssignment[];
@@ -34,7 +35,12 @@ export function RunnerScheduleClient({
         subtitle="Weekly assignments"
         actions={
           !isRunner ? (
-            <Button onClick={() => setShowAssign(true)}>+ Assign Runner</Button>
+            <Button
+              onClick={() => setShowAssign(true)}
+              leftIcon={<Plus className="h-4 w-4" />}
+            >
+              Assign Runner
+            </Button>
           ) : undefined
         }
       />

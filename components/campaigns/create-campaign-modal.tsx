@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/modal";
-import { Button, Input, Select, Textarea, FormGroup } from "@/components/ui/form-field";
+import { Button, Input, Select, Textarea, FormGroup, FormActions } from "@/components/ui/form-field";
+import { useToast } from "@/components/ui/toast";
 
 interface Props {
   open: boolean;
@@ -15,12 +16,11 @@ interface Props {
 export function CreateCampaignModal({ open, onOpenChange, clientId, teamMembers }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     const form = new FormData(e.currentTarget);
 
@@ -42,22 +42,24 @@ export function CreateCampaignModal({ open, onOpenChange, clientId, teamMembers 
 
     if (!res.ok) {
       const data = await res.json();
-      setError(data.error || "Failed to create campaign");
+      toast({
+        title: "Failed to create campaign",
+        description: typeof data.error === "string" ? data.error : undefined,
+        variant: "error",
+      });
       setLoading(false);
       return;
     }
 
     onOpenChange(false);
+    setLoading(false);
+    toast({ title: "Campaign created", variant: "success" });
     router.refresh();
   }
 
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="New Campaign">
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && (
-          <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
-        )}
-
         <FormGroup label="Campaign Name" htmlFor="camp-name" required>
           <Input id="camp-name" name="name" placeholder="e.g., 2026 Summer Campaign" required autoFocus />
         </FormGroup>
@@ -66,7 +68,7 @@ export function CreateCampaignModal({ open, onOpenChange, clientId, teamMembers 
           <Textarea id="camp-desc" name="description" rows={2} placeholder="Campaign objectives..." />
         </FormGroup>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormGroup label="Start Date" htmlFor="camp-start">
             <Input id="camp-start" name="startDate" type="date" />
           </FormGroup>
@@ -75,7 +77,7 @@ export function CreateCampaignModal({ open, onOpenChange, clientId, teamMembers 
           </FormGroup>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormGroup label="Lead Strategist" htmlFor="camp-owner">
             <Select id="camp-owner" name="ownerId">
               <option value="">Select lead...</option>
@@ -90,14 +92,14 @@ export function CreateCampaignModal({ open, onOpenChange, clientId, teamMembers 
           </FormGroup>
         </div>
 
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={loading}>
-            {loading ? "Creating..." : "Create Campaign"}
-          </Button>
+        <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-        </div>
+          <Button type="submit" loading={loading}>
+            Create Campaign
+          </Button>
+        </FormActions>
       </form>
     </Modal>
   );

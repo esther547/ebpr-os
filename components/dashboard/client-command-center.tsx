@@ -2,9 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import { ArrowUpDown, Search } from "lucide-react";
 import { cn, monthLabel } from "@/lib/utils";
 import { ClientStatus } from "@prisma/client";
+import { Card } from "@/components/ui/card";
+import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { Table, Th, Td, TableEmpty } from "@/components/ui/table";
+import { Input } from "@/components/ui/form-field";
+import { SectionHeader } from "@/components/layout/header";
 
 type ClientRow = {
   id: string;
@@ -40,12 +47,22 @@ const PHASE_LABELS: Record<string, string> = {
   COMPLETED: "Done",
 };
 
-const PHASE_STYLES: Record<string, string> = {
-  PREPARATION: "bg-blue-50 text-blue-700",
-  ACTIVE: "bg-green-50 text-green-700",
-  PAUSED: "bg-amber-50 text-amber-700",
-  COMPLETED: "bg-surface-2 text-ink-muted",
+const PHASE_TONES: Record<string, BadgeTone> = {
+  PREPARATION: "info",
+  ACTIVE: "success",
+  PAUSED: "warning",
+  COMPLETED: "neutral",
 };
+
+/** Up to two initials, for the strategist avatar. */
+function initials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0].toUpperCase())
+    .join("");
+}
 
 export function ClientCommandCenter({ clients, month, year }: Props) {
   const [search, setSearch] = useState("");
@@ -77,104 +94,137 @@ export function ClientCommandCenter({ clients, month, year }: Props) {
       c.pacing.completed / c.monthlyTarget < 0.5
   ).length;
 
+  const activeCount = clients.filter((c) => c.status === "ACTIVE").length;
+
   return (
-    <div>
-      {/* Section header */}
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-bold text-ink-primary">
-            Client Command Center
-          </h2>
-          <p className="text-xs text-ink-muted mt-0.5">
-            {monthLabel(month, year)} ·{" "}
-            {clients.filter((c) => c.status === "ACTIVE").length} active
+    <section className="space-y-4">
+      <SectionHeader
+        title="Client Command Center"
+        description={
+          <>
+            {monthLabel(month, year)} · {activeCount} active
             {behind > 0 && (
-              <span className="ml-2 text-red-600 font-medium">
-                · {behind} behind pace
-              </span>
+              <span className="font-medium text-red-600"> · {behind} behind pace</span>
             )}
-          </p>
-        </div>
-
-        {/* Controls */}
-        <div className="flex items-center gap-2">
-          {/* Status filter */}
-          <div className="flex rounded-md border border-border overflow-hidden text-xs">
-            {(["ALL", "ACTIVE", "PROSPECT"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setFilterStatus(s)}
-                className={cn(
-                  "px-3 py-1.5 font-medium transition-colors",
-                  filterStatus === s
-                    ? "bg-ink-primary text-ink-inverted"
-                    : "bg-white text-ink-secondary hover:bg-surface-2"
-                )}
-              >
-                {s === "ALL" ? "All" : s.charAt(0) + s.slice(1).toLowerCase()}
-              </button>
-            ))}
-          </div>
-
-          {/* Sort */}
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value as SortKey)}
-            className="rounded-md border border-border bg-white px-2.5 py-1.5 text-xs font-medium text-ink-secondary focus:outline-none"
-          >
-            <option value="name">Sort: Name</option>
-            <option value="pacing">Sort: Pacing</option>
-            <option value="approvals">Sort: Approvals</option>
-            <option value="status">Sort: Status</option>
-          </select>
-
-          {/* Search */}
-          <input
-            type="text"
-            placeholder="Search clients..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="rounded-md border border-border bg-white px-3 py-1.5 text-xs text-ink-primary placeholder:text-ink-muted focus:outline-none focus:ring-1 focus:ring-ink-primary w-40"
-          />
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="rounded-lg border border-border bg-white overflow-hidden">
-        {/* Column headers */}
-        <div className="grid grid-cols-[2fr_1fr_2fr_1fr_1.5fr_80px] border-b border-border bg-surface-1 px-4 py-2.5">
-          {["Client", "Strategist", `Pacing (${monthLabel(month, year)})`, "Phase", "Next Item", "Appr."].map((h) => (
-            <div
-              key={h}
-              className="text-2xs font-semibold uppercase tracking-wider text-ink-muted"
-            >
-              {h}
+          </>
+        }
+        className="mb-0 flex-col items-start sm:flex-row sm:items-end"
+        actions={
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            {/* Status filter — segmented control */}
+            <div className="inline-flex overflow-hidden rounded-lg border border-border bg-white text-xs">
+              {(["ALL", "ACTIVE", "PROSPECT"] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setFilterStatus(s)}
+                  aria-pressed={filterStatus === s}
+                  className={cn(
+                    "h-8 px-3 font-medium transition-colors",
+                    filterStatus === s
+                      ? "bg-ink-primary text-ink-inverted"
+                      : "text-ink-secondary hover:bg-surface-2"
+                  )}
+                >
+                  {s === "ALL" ? "All" : s.charAt(0) + s.slice(1).toLowerCase()}
+                </button>
+              ))}
             </div>
-          ))}
-        </div>
 
-        {/* Rows */}
-        <div className="divide-y divide-border">
-          {filtered.map((client) => (
-            <ClientCommandRow key={client.id} client={client} />
-          ))}
-        </div>
-
-        {filtered.length === 0 && (
-          <div className="py-12 text-center text-sm text-ink-muted">
-            No clients match your search.
+            {/* Search */}
+            <div className="relative min-w-0 flex-1 sm:w-48 sm:flex-none">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-muted" />
+              <Input
+                type="search"
+                aria-label="Search clients"
+                placeholder="Search clients…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-8 pl-8 text-xs"
+              />
+            </div>
           </div>
-        )}
-      </div>
+        }
+      />
 
-      <p className="mt-2 text-xs text-ink-muted text-right">
-        {filtered.length} of {clients.length} clients
+      <Card padding="none" className="overflow-hidden">
+        <div className="max-h-[560px] overflow-auto">
+          <Table className="min-w-[700px]">
+            <thead>
+              <tr>
+                <SortableTh label="Client" sortKey="name" sort={sort} onSort={setSort} />
+                <Th>Strategist</Th>
+                <SortableTh label="Pacing" sortKey="pacing" sort={sort} onSort={setSort} />
+                <SortableTh label="Phase" sortKey="status" sort={sort} onSort={setSort} />
+                <Th>Next Item</Th>
+                <SortableTh
+                  label="Appr."
+                  sortKey="approvals"
+                  sort={sort}
+                  onSort={setSort}
+                  align="center"
+                />
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((client) => (
+                <ClientCommandRow key={client.id} client={client} />
+              ))}
+              {filtered.length === 0 && (
+                <TableEmpty colSpan={6}>No clients match your search.</TableEmpty>
+              )}
+            </tbody>
+          </Table>
+        </div>
+      </Card>
+
+      <p className="text-right text-xs text-ink-muted">
+        <span className="tabular">{filtered.length}</span> of{" "}
+        <span className="tabular">{clients.length}</span> clients
       </p>
-    </div>
+    </section>
+  );
+}
+
+function SortableTh({
+  label,
+  sortKey,
+  sort,
+  onSort,
+  align,
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: SortKey;
+  onSort: (k: SortKey) => void;
+  align?: "left" | "right" | "center";
+}) {
+  const active = sort === sortKey;
+  return (
+    <Th align={align} aria-sort={active ? "ascending" : "none"}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={cn(
+          "group inline-flex items-center gap-1 uppercase tracking-wider transition-colors hover:text-ink-primary",
+          align === "center" && "justify-center",
+          active && "text-ink-primary"
+        )}
+      >
+        {label}
+        <ArrowUpDown
+          className={cn(
+            "h-3 w-3 transition-opacity",
+            active ? "opacity-100" : "opacity-0 group-hover:opacity-60"
+          )}
+        />
+      </button>
+    </Th>
   );
 }
 
 function ClientCommandRow({ client }: { client: ClientRow }) {
+  const router = useRouter();
   const { pacing, monthlyTarget } = client;
   const pct = monthlyTarget > 0 ? (pacing.completed / monthlyTarget) * 100 : 0;
   const inProgressPct =
@@ -186,124 +236,115 @@ function ClientCommandRow({ client }: { client: ClientRow }) {
   const isOnTrack = pct >= 50 || pacing.completed + pacing.inProgress >= monthlyTarget * 0.6;
   const isBehind = !isOnTarget && !isOnTrack && client.status === "ACTIVE";
 
+  const href = `/clients/${client.id}`;
+
   return (
-    <Link
-      href={`/clients/${client.id}`}
-      className="grid grid-cols-[2fr_1fr_2fr_1fr_1.5fr_80px] px-4 py-3.5 hover:bg-surface-1 transition-colors items-center group"
+    <tr
+      onClick={() => router.push(href)}
+      className="group cursor-pointer"
     >
       {/* Client name + status */}
-      <div className="min-w-0 pr-4">
+      <Td className="max-w-[170px]">
         <div className="flex items-center gap-2">
-          <p className="font-semibold text-sm text-ink-primary truncate group-hover:underline">
+          <Link
+            href={href}
+            onClick={(e) => e.stopPropagation()}
+            className="truncate text-sm font-semibold text-ink-primary group-hover:underline"
+          >
             {client.name}
-          </p>
-          {client.status === "PROSPECT" && (
-            <span className="flex-shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 text-2xs font-medium text-ink-muted">
-              Prospect
-            </span>
-          )}
+          </Link>
+          {client.status === "PROSPECT" && <Badge size="xs">Prospect</Badge>}
         </div>
         {client.industry && (
-          <p className="text-xs text-ink-muted truncate">{client.industry}</p>
+          <p className="truncate text-xs text-ink-muted">{client.industry}</p>
         )}
-      </div>
+      </Td>
 
       {/* Strategist */}
-      <div className="pr-4">
+      <Td>
         {client.strategistName ? (
-          <div className="flex items-center gap-1.5">
-            <div className="h-5 w-5 flex-shrink-0 rounded-full bg-surface-3 flex items-center justify-center text-2xs font-bold text-ink-secondary">
-              {client.strategistName[0].toUpperCase()}
-            </div>
-            <span className="text-xs text-ink-secondary truncate">
+          <div className="flex items-center gap-2">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-2 text-2xs font-semibold text-ink-secondary ring-1 ring-inset ring-border">
+              {initials(client.strategistName)}
+            </span>
+            <span className="truncate text-xs text-ink-secondary">
               {client.strategistName.split(" ")[0]}
             </span>
           </div>
         ) : (
           <span className="text-xs text-ink-muted">—</span>
         )}
-      </div>
+      </Td>
 
       {/* Pacing bar */}
-      <div className="pr-4">
+      <Td className="min-w-[150px]">
         <div className="flex items-center gap-2">
-          {/* Bar */}
-          <div className="flex-1 h-2 rounded-full bg-surface-3 overflow-hidden min-w-[60px]">
-            <div
-              className="h-full float-left bg-ink-primary transition-all rounded-l-full"
-              style={{ width: `${Math.min(pct, 100)}%` }}
-            />
-            <div
-              className="h-full float-left bg-ink-primary/25 transition-all"
-              style={{ width: `${Math.min(inProgressPct, 100)}%` }}
-            />
+          <div className="h-1.5 min-w-[64px] flex-1 overflow-hidden rounded-full bg-surface-3">
+            <div className="flex h-full">
+              <div
+                className="h-full rounded-l-full bg-ink-primary transition-all"
+                style={{ width: `${Math.min(pct, 100)}%` }}
+              />
+              <div
+                className="h-full bg-ink-primary/25 transition-all"
+                style={{ width: `${Math.min(inProgressPct, 100)}%` }}
+              />
+            </div>
           </div>
-          <span
-            className={cn(
-              "text-xs font-semibold tabular-nums flex-shrink-0 w-10 text-right",
-              isOnTarget ? "text-green-700" : isBehind ? "text-red-600" : "text-ink-secondary"
-            )}
-          >
+          <span className="w-10 shrink-0 text-right text-xs font-semibold tabular text-ink-secondary">
             {pacing.completed}/{monthlyTarget}
           </span>
         </div>
         <p
           className={cn(
-            "text-2xs mt-0.5",
-            isOnTarget ? "text-green-700" : isBehind ? "text-red-600 font-medium" : "text-ink-muted"
+            "mt-1 text-2xs",
+            isOnTarget ? "text-emerald-700" : isBehind ? "font-medium text-red-600" : "text-ink-muted"
           )}
         >
           {isOnTarget ? "On target" : isBehind ? "Behind" : "On track"}
         </p>
-      </div>
+      </Td>
 
       {/* Phase */}
-      <div className="pr-4">
+      <Td>
         {client.activeCampaign ? (
-          <span
-            className={cn(
-              "rounded-full px-2 py-0.5 text-2xs font-semibold",
-              PHASE_STYLES[client.activeCampaign.status] ?? "bg-surface-2 text-ink-muted"
-            )}
-          >
+          <Badge tone={PHASE_TONES[client.activeCampaign.status] ?? "neutral"}>
             {PHASE_LABELS[client.activeCampaign.status] ?? client.activeCampaign.status}
-          </span>
+          </Badge>
         ) : client.onboarding?.status === "COMPLETE" ? (
           <span className="text-xs text-ink-muted">No campaign</span>
         ) : (
-          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-2xs font-medium text-ink-muted">
-            Onboarding
-          </span>
+          <Badge tone="outline">Onboarding</Badge>
         )}
-      </div>
+      </Td>
 
       {/* Next agenda item */}
-      <div className="pr-2 min-w-0">
+      <Td className="max-w-[150px]">
         {client.nextAgendaItem ? (
-          <div>
-            <p className="text-xs font-medium text-ink-primary truncate">
+          <>
+            <p className="truncate text-xs font-medium text-ink-primary">
               {client.nextAgendaItem.eventName}
             </p>
-            <p className="text-2xs text-ink-muted">
+            <p className="truncate text-2xs text-ink-muted">
               {format(new Date(client.nextAgendaItem.eventDate), "MMM d")}
               {client.nextAgendaItem.location && ` · ${client.nextAgendaItem.location}`}
             </p>
-          </div>
+          </>
         ) : (
           <span className="text-xs text-ink-muted">—</span>
         )}
-      </div>
+      </Td>
 
       {/* Pending approvals */}
-      <div className="flex justify-center">
+      <Td align="center">
         {client.pendingApprovalCount > 0 ? (
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-ink-primary text-xs font-bold text-ink-inverted">
+          <Badge tone="dark" size="sm" className="tabular">
             {client.pendingApprovalCount}
-          </span>
+          </Badge>
         ) : (
           <span className="text-xs text-ink-muted">—</span>
         )}
-      </div>
-    </Link>
+      </Td>
+    </tr>
   );
 }
