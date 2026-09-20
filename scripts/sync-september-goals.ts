@@ -1,6 +1,6 @@
 /**
  * Apply the "MATRIZ 2026 CLIENTES - SEPTIEMBRE" sheet:
- *   - monthlyTarget per client (top of the range; PREP = 0)
+ *   - monthlyTarget per client (bottom of a range, e.g. "6-8" = 6; PREP = 0)
  *   - cycleDay ("fecha de corte")
  *   - completed deliverable count for Sept 2026 (creates placeholder COMPLETED
  *     deliverables only for the difference, so it is safe to re-run)
@@ -16,28 +16,28 @@ const MONTH = 9, YEAR = 2026;
 
 type Row = { name: string; match: string; target: number; cycleDay: number | null; done: number; prep?: boolean };
 const ROWS: Row[] = [
-  { name: "Casa D",              match: "Andres Gonzalez / Casa D / Rosario", target: 8, cycleDay: 1,  done: 7 },
+  { name: "Casa D",              match: "Andres Gonzalez / Casa D / Rosario", target: 6, cycleDay: 1,  done: 7 },
   { name: "Benme Legal / IT",    match: "Hector Benitez",     target: 8, cycleDay: 25, done: 6 },
-  { name: "Karime",              match: "Karime Pindter",     target: 8, cycleDay: 15, done: 0 },
-  { name: "Perro Negro",         match: "Perro Negro",        target: 8, cycleDay: 16, done: 0 },
-  { name: "Mami Lover",          match: "Tatiana Guiribitey",       target: 8, cycleDay: 1,  done: 1 },
+  { name: "Karime",              match: "Karime Pindter",     target: 6, cycleDay: 15, done: 0 },
+  { name: "Perro Negro",         match: "Perro Negro",        target: 6, cycleDay: 16, done: 0 },
+  { name: "Mami Lover",          match: "Tatiana Guiribitey",       target: 6, cycleDay: 1,  done: 1 },
   { name: "Pao Ruiz",            match: "Pao Ruiz",           target: 4, cycleDay: 1,  done: 0 },
   { name: "Marko",               match: "Marko",              target: 8, cycleDay: 19, done: 9 },
-  { name: "Charlie Rincón",      match: "Charlie Rincon",     target: 8, cycleDay: 23, done: 0 },
-  { name: "Ana Vélez",           match: "Ana Velez",          target: 8, cycleDay: 11, done: 0 },
-  { name: "Yeri Mua",            match: "Yeri Mua",           target: 8, cycleDay: 1,  done: 0 },
-  { name: "Alejandra Jaramillo", match: "Alejandra Jaramillo",target: 8, cycleDay: 1,  done: 0 },
-  { name: "Camila Guribitey",    match: "Camila Guiribitey",  target: 8, cycleDay: 1,  done: 0 },
-  { name: "Jonathan Molly",      match: "Jonathan Moly",      target: 8, cycleDay: 17, done: 0 },
-  { name: "Rico Rubio",          match: "Rico Rubio",         target: 8, cycleDay: 18, done: 0 },
+  { name: "Charlie Rincón",      match: "Charlie Rincon",     target: 6, cycleDay: 23, done: 0 },
+  { name: "Ana Vélez",           match: "Ana Velez",          target: 6, cycleDay: 11, done: 0 },
+  { name: "Yeri Mua",            match: "Yeri Mua",           target: 6, cycleDay: 1,  done: 0 },
+  { name: "Alejandra Jaramillo", match: "Alejandra Jaramillo",target: 6, cycleDay: 1,  done: 0 },
+  { name: "Camila Guribitey",    match: "Camila Guiribitey",  target: 6, cycleDay: 1,  done: 0 },
+  { name: "Jonathan Molly",      match: "Jonathan Moly",      target: 6, cycleDay: 17, done: 0 },
+  { name: "Rico Rubio",          match: "Rico Rubio",         target: 6, cycleDay: 18, done: 0 },
   { name: "Lex Borrero",         match: "Lex Borrero",        target: 5, cycleDay: 15, done: 0 },
-  { name: "Beta Mejía",          match: "Beta Mejia",         target: 8, cycleDay: 1,  done: 0 },
-  { name: "Delfina Saud",        match: "Delfina Saud",       target: 8, cycleDay: 1,  done: 4 },
-  { name: "Gracie Bon",          match: "Grace Andrea Bonilla",target: 8, cycleDay: 8, done: 3 },
+  { name: "Beta Mejía",          match: "Beta Mejia",         target: 6, cycleDay: 1,  done: 0 },
+  { name: "Delfina Saud",        match: "Delfina Saud",       target: 6, cycleDay: 1,  done: 4 },
+  { name: "Gracie Bon",          match: "Grace Andrea Bonilla",target: 6, cycleDay: 8, done: 3 },
   { name: "Eliane Haro",         match: "Elaine",             target: 0, cycleDay: 14, done: 0, prep: true },
   { name: "Dani Fernández",      match: "Daniela Fernandez",  target: 4, cycleDay: 1,  done: 0 },
   { name: "Alex Ponce",          match: "Alex Ponce",         target: 0, cycleDay: null, done: 0, prep: true },
-  { name: "Poli",                match: "Poli",               target: 8, cycleDay: 28, done: 2 },
+  { name: "Poli",                match: "Poli",               target: 6, cycleDay: 28, done: 2 },
 ];
 
 const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
