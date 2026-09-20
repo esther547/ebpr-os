@@ -12,6 +12,12 @@ import {
   tzMidnight,
 } from "@/components/runners/miami-time";
 import { loadScheduleItems } from "@/components/runners/load-schedule";
+import {
+  WeeklyAvailabilityEditor,
+  type DateOverride,
+  type WeeklyWindow,
+} from "@/components/runners/weekly-availability-editor";
+import { formatHHmm } from "@/components/runners/miami-time";
 
 export const metadata = { title: "My Schedule — EBPR" };
 export const dynamic = "force-dynamic";
@@ -37,6 +43,31 @@ export default async function RunnerPortalPage() {
     ],
     status: { not: "CANCELLED" },
   });
+
+  // The runner's own availability — this is what the auto-scheduler reads.
+  const [weeklyRows, overrideRows] = await Promise.all([
+    db.runnerWeeklyAvailability.findMany({
+      where: { userId: user.id },
+      orderBy: [{ dayOfWeek: "asc" }, { startMinute: "asc" }],
+      select: { dayOfWeek: true, startMinute: true, endMinute: true },
+    }),
+    db.runnerAvailability.findMany({
+      where: { userId: user.id },
+      orderBy: { date: "asc" },
+      select: { id: true, date: true, isAvailable: true, notes: true },
+    }),
+  ]);
+  const weeklyWindows: WeeklyWindow[] = weeklyRows.map((r) => ({
+    dayOfWeek: r.dayOfWeek,
+    start: formatHHmm(r.startMinute),
+    end: formatHHmm(r.endMinute),
+  }));
+  const dateOverrides: DateOverride[] = overrideRows.map((r) => ({
+    id: r.id,
+    date: dayKeyInTz(r.date),
+    isAvailable: r.isAvailable,
+    notes: r.notes,
+  }));
 
   // Current month's hours (month boundaries in Miami time)
   const { month, year } = currentMonthYearInTz(now);
@@ -74,6 +105,21 @@ export default async function RunnerPortalPage() {
 
       {/* Hours tracking */}
       <RunnerHoursClient hours={hours} totalHours={totalHours} todayKey={todayKey} />
+
+      {/* Availability — the schedule is built from this */}
+      <section className="space-y-4">
+        <SectionHeader
+          title="My availability"
+          description="The weekly schedule is built from these hours. Keep them up to date."
+          className="mb-0"
+        />
+        <WeeklyAvailabilityEditor
+          userId={user.id}
+          title="My weekly hours"
+          initialWindows={weeklyWindows}
+          initialOverrides={dateOverrides}
+        />
+      </section>
 
       {/* Schedule */}
       <section className="space-y-4">

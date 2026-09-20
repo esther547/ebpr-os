@@ -60,6 +60,38 @@ export function tzMidnight(dayKey: string): Date {
   return result;
 }
 
+/** Minutes since midnight in Miami for the given instant (0–1439). */
+export function minutesOfDayInTz(d: Date | string): number {
+  const parts = partsFormatter.formatToParts(new Date(d));
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return get("hour") * 60 + get("minute");
+}
+
+/**
+ * Day of week for a "yyyy-MM-dd" key: 0 = Sunday … 6 = Saturday.
+ * parseISO on a day key builds a local-midnight Date whose getDay() is the
+ * calendar weekday — no timezone shift is involved.
+ */
+export function dayOfWeekForKey(dayKey: string): number {
+  return parseISO(dayKey).getDay();
+}
+
+/** "HH:mm" -> minutes from midnight. Returns null when unparseable. */
+export function parseHHmm(value: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return h * 60 + min;
+}
+
+/** minutes from midnight -> "HH:mm". */
+export function formatHHmm(minutes: number): string {
+  const m = Math.max(0, Math.min(24 * 60, Math.round(minutes)));
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+
 /** Add days to a day key (pure calendar arithmetic, no timezone involved). */
 export function addDaysKey(dayKey: string, days: number): string {
   return format(addDays(parseISO(dayKey), days), "yyyy-MM-dd");

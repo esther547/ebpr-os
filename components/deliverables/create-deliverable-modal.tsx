@@ -25,12 +25,6 @@ export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembe
     const form = new FormData(e.currentTarget);
     const dueDate = (form.get("dueDate") as string) || undefined;
 
-    // The deliverable counts toward the month it is due in; otherwise the current month.
-    const now = new Date();
-    const dueMatch = dueDate ? /^(\d{4})-(\d{2})-\d{2}$/.exec(dueDate) : null;
-    const month = dueMatch ? parseInt(dueMatch[2], 10) : now.getMonth() + 1;
-    const year = dueMatch ? parseInt(dueMatch[1], 10) : now.getFullYear();
-
     const body = {
       clientId,
       title: (form.get("title") as string).trim(),
@@ -38,8 +32,6 @@ export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembe
       assigneeId: (form.get("assigneeId") as string) || undefined,
       dueDate,
       notes: (form.get("notes") as string) || undefined,
-      month,
-      year,
     };
 
     try {
@@ -104,7 +96,7 @@ export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembe
         <FormGroup
           label="Due Date"
           htmlFor="del-due"
-          description="Counts toward the month it is due in (this month if left blank)."
+          description="Counts toward the client's goal cycle it is due in (current cycle if left blank)."
         >
           <Input id="del-due" name="dueDate" type="date" />
         </FormGroup>

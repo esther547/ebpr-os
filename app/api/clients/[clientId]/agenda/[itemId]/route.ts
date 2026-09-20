@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { startOfWeek } from "date-fns";
+import { reassignAfterTimeChange } from "@/lib/runner-assign";
 
 /** "YYYY-MM-DD" -> noon UTC so the calendar day is stable in every timezone. */
 function parseDateInput(value: string): Date {
@@ -12,7 +13,8 @@ function parseDateInput(value: string): Date {
 }
 
 const patchSchema = z.object({
-  runnerId: z.string().optional(),
+  // null clears the runner — the activity goes back to "needs a runner".
+  runnerId: z.string().trim().min(1).nullable().optional(),
   deliverableId: z.string().optional(),
   eventDate: z.string().optional(),
   arrivalTime: z.string().optional().nullable(),
@@ -34,7 +36,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ clientId: string; itemId: string }> }
 ) {
-  await requireUser();
+  const user = await requireUser();
   const { clientId, itemId } = await params;
 
   const existing = await db.runnerAssignment.findFirst({
@@ -61,7 +63,12 @@ export async function PATCH(
   const d = parsed.data;
   const updateData: Record<string, unknown> = {};
 
-  if (d.runnerId !== undefined) updateData.runnerId = d.runnerId;
+  if (d.runnerId !== undefined) {
+    updateData.runnerId = d.runnerId || null;
+    // A human picked this runner, so it is no longer the engine's to change.
+    updateData.autoAssigned = false;
+    updateData.assignedAt = d.runnerId ? new Date() : null;
+  }
   if (d.deliverableId !== undefined) updateData.deliverableId = d.deliverableId;
   if (d.eventDate !== undefined) {
     const eventDate = parseDateInput(d.eventDate);
@@ -82,12 +89,24 @@ export async function PATCH(
   if (d.agendaSequence !== undefined) updateData.agendaSequence = d.agendaSequence;
   if (d.status !== undefined) updateData.status = d.status;
 
-  const updated = await db.runnerAssignment.update({
+  const timeChanged =
+    d.eventDate !== undefined || d.eventTime !== undefined || d.arrivalTime !== undefined;
+
+  await db.runnerAssignment.update({ where: { id: itemId }, data: updateData });
+
+  // An auto-assigned runner who no longer fits the new time is replaced by
+  // whoever is available (and the team is told if nobody is).
+  if (timeChanged && d.runnerId === undefined) {
+    try {
+      await reassignAfterTimeChange(itemId, user.id);
+    } catch (err) {
+      console.error("Re-assignment after time change failed:", err);
+    }
+  }
+
+  const updated = await db.runnerAssignment.findUnique({
     where: { id: itemId },
-    data: updateData,
-    include: {
-      runner: { select: { id: true, name: true } },
-    },
+    include: { runner: { select: { id: true, name: true } } },
   });
 
   return NextResponse.json({ data: updated });

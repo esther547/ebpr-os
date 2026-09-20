@@ -49,7 +49,8 @@ export function CreateAssignmentModal({ open, onOpenChange, clientId, clients = 
     const eventInstant = localToIso(eventDate, onAir || arrival || "12:00");
 
     const body = {
-      runnerId: form.get("runnerId") as string,
+      // Blank = the activity goes on the agenda needing a runner.
+      runnerId: ((form.get("runnerId") as string) || "").trim() || null,
       eventName: ((form.get("eventName") as string) || "").trim() || undefined,
       eventDate: eventInstant,
       arrivalTime: arrival ? localToIso(eventDate, arrival) : undefined,
@@ -114,9 +115,9 @@ export function CreateAssignmentModal({ open, onOpenChange, clientId, clients = 
         )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormGroup label="Runner" htmlFor="ra-runner" required>
-            <Select id="ra-runner" name="runnerId" required>
-              <option value="">Select runner...</option>
+          <FormGroup label="Runner" htmlFor="ra-runner" hint="optional">
+            <Select id="ra-runner" name="runnerId">
+              <option value="">Leave unassigned (needs a runner)</option>
               {runners.map((r) => (
                 <option key={r.id} value={r.id}>{r.name}</option>
               ))}

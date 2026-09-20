@@ -14,6 +14,7 @@ import {
   weekStartKey,
 } from "@/components/runners/miami-time";
 import { PageHeader } from "@/components/layout/header";
+import { currentCycle } from "@/lib/cycles";
 
 export const metadata = { title: "Dashboard — EBPR OS" };
 export const dynamic = "force-dynamic";
@@ -40,6 +41,7 @@ export default async function DashboardPage() {
       slug: true,
       status: true,
       monthlyTarget: true,
+      cycleDay: true,
       industry: true,
       campaigns: {
         where: { status: { in: ["PREPARATION", "ACTIVE"] } },
@@ -50,10 +52,18 @@ export default async function DashboardPage() {
     },
   });
 
-  // ── Deliverable pacing for all clients this month ──────────────
-  const deliverables = await db.deliverable.findMany({
-    where: { month, year, status: { not: "CANCELLED" } },
-    select: { clientId: true, status: true },
+  // ── Deliverable pacing per client for its CURRENT goal cycle (fecha de corte) ──
+  const cycleByClient = new Map(clients.map((c) => [c.id, currentCycle(c.cycleDay, now)]));
+  const labelSet = new Map<string, { month: number; year: number }>();
+  for (const c of cycleByClient.values()) labelSet.set(`${c.year}-${c.month}`, { month: c.month, year: c.year });
+  const deliverables = (
+    await db.deliverable.findMany({
+      where: { OR: Array.from(labelSet.values()), status: { not: "CANCELLED" } },
+      select: { clientId: true, status: true, month: true, year: true },
+    })
+  ).filter((d) => {
+    const c = cycleByClient.get(d.clientId);
+    return c && c.month === d.month && c.year === d.year;
   });
 
   // Map clientId → { completed, inProgress, total }

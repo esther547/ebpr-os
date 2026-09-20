@@ -6,7 +6,9 @@ import { z } from "zod";
 import { startOfWeek, startOfDay, endOfDay } from "date-fns";
 
 const agendaItemSchema = z.object({
-  runnerId: z.string().min(1, "Runner is required"),
+  // Optional: an activity with no runner yet is a valid agenda item — it simply
+  // "needs a runner" until the auto-scheduler (or a human) picks one.
+  runnerId: z.string().trim().min(1).optional().nullable(),
   deliverableId: z.string().optional().nullable(),
   eventName: z.string().optional(),
   date: z.string().optional(),
@@ -126,12 +128,16 @@ export async function POST(
   const weekOf = startOfWeek(eventDate, { weekStartsOn: 1 });
   const eventName = data.eventName || data.itemType || "Appearance";
 
-  const runner = await db.user.findUnique({
-    where: { id: data.runnerId },
-    select: { id: true, name: true, role: true, isActive: true },
-  });
-  if (!runner || runner.role !== "RUNNER" || !runner.isActive) {
-    return NextResponse.json({ error: "Selected runner was not found" }, { status: 400 });
+  let runner: { id: string; name: string } | null = null;
+  if (data.runnerId) {
+    const found = await db.user.findUnique({
+      where: { id: data.runnerId },
+      select: { id: true, name: true, role: true, isActive: true },
+    });
+    if (!found || found.role !== "RUNNER" || !found.isActive) {
+      return NextResponse.json({ error: "Selected runner was not found" }, { status: 400 });
+    }
+    runner = { id: found.id, name: found.name };
   }
 
   if (data.deliverableId) {
@@ -144,27 +150,30 @@ export async function POST(
     }
   }
 
-  // ── Conflict Detection ──────────────────────────────────
+  // ── Conflict Detection (only meaningful once a runner is chosen) ──
   let conflictWarning: string | null = null;
-  const sameDayAssignments = await db.runnerAssignment.count({
-    where: {
-      runnerId: runner.id,
-      eventDate: {
-        gte: startOfDay(eventDate),
-        lte: endOfDay(eventDate),
+  if (runner) {
+    const sameDayAssignments = await db.runnerAssignment.count({
+      where: {
+        runnerId: runner.id,
+        eventDate: {
+          gte: startOfDay(eventDate),
+          lte: endOfDay(eventDate),
+        },
+        status: { not: "CANCELLED" },
       },
-      status: { not: "CANCELLED" },
-    },
-  });
-  if (sameDayAssignments > 0) {
-    conflictWarning = `Warning: ${runner.name} already has ${sameDayAssignments} assignment(s) on this day`;
+    });
+    if (sameDayAssignments > 0) {
+      conflictWarning = `Warning: ${runner.name} already has ${sameDayAssignments} assignment(s) on this day`;
+    }
   }
 
   try {
     const item = await db.runnerAssignment.create({
       data: {
         clientId,
-        runnerId: runner.id,
+        runnerId: runner?.id ?? null,
+        assignedAt: runner ? new Date() : null,
         deliverableId: data.deliverableId || null,
         eventDate,
         eventName,
@@ -191,8 +200,10 @@ export async function POST(
         clientId,
         deliverableId: data.deliverableId || null,
         userId: user.id,
-        action: "runner_assigned",
-        description: `Assigned ${item.runner.name} to "${eventName}" for ${client.name}`,
+        action: runner ? "runner_assigned" : "agenda_item_created",
+        description: runner
+          ? `Assigned ${runner.name} to "${eventName}" for ${client.name}`
+          : `Added "${eventName}" to ${client.name}'s agenda — needs a runner`,
       },
     });
 

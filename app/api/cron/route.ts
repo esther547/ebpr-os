@@ -93,6 +93,8 @@ export async function GET(req: NextRequest) {
 
   let runnerReminders = 0;
   for (const a of tomorrowAssignments) {
+    // An activity with no runner yet has nobody to remind.
+    if (!a.runnerId) continue;
     const created = await notifyOnce({
       userId: a.runnerId,
       title: "Assignment Tomorrow",
@@ -115,6 +117,7 @@ export async function GET(req: NextRequest) {
 
   let sameDayReminders = 0;
   for (const a of todayAssignments) {
+    if (!a.runnerId) continue;
     const created = await notifyOnce({
       userId: a.runnerId,
       title: "Assignment Today",
@@ -170,6 +173,8 @@ export async function GET(req: NextRequest) {
   // Group by runner + Miami calendar day
   const byRunnerDay = new Map<string, typeof upcoming>();
   for (const a of upcoming) {
+    // Unassigned activities cannot clash with anything — they have no runner.
+    if (!a.runnerId || !a.runner) continue;
     const key = `${a.runnerId}|${dayKeyInTz(a.eventDate)}`;
     const arr = byRunnerDay.get(key) ?? [];
     arr.push(a);
@@ -191,7 +196,7 @@ export async function GET(req: NextRequest) {
         const b = assignments[j];
         // Stable pair id regardless of ordering
         const pair = [a.id, b.id].sort().join(",");
-        const message = `${a.runner.name} has overlapping assignments on ${formatDayKey(dayKey, "EEE, MMM d")}: "${a.eventName}" (${formatInTz(a.eventTime ?? a.eventDate, TIME)}) and "${b.eventName}" (${formatInTz(b.eventTime ?? b.eventDate, TIME)})`;
+        const message = `${a.runner?.name ?? "A runner"} has overlapping assignments on ${formatDayKey(dayKey, "EEE, MMM d")}: "${a.eventName}" (${formatInTz(a.eventTime ?? a.eventDate, TIME)}) and "${b.eventName}" (${formatInTz(b.eventTime ?? b.eventDate, TIME)})`;
         for (const admin of admins) {
           const created = await notifyOnce({
             userId: admin.id,

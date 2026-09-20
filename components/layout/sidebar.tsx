@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { EBPRLogoHorizontal } from "@/components/brand/ebpr-logo";
 import { NotificationBell } from "./notification-bell";
 import type { UserRole } from "@prisma/client";
+import { FEATURES } from "@/lib/features";
 
 type NavItem = {
   href: string;
@@ -97,7 +98,7 @@ export function Sidebar({ userRole, userName, userEmail }: SidebarProps) {
   }, [pathname]);
 
   const groups = navGroups
-    .map((g) => ({ ...g, items: g.items.filter((i) => i.roles.includes(userRole)) }))
+    .map((g) => ({ ...g, items: g.items.filter((i) => i.roles.includes(userRole) && (FEATURES.legal || !["/legal", "/follow-up"].includes(i.href))) }))
     .filter((g) => g.items.length > 0);
 
   const nav = (

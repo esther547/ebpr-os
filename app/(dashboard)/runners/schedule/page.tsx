@@ -14,7 +14,13 @@ import {
 export const metadata = { title: "Runner Schedule" };
 export const dynamic = "force-dynamic";
 
-export default async function RunnerSchedulePage() {
+const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
+
+export default async function RunnerSchedulePage({
+  searchParams,
+}: {
+  searchParams?: { week?: string };
+}) {
   const user = await requireUser();
   if (!canViewRunnerSchedule(user)) {
     return (
@@ -29,8 +35,12 @@ export default async function RunnerSchedulePage() {
   }
 
   // Week boundaries in Miami time (weeks start Monday), independent of server TZ.
+  // ?week=yyyy-MM-dd navigates to any other week; the value is snapped to Monday.
   const todayKey = dayKeyInTz(new Date());
-  const weekStartDay = weekStartKey(todayKey);
+  const currentWeekKey = weekStartKey(todayKey);
+  const requested = searchParams?.week;
+  const weekStartDay =
+    requested && DAY_KEY.test(requested) ? weekStartKey(requested) : currentWeekKey;
   const weekStart = tzMidnight(weekStartDay);
   const weekEnd = tzMidnight(addDaysKey(weekStartDay, 7)); // exclusive
 
@@ -49,6 +59,7 @@ export default async function RunnerSchedulePage() {
       location: true,
       venueName: true,
       status: true,
+      autoAssigned: true,
       runner: { select: { id: true, name: true, avatar: true } },
     },
     orderBy: { eventDate: "asc" },
@@ -63,6 +74,7 @@ export default async function RunnerSchedulePage() {
   const runners = await db.user.findMany({
     where: { role: "RUNNER", isActive: true },
     select: { id: true, name: true, avatar: true },
+    orderBy: { name: "asc" },
   });
 
   const clients = await db.client.findMany({
@@ -71,12 +83,17 @@ export default async function RunnerSchedulePage() {
     orderBy: { name: "asc" },
   });
 
+  const nextWeekKey = addDaysKey(currentWeekKey, 7);
+
   return (
     <RunnerScheduleClient
       assignments={assignments}
       runners={runners}
       clients={clients}
       weekStartKey={weekStartDay}
+      currentWeekKey={currentWeekKey}
+      nextWeekKey={nextWeekKey}
+      nextWeekEndKey={addDaysKey(nextWeekKey, 6)}
       todayKey={todayKey}
       isRunner={user.role === "RUNNER"}
     />

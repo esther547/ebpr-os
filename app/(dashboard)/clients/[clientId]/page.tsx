@@ -3,9 +3,10 @@ import Link from "next/link";
 import { Plus, ArrowRight } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { FEATURES } from "@/lib/features";
 import { DeliverablePacingBar } from "@/components/deliverables/pacing-bar";
-import { formatDate, monthLabel } from "@/lib/utils";
-import { currentMonthYear } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
+import { currentCycle, cycleLabel } from "@/lib/cycles";
 import { ClientHeader } from "@/components/clients/client-header";
 import { ClientReminders } from "@/components/clients/client-reminders";
 import { ActivityTimeline } from "@/components/activity/activity-timeline";
@@ -25,8 +26,6 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function ClientPage({ params }: Props) {
   await requireUser();
-
-  const { month, year } = currentMonthYear();
 
   const client = await db.client.findUnique({
     where: { id: params.clientId },
@@ -50,7 +49,10 @@ export default async function ClientPage({ params }: Props) {
 
   if (!client) notFound();
 
-  // Monthly deliverable pacing
+  const cycle = currentCycle(client.cycleDay);
+  const { month, year } = cycle;
+
+  // Cycle deliverable pacing
   const deliverables = await db.deliverable.findMany({
     where: { clientId: params.clientId, month, year },
     select: { status: true },
@@ -98,7 +100,7 @@ export default async function ClientPage({ params }: Props) {
           <Card padding="lg">
             <CardHeader
               eyebrow="Pacing"
-              title={`${monthLabel(month, year)}`}
+              title={cycleLabel(cycle, client.cycleDay)}
               description={`Target: ${client.monthlyTarget} deliverables`}
             />
             <DeliverablePacingBar
@@ -114,7 +116,7 @@ export default async function ClientPage({ params }: Props) {
                 <span className="tabular font-semibold text-ink-primary">{inProgress}</span> in progress
               </span>
               <span>
-                <span className="tabular font-semibold text-ink-primary">{deliverables.length}</span> total this month
+                <span className="tabular font-semibold text-ink-primary">{deliverables.length}</span> total this cycle
               </span>
             </div>
           </Card>
@@ -200,7 +202,7 @@ export default async function ClientPage({ params }: Props) {
             </Card>
           )}
 
-          {client.contracts[0] && (
+          {FEATURES.legal && client.contracts[0] && (
             <Card padding="lg">
               <CardHeader
                 title="Contract"

@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { PageHeader } from "@/components/layout/header";
 import { NavTabs } from "@/components/ui/tabs";
 import { Badge, humanize, statusTone } from "@/components/ui/badge";
+import { currentCycle, cycleLabel } from "@/lib/cycles";
 import { ClientActions } from "./client-actions";
 import { ShareMonitorButton } from "./share-monitor-button";
 
@@ -75,7 +76,7 @@ export function ClientHeader({
             ) : (
               <>Preparation month</>
             )}
-            {client.cycleDay ? <> · cycle resets day <span className="tabular">{client.cycleDay}</span></> : null}
+            {client.cycleDay && client.cycleDay !== 1 ? <> · cycle {cycleLabel(currentCycle(client.cycleDay), client.cycleDay).split(" · ")[1]} (corte {client.cycleDay})</> : null}
           </span>
         </span>
       }

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canManageDeliverables } from "@/lib/permissions";
-import { currentMonthYear } from "@/lib/utils";
+import { cycleForDate, currentCycle } from "@/lib/cycles";
 import { parseDateInput } from "./_lib/status-transition";
 
 const createDeliverableSchema = z.object({
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
 
     const client = await db.client.findUnique({
       where: { id: rest.clientId },
-      select: { id: true, name: true, status: true },
+      select: { id: true, name: true, status: true, cycleDay: true },
     });
     if (!client) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
@@ -73,11 +73,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Month/year: explicit body values win, then the due date's month, then today.
+    // Month/year = the client's goal cycle (fecha de corte) that the due date falls in,
+    // or the client's current cycle when there is no due date. Explicit body values win.
     const dueDate = dueDateStr ? parseDateInput(dueDateStr) : undefined;
-    const fallback = dueDate
-      ? { month: dueDate.getUTCMonth() + 1, year: dueDate.getUTCFullYear() }
-      : currentMonthYear();
+    const cycle = dueDate ? cycleForDate(client.cycleDay, dueDate) : currentCycle(client.cycleDay);
+    const fallback = { month: cycle.month, year: cycle.year };
 
     const deliverable = await db.deliverable.create({
       data: {

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { slackDeliverableCompleted } from "@/lib/slack";
 import type { DeliverableStatus } from "@prisma/client";
+import { ensureAgendaItemForDeliverable } from "./agenda-sync";
 
 /**
  * Side effects of a deliverable status change (activity log, notifications, Slack).
@@ -29,6 +30,17 @@ export async function recordStatusTransition(opts: {
   });
 
   const link = `/clients/${deliverable.clientId}/deliverables/${deliverable.id}`;
+
+  // A goal that is happening belongs on the agenda — once, as a single row that
+  // the client agenda and the runner schedule both read. It starts with no
+  // runner; the auto-scheduler decides who accompanies it.
+  if (to === "CONFIRMED" || to === "IN_PROGRESS") {
+    try {
+      await ensureAgendaItemForDeliverable(deliverable.id);
+    } catch (err) {
+      console.error("Agenda sync failed:", err);
+    }
+  }
 
   if (to === "COMPLETED") {
     const clientData = await db.client.findUnique({

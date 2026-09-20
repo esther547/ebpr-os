@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { FEATURES } from "@/lib/features";
 import { requireUser } from "@/lib/auth";
 import { canViewFollowUp } from "@/lib/permissions";
 import { db } from "@/lib/db";
@@ -10,6 +12,7 @@ export const metadata = { title: "Follow-Up Contracts" };
 export const dynamic = "force-dynamic";
 
 export default async function FollowUpPage() {
+  if (!FEATURES.legal) redirect("/paused");
   const user = await requireUser();
 
   if (!canViewFollowUp(user)) {

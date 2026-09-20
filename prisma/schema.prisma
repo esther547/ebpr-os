@@ -152,6 +152,7 @@ model User {
   runnerAssignments    RunnerAssignment[]
   runnerHours          RunnerHours[]      @relation("RunnerHoursUser")
   availability         RunnerAvailability[]
+  weeklyAvailability   RunnerWeeklyAvailability[]
   activityLogs         ActivityLog[]
   comments             Comment[]
   approvalRequests     Approval[]         @relation("ApprovalRequester")
@@ -476,8 +477,10 @@ model Task {
 
 model RunnerAssignment {
   id            String           @id @default(cuid())
-  runnerId      String
-  runner        User             @relation(fields: [runnerId], references: [id])
+  // Null = the activity is on the agenda but still "needs a runner".
+  // The auto-scheduler fills this in from each runner's weekly availability.
+  runnerId      String?
+  runner        User?            @relation(fields: [runnerId], references: [id])
   eventDate     DateTime
   eventName     String
   clientId      String?
@@ -497,12 +500,19 @@ model RunnerAssignment {
   monthNumber       Int?       // MES 1, MES 2... for grouping
   agendaSequence    Int?       // sequential # within the agenda doc
 
+  // Auto-scheduling
+  autoAssigned Boolean   @default(false) // true when lib/runner-assign.ts picked the runner
+  assignedAt   DateTime?                 // when a runner was last attached
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("runner_assignments")
 }
 
+// Per-date override. Wins over the weekly pattern for that specific date.
+// `date` is stored at 12:00 UTC (the project's date-only convention) so the
+// Miami calendar day is unambiguous.
 model RunnerAvailability {
   id          String   @id @default(cuid())
   userId      String
@@ -513,6 +523,22 @@ model RunnerAvailability {
 
   @@unique([userId, date])
   @@map("runner_availability")
+}
+
+// The runner's recurring weekly windows, in minutes from Miami midnight.
+// Several rows per (runner, day) are allowed (e.g. 09:00-12:00 and 16:00-20:00).
+// A runner with no rows at all is treated as never available.
+model RunnerWeeklyAvailability {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  dayOfWeek   Int      // 0 = Sunday … 6 = Saturday (Miami)
+  startMinute Int      // minutes from midnight, Miami time
+  endMinute   Int
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@map("runner_weekly_availability")
 }
 
 // ─── APPROVALS ───────────────────────────────────────────

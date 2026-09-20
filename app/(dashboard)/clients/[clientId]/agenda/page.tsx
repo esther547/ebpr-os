@@ -5,6 +5,7 @@ import { ClientHeader } from "@/components/clients/client-header";
 import { AgendaMonthSection } from "@/components/agenda/agenda-month-section";
 import { AgendaAddItemButton } from "@/components/agenda/create-agenda-item-modal";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Badge } from "@/components/ui/badge";
 import { CalendarDays } from "lucide-react";
 import { format, getMonth } from "date-fns";
 
@@ -72,6 +73,11 @@ export default async function AgendaPage({ params }: Props) {
 
   const sortedMonths = Array.from(byMonth.keys()).sort((a, b) => a - b);
 
+  // Activities on the agenda that nobody is accompanying yet.
+  const needsRunnerCount = items.filter(
+    (i) => !i.runner && (i.status === "SCHEDULED" || i.status === "CONFIRMED")
+  ).length;
+
   return (
     <>
       <ClientHeader
@@ -86,6 +92,19 @@ export default async function AgendaPage({ params }: Props) {
           />
         }
       />
+
+      {needsRunnerCount > 0 && (
+        <div className="mb-6 flex flex-wrap items-center gap-2 rounded-xl border border-red-200 bg-red-50/60 px-4 py-3">
+          <Badge tone="danger" size="sm" dot>
+            Needs runner
+          </Badge>
+          <p className="text-sm text-ink-secondary">
+            {needsRunnerCount} {needsRunnerCount === 1 ? "activity has" : "activities have"} no
+            runner yet — they are picked up by the weekly auto-assign, or you can assign someone on
+            the runner schedule.
+          </p>
+        </div>
+      )}
 
       {items.length === 0 ? (
         <EmptyState

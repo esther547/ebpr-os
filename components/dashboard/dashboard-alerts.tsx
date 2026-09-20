@@ -2,6 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { addDaysKey, dayKeyInTz, formatDayKey, tzMidnight } from "@/components/runners/miami-time";
 import { Card } from "@/components/ui/card";
+import { FEATURES } from "@/lib/features";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { ArrowRight, FileSignature, CalendarClock } from "lucide-react";
 
@@ -93,11 +94,12 @@ export async function DashboardAlerts({ todayKey, canOpenLegalFinance }: Props) 
     },
   ];
 
-  if (sections.every((s) => s.items.length === 0)) return null;
+  const visible = sections.filter((s) => FEATURES.legal || s.key !== "signatures");
+  if (visible.every((s) => s.items.length === 0)) return null;
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      {sections.map((section) => {
+      {visible.map((section) => {
         const count = section.items.length;
         return (
           <Card key={section.key} padding="sm" className="flex flex-col">

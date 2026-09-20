@@ -40,7 +40,8 @@ export function AgendaAddItemButton({ clientId, clientStatus = "ACTIVE", runners
     const monthRaw = (form.get("monthNumber") as string) || "";
 
     const body = {
-      runnerId: form.get("runnerId") as string,
+      // Blank = the activity goes on the agenda needing a runner.
+      runnerId: ((form.get("runnerId") as string) || "").trim() || null,
       deliverableId: (form.get("deliverableId") as string) || undefined,
       eventName: ((form.get("eventName") as string) || "").trim() || undefined,
       eventDate,
@@ -137,9 +138,9 @@ export function AgendaAddItemButton({ clientId, clientStatus = "ACTIVE", runners
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormGroup label="PR Runner" htmlFor="ag-runner" required>
-              <Select id="ag-runner" name="runnerId" required>
-                <option value="">Select runner...</option>
+            <FormGroup label="PR Runner" htmlFor="ag-runner" hint="optional">
+              <Select id="ag-runner" name="runnerId">
+                <option value="">Leave unassigned (needs a runner)</option>
                 {runners.map((r) => (
                   <option key={r.id} value={r.id}>{r.name}</option>
                 ))}

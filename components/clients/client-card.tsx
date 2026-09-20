@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FEATURES } from "@/lib/features";
 import { Card } from "@/components/ui/card";
 import { Badge, humanize, statusTone } from "@/components/ui/badge";
 
@@ -55,7 +56,7 @@ export function ClientCard({ client }: { client: ClientCardData }) {
             <span className="tabular font-semibold text-ink-primary">{client.counts.campaigns}</span> campaigns
           </span>
           <span>
-            <span className="tabular font-semibold text-ink-primary">{client.counts.contracts}</span> contracts
+            {FEATURES.legal && (<><span className="tabular font-semibold text-ink-primary">{client.counts.contracts}</span> contracts</>)}
           </span>
         </div>
       </Card>

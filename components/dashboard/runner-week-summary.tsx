@@ -11,7 +11,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 type Runner = { id: string; name: string };
 type Assignment = {
   id: string;
-  runnerId: string;
+  /** Null while the activity still needs a runner. */
+  runnerId: string | null;
   eventName: string;
   /** "yyyy-MM-dd" in Miami time, computed on the server. */
   dayKey: string;
@@ -45,6 +46,7 @@ export function RunnerWeekSummary({ runners, assignments, weekStartKey, todayKey
   // Group assignments by runner for detail view
   const byRunner = new Map<string, Assignment[]>();
   for (const a of assignments) {
+    if (!a.runnerId) continue; // still needs a runner — not on anyone's plate yet
     const arr = byRunner.get(a.runnerId) ?? [];
     arr.push(a);
     byRunner.set(a.runnerId, arr);

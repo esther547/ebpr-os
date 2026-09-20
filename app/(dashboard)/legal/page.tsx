@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { FEATURES } from "@/lib/features";
 import { requireUser } from "@/lib/auth";
 import { canViewContracts } from "@/lib/permissions";
 import { db } from "@/lib/db";
@@ -7,6 +9,7 @@ export const metadata = { title: "Legal & Contracts" };
 export const dynamic = "force-dynamic";
 
 export default async function LegalPage() {
+  if (!FEATURES.legal) redirect("/paused");
   const user = await requireUser();
   if (!canViewContracts(user)) {
     return <p className="py-16 text-center text-sm text-ink-muted">Access restricted.</p>;

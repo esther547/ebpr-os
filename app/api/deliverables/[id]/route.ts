@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { cycleForDate } from "@/lib/cycles";
 import { requireUser } from "@/lib/auth";
 import { canManageDeliverables } from "@/lib/permissions";
 import { parseDateInput, recordStatusTransition } from "../_lib/status-transition";
+import { syncAgendaItemDate } from "../_lib/agenda-sync";
 
 const updateDeliverableSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -109,7 +111,16 @@ export async function PUT(
       data.completedAt = d.status === "COMPLETED" ? new Date() : null;
     }
     if (d.assigneeId !== undefined) data.assigneeId = d.assigneeId || null;
-    if (d.dueDate !== undefined) data.dueDate = d.dueDate ? parseDateInput(d.dueDate) : null;
+    if (d.dueDate !== undefined) {
+      data.dueDate = d.dueDate ? parseDateInput(d.dueDate) : null;
+      // Re-tag the goal cycle when the due date moves (per-client fecha de corte).
+      if (data.dueDate instanceof Date) {
+        const owner = await db.client.findUnique({ where: { id: existing.clientId }, select: { cycleDay: true } });
+        const cycle = cycleForDate(owner?.cycleDay, data.dueDate);
+        data.month = cycle.month;
+        data.year = cycle.year;
+      }
+    }
     if (d.notes !== undefined) data.notes = d.notes;
     if (d.outcome !== undefined) data.outcome = d.outcome;
     if (d.isClientVisible !== undefined) data.isClientVisible = d.isClientVisible;
@@ -121,6 +132,16 @@ export async function PUT(
         assignee: { select: { id: true, name: true, avatar: true } },
       },
     });
+
+    // The due date moved: keep the linked (still unassigned) agenda item in step
+    // so the client agenda and the runner schedule show the new date.
+    if (d.dueDate !== undefined) {
+      try {
+        await syncAgendaItemDate(deliverable.id, deliverable.dueDate);
+      } catch (err) {
+        console.error("Agenda date sync failed:", err);
+      }
+    }
 
     if (d.status !== undefined && d.status !== existing.status) {
       await recordStatusTransition({

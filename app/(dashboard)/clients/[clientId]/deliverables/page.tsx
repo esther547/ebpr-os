@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ClientHeader } from "@/components/clients/client-header";
 import { DeliverablesPageClient } from "@/components/deliverables/deliverables-page-client";
-import { currentMonthYear, monthLabel } from "@/lib/utils";
+import { currentCycle, cycleLabel } from "@/lib/cycles";
 
 type Props = { params: Promise<{ clientId: string }> };
 
@@ -14,13 +14,14 @@ export default async function DeliverablesPage({ params }: Props) {
   await requireUser();
   const { clientId } = await params;
 
-  const { month, year } = currentMonthYear();
-
   const client = await db.client.findUnique({
     where: { id: clientId },
-    select: { id: true, name: true, monthlyTarget: true, status: true, industry: true },
+    select: { id: true, name: true, monthlyTarget: true, status: true, industry: true, cycleDay: true },
   });
   if (!client) notFound();
+
+  const cycle = currentCycle(client.cycleDay);
+  const { month, year } = cycle;
 
   const deliverables = await db.deliverable.findMany({
     where: { clientId, month, year },
@@ -61,7 +62,7 @@ export default async function DeliverablesPage({ params }: Props) {
         teamMembers={teamMembers}
         runnerNeededIds={runnerNeededIds}
         clientStatus={client.status}
-        monthLabel={monthLabel(month, year)}
+        monthLabel={cycleLabel(cycle, client.cycleDay)}
       />
     </>
   );

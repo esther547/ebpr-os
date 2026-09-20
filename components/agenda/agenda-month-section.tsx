@@ -85,12 +85,14 @@ export function AgendaMonthSection({ monthNumber, monthLabel, items, runners: _r
 }
 
 function AgendaItemRow({ item, seq }: { item: AgendaItem; seq: number }) {
+  const needsRunner =
+    !item.runner && (item.status === "SCHEDULED" || item.status === "CONFIRMED");
   const date = new Date(item.eventDate);
   const arrivalTime = item.arrivalTime ? new Date(item.arrivalTime) : null;
   const eventTime = item.eventTime ? new Date(item.eventTime) : null;
 
   return (
-    <tr>
+    <tr className={needsRunner ? "bg-red-50/40" : undefined}>
       <Td numeric className="text-xs font-semibold text-ink-muted">
         {seq}
       </Td>
@@ -142,6 +144,14 @@ function AgendaItemRow({ item, seq }: { item: AgendaItem; seq: number }) {
               {(item.runner.name?.[0] ?? "?").toUpperCase()}
             </span>
             <span className="text-xs text-ink-secondary">{item.runner.name.split(" ")[0]}</span>
+          </div>
+        ) : needsRunner ? (
+          // Still open: the auto-scheduler (or the team) has to pick someone.
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-ink-muted">—</span>
+            <Badge size="xs" tone="danger" dot>
+              Needs runner
+            </Badge>
           </div>
         ) : (
           <span className="text-xs text-ink-muted">—</span>

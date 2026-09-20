@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { FEATURES } from "@/lib/features";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { daysSince } from "@/lib/form-helpers";
@@ -11,6 +13,7 @@ export const metadata = { title: "Follow-Ups — EBPR" };
 export const dynamic = "force-dynamic";
 
 export default async function AssistantPortalPage() {
+  if (!FEATURES.legal) redirect("/paused");
   const user = await requireUser();
   const now = new Date();
 

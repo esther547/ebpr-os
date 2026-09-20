@@ -2,6 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { UserRole } from "@prisma/client";
+import { FEATURES } from "@/lib/features";
 
 export type SessionUser = {
   id: string;
@@ -171,9 +172,9 @@ export const CLIENT_ROLES: UserRole[] = [
 export const ROLE_HOME: Record<UserRole, string> = {
   SUPER_ADMIN: "/dashboard",
   STRATEGIST: "/dashboard",
-  LEGAL: "/legal",
-  FINANCE: "/follow-up",
-  ASSISTANT: "/follow-up",
+  LEGAL: FEATURES.legal ? "/legal" : "/paused",
+  FINANCE: FEATURES.legal ? "/follow-up" : "/paused",
+  ASSISTANT: FEATURES.legal ? "/follow-up" : "/paused",
   RUNNER: "/runner-portal",
   CLIENT_ADMIN: "/portal",
   CLIENT_VIEWER: "/portal",
@@ -182,9 +183,9 @@ export const ROLE_HOME: Record<UserRole, string> = {
 const ROLE_PREFIXES: Record<UserRole, string[]> = {
   SUPER_ADMIN: ["/"],
   STRATEGIST: ["/dashboard", "/clients", "/runners", "/press-releases", "/journalists", "/reports"],
-  LEGAL: ["/legal", "/follow-up"],
-  FINANCE: ["/follow-up"],
-  ASSISTANT: ["/follow-up", "/assistant-portal"],
+  LEGAL: ["/legal", "/follow-up", "/paused"],
+  FINANCE: ["/follow-up", "/paused"],
+  ASSISTANT: ["/follow-up", "/assistant-portal", "/paused"],
   RUNNER: ["/runner-portal"],
   CLIENT_ADMIN: ["/portal"],
   CLIENT_VIEWER: ["/portal"],
