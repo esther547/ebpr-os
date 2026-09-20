@@ -13,8 +13,8 @@ export const isAssistant = (u: SessionUser) => u.role === UserRole.ASSISTANT;
 // ─── Feature access ──────────────────────────────────────
 // SUPER_ADMIN (Esther): everything
 // STRATEGIST: dashboard, clients, runners, press releases
-// LEGAL (Jessica): legal, finance/accounting
-// FINANCE (Laurie): finance/accounting only
+// LEGAL (Jessica): legal + follow-up
+// FINANCE (Laurie): follow-up only
 // ASSISTANT (Carolina): follow-up portal only
 // RUNNER: external portal only
 
@@ -49,12 +49,6 @@ export const canManageUsers = (u: SessionUser) => isSuperAdmin(u);
 
 export const canViewReports = (u: SessionUser) =>
   u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST;
-
-export const canViewFinance = (u: SessionUser) =>
-  u.role === UserRole.SUPER_ADMIN || u.role === UserRole.FINANCE || u.role === UserRole.LEGAL;
-
-export const canManageFinance = (u: SessionUser) =>
-  u.role === UserRole.SUPER_ADMIN || u.role === UserRole.FINANCE;
 
 export const canManagePressReleases = (u: SessionUser) =>
   u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST;

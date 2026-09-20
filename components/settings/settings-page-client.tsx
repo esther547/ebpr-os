@@ -36,7 +36,7 @@ const ROLE_LABELS: Record<string, string> = {
   STRATEGIST: "Strategist",
   RUNNER: "Runner",
   LEGAL: "Legal",
-  FINANCE: "Finance",
+  FINANCE: "Follow-up (Laurie)",
   ASSISTANT: "Assistant",
   CLIENT_ADMIN: "Client Admin",
   CLIENT_VIEWER: "Client Viewer",
@@ -57,7 +57,7 @@ const ROLE_OPTIONS = [
   ["SUPER_ADMIN", "Super Admin"],
   ["STRATEGIST", "Strategist"],
   ["LEGAL", "Legal"],
-  ["FINANCE", "Finance"],
+  ["FINANCE", "Follow-up (Laurie)"],
   ["ASSISTANT", "Assistant"],
   ["RUNNER", "Runner"],
 ] as const;

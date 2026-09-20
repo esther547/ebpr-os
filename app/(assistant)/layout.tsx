@@ -16,7 +16,7 @@ export default async function AssistantLayout({
   return (
     <PortalShell
       title="Follow-Ups"
-      subtitle="Payments and signatures to chase"
+      subtitle="Signatures to chase"
       userName={user.name}
       userMeta={user.role === "SUPER_ADMIN" ? "Admin preview" : "Assistant"}
       homeHref="/follow-up"

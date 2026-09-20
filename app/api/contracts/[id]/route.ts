@@ -4,7 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canManageContracts, canViewFollowUp } from "@/lib/permissions";
-import { parseDateInput } from "@/components/finance/invoice-status";
+import { parseDateInput } from "@/lib/form-helpers";
 
 const updateContractSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/modal";
 import { Button, Input, Select, Textarea, FormGroup, FormActions } from "@/components/ui/form-field";
 import { useToast } from "@/components/ui/toast";
-import { apiErrorMessage } from "@/components/finance/invoice-status";
+import { apiErrorMessage } from "@/lib/form-helpers";
 
 interface Props {
   open: boolean;

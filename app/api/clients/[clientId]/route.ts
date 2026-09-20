@@ -9,11 +9,11 @@ const updateClientSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   industry: z.string().nullable().optional(),
   website: z.string().nullable().optional(),
-  monthlyTarget: z.number().int().min(1).max(30).optional(),
+  monthlyTarget: z.number().int().min(0).max(30).optional(),
+  cycleDay: z.number().int().min(1).max(31).nullable().optional(),
   status: z.enum(["PROSPECT", "ACTIVE", "PAUSED", "CHURNED"]).optional(),
   description: z.string().nullable().optional(),
   strategyDocUrl: z.string().nullable().optional(),
-  rowColor: z.string().nullable().optional(),
 });
 
 function zodMessage(err: z.ZodError) {

@@ -28,7 +28,6 @@ interface Props {
 const TYPE_TONES: Record<string, BadgeTone> = {
   event: "purple",
   deliverable: "info",
-  payment: "warning",
   general: "neutral",
 };
 
@@ -173,7 +172,6 @@ function AddReminderModal({
               <option value="">General</option>
               <option value="event">Event</option>
               <option value="deliverable">Deliverable</option>
-              <option value="payment">Payment</option>
             </Select>
           </FormGroup>
         </div>

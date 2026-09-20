@@ -232,9 +232,10 @@ function ClientCommandRow({ client }: { client: ClientRow }) {
       ? Math.min((pacing.inProgress / monthlyTarget) * 100, 100 - pct)
       : 0;
 
-  const isOnTarget = pacing.completed >= monthlyTarget;
-  const isOnTrack = pct >= 50 || pacing.completed + pacing.inProgress >= monthlyTarget * 0.6;
-  const isBehind = !isOnTarget && !isOnTrack && client.status === "ACTIVE";
+  const isPrep = monthlyTarget <= 0;
+  const isOnTarget = !isPrep && pacing.completed >= monthlyTarget;
+  const isOnTrack = !isPrep && (pct >= 50 || pacing.completed + pacing.inProgress >= monthlyTarget * 0.6);
+  const isBehind = !isPrep && !isOnTarget && !isOnTrack && client.status === "ACTIVE";
 
   const href = `/clients/${client.id}`;
 
@@ -292,7 +293,7 @@ function ClientCommandRow({ client }: { client: ClientRow }) {
             </div>
           </div>
           <span className="w-10 shrink-0 text-right text-xs font-semibold tabular text-ink-secondary">
-            {pacing.completed}/{monthlyTarget}
+            {pacing.completed}/{isPrep ? "—" : monthlyTarget}
           </span>
         </div>
         <p
@@ -301,7 +302,7 @@ function ClientCommandRow({ client }: { client: ClientRow }) {
             isOnTarget ? "text-emerald-700" : isBehind ? "font-medium text-red-600" : "text-ink-muted"
           )}
         >
-          {isOnTarget ? "On target" : isBehind ? "Behind" : "On track"}
+          {isPrep ? "Prep month" : isOnTarget ? "On target" : isBehind ? "Behind" : "On track"}
         </p>
       </Td>
 

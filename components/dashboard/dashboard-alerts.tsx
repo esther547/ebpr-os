@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { formatCurrency } from "@/lib/utils";
 import { addDaysKey, dayKeyInTz, formatDayKey, tzMidnight } from "@/components/runners/miami-time";
 import { Card } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
-import { ArrowRight, FileSignature, Receipt, CalendarClock } from "lucide-react";
+import { ArrowRight, FileSignature, CalendarClock } from "lucide-react";
 
 type Props = {
   /** Today, "yyyy-MM-dd" (Miami). */
@@ -18,14 +17,13 @@ const MAX_ITEMS = 5;
 /**
  * Server component: agency-wide alerts for the dashboard.
  * - Contracts sent but not signed (missing signatures)
- * - Overdue invoices (status OVERDUE, or SENT past its due date)
  * - Deliverables due within the next 7 days that are not done
  */
 export async function DashboardAlerts({ todayKey, canOpenLegalFinance }: Props) {
   const todayStart = tzMidnight(todayKey);
   const weekAhead = tzMidnight(addDaysKey(todayKey, 8)); // exclusive
 
-  const [unsignedContracts, overdueInvoices, upcomingDeliverables] = await Promise.all([
+  const [unsignedContracts, upcomingDeliverables] = await Promise.all([
     db.contract.findMany({
       where: {
         status: "SENT",
@@ -38,23 +36,6 @@ export async function DashboardAlerts({ todayKey, canOpenLegalFinance }: Props) 
         client: { select: { id: true, name: true } },
       },
       orderBy: { sentAt: "asc" },
-      take: MAX_ITEMS + 1,
-    }),
-    db.invoice.findMany({
-      where: {
-        OR: [
-          { status: "OVERDUE" },
-          { status: "SENT", dueDate: { lt: todayStart } },
-        ],
-      },
-      select: {
-        id: true,
-        invoiceNumber: true,
-        amount: true,
-        dueDate: true,
-        client: { select: { id: true, name: true } },
-      },
-      orderBy: { dueDate: "asc" },
       take: MAX_ITEMS + 1,
     }),
     db.deliverable.findMany({
@@ -97,20 +78,6 @@ export async function DashboardAlerts({ todayKey, canOpenLegalFinance }: Props) 
       })),
     },
     {
-      key: "payments",
-      label: "Overdue payments",
-      href: canOpenLegalFinance ? "/finance" : null,
-      tone: "danger",
-      icon: <Receipt className="h-3.5 w-3.5" />,
-      items: overdueInvoices.map((i) => ({
-        id: i.id,
-        primary: i.client.name,
-        secondary: `${i.invoiceNumber} \u00b7 ${formatCurrency(Number(i.amount))}`,
-        meta: i.dueDate ? `due ${formatDayKey(dayKeyInTz(i.dueDate), "MMM d")}` : "no due date",
-        href: `/clients/${i.client.id}`,
-      })),
-    },
-    {
       key: "deliverables",
       label: "Due this week",
       href: null,
@@ -129,7 +96,7 @@ export async function DashboardAlerts({ todayKey, canOpenLegalFinance }: Props) 
   if (sections.every((s) => s.items.length === 0)) return null;
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       {sections.map((section) => {
         const count = section.items.length;
         return (

@@ -163,8 +163,9 @@ export default async function ReportsPage({
                       client.monthlyTarget > 0
                         ? Math.round((client.completed / client.monthlyTarget) * 100)
                         : 0;
-                    const isOnTarget = client.completed >= client.monthlyTarget;
-                    const isOnTrack = rate >= 60;
+                    const isPrep = client.monthlyTarget <= 0;
+                    const isOnTarget = !isPrep && client.completed >= client.monthlyTarget;
+                    const isOnTrack = !isPrep && rate >= 60;
                     const media = Object.entries(client.media);
 
                     return (
@@ -208,8 +209,8 @@ export default async function ReportsPage({
                           </div>
                         </Td>
                         <Td>
-                          <Badge tone={isOnTarget ? "success" : isOnTrack ? "warning" : "danger"} dot>
-                            {isOnTarget ? "On Target" : isOnTrack ? "On Track" : "Behind"}
+                          <Badge tone={isPrep ? "neutral" : isOnTarget ? "success" : isOnTrack ? "warning" : "danger"} dot>
+                            {isPrep ? "Prep month" : isOnTarget ? "On Target" : isOnTrack ? "On Track" : "Behind"}
                           </Badge>
                         </Td>
                         <Td align="right">

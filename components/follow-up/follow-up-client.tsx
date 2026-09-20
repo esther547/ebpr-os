@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, FileText, Check, MessageSquare } from "lucide-react";
+import { FileText, Check, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/form-field";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -10,18 +10,9 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { Table, Th, Td, TableEmpty } from "@/components/ui/table";
 import { ConfirmModal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
-import { apiErrorMessage, daysSince, localDateInputValue } from "@/components/finance/invoice-status";
+import { apiErrorMessage, daysSince } from "@/lib/form-helpers";
 
-// Client names only — this component never receives or shows amounts.
-type OverdueInvoice = {
-  id: string;
-  invoiceNumber: string;
-  dueDate: string | Date | null;
-  notes: string | null;
-  status: string;
-  client: { id: string; name: string };
-};
-
+// Client names only — this component never shows financial details.
 type UnsignedContract = {
   id: string;
   status: string;
@@ -32,12 +23,11 @@ type UnsignedContract = {
 };
 
 interface Props {
-  overdueInvoices: OverdueInvoice[];
   unsignedContracts: UnsignedContract[];
   canEdit: boolean;
 }
 
-type Pending = { kind: "invoice" | "contract"; id: string; label: string };
+type Pending = { kind: "contract"; id: string; label: string };
 
 function PriorityBadge({ days }: { days: number }) {
   if (days >= 7) return <Badge tone="danger" size="xs">Urgent</Badge>;
@@ -89,7 +79,7 @@ function EditableNote({ value, onSave, placeholder }: {
 
 // ─── Main Component ──────────────────────────────────────
 
-export function FollowUpClient({ overdueInvoices, unsignedContracts, canEdit }: Props) {
+export function FollowUpClient({ unsignedContracts, canEdit }: Props) {
   const router = useRouter();
   const { toast } = useToast();
   const [marking, setMarking] = useState<string | null>(null);
@@ -116,19 +106,8 @@ export function FollowUpClient({ overdueInvoices, unsignedContracts, canEdit }: 
     }
   }, [router, toast]);
 
-  const saveInvoiceNotes = useCallback((invoiceId: string, notes: string) =>
-    update(`/api/invoices/${invoiceId}`, { notes: notes || null }, "Failed to save note"), [update]);
-
   const saveContractNotes = useCallback((contractId: string, notes: string) =>
     update(`/api/contracts/${contractId}`, { notes: notes || null }, "Failed to save note"), [update]);
-
-  const markInvoicePaid = useCallback(async (invoiceId: string) => {
-    setMarking(invoiceId);
-    // Send the user's calendar date (YYYY-MM-DD), not a timestamp, so the paid date never shifts.
-    const ok = await update(`/api/invoices/${invoiceId}`, { status: "PAID", paidAt: localDateInputValue() }, "Failed to mark paid");
-    if (ok) toast({ title: "Invoice marked paid", variant: "success" });
-    setMarking(null);
-  }, [update, toast]);
 
   const markContractSigned = useCallback(async (contractId: string) => {
     setMarking(contractId);
@@ -141,21 +120,8 @@ export function FollowUpClient({ overdueInvoices, unsignedContracts, canEdit }: 
     if (!pending) return;
     const target = pending;
     setPending(null);
-    if (target.kind === "invoice") await markInvoicePaid(target.id);
-    else await markContractSigned(target.id);
+    await markContractSigned(target.id);
   }
-
-  // Deduplicate overdue by client (group invoices)
-  const overdueByClient = new Map<string, { name: string; invoices: OverdueInvoice[] }>();
-  for (const inv of overdueInvoices) {
-    const existing = overdueByClient.get(inv.client.id);
-    if (existing) {
-      existing.invoices.push(inv);
-    } else {
-      overdueByClient.set(inv.client.id, { name: inv.client.name, invoices: [inv] });
-    }
-  }
-  const overdueClients = Array.from(overdueByClient.values());
 
   // Deduplicate contracts by client
   const contractsByClient = new Map<string, { name: string; contracts: UnsignedContract[] }>();
@@ -169,20 +135,12 @@ export function FollowUpClient({ overdueInvoices, unsignedContracts, canEdit }: 
   }
   const unsignedClients = Array.from(contractsByClient.values());
 
-  const overdueCols = canEdit ? 6 : 5;
   const contractCols = canEdit ? 5 : 4;
 
   return (
     <div className="space-y-6 pb-10">
       {/* Summary */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <StatTile
-          label="Overdue Payments"
-          value={overdueInvoices.length}
-          tone={overdueInvoices.length > 0 ? "danger" : "neutral"}
-          icon={<AlertTriangle />}
-          hint={`${overdueClients.length} client${overdueClients.length !== 1 ? "s" : ""} with outstanding balances`}
-        />
         <StatTile
           label="Pending Signatures"
           value={unsignedContracts.length}
@@ -191,79 +149,6 @@ export function FollowUpClient({ overdueInvoices, unsignedContracts, canEdit }: 
           hint={`${unsignedClients.length} client${unsignedClients.length !== 1 ? "s" : ""} awaiting signature`}
         />
       </div>
-
-      {/* Overdue Payments */}
-      <Card padding="none" className="overflow-hidden">
-        <CardHeader
-          className="mb-0 border-b border-border px-5 py-4"
-          eyebrow="Follow up immediately"
-          title="Overdue payments"
-          description="Invoices at least one day past their due date"
-        />
-        <div className="overflow-x-auto">
-          <Table>
-            <thead>
-              <tr>
-                <Th>Client</Th>
-                <Th>Invoice</Th>
-                <Th>Days overdue</Th>
-                <Th>Priority</Th>
-                <Th className="min-w-[220px]">Follow-up notes</Th>
-                {canEdit && <Th align="right">Actions</Th>}
-              </tr>
-            </thead>
-            <tbody>
-              {overdueClients.length === 0 ? (
-                <TableEmpty colSpan={overdueCols}>No overdue payments. All caught up.</TableEmpty>
-              ) : (
-                overdueClients.map((group) =>
-                  group.invoices.map((inv, i) => {
-                    const days = daysSince(inv.dueDate);
-                    return (
-                      <tr key={inv.id}>
-                        <Td className="whitespace-nowrap font-medium text-ink-primary">
-                          {i === 0 ? group.name : ""}
-                        </Td>
-                        <Td className="whitespace-nowrap font-mono text-xs text-ink-muted">{inv.invoiceNumber}</Td>
-                        <Td>
-                          <Badge tone="danger" size="xs">
-                            {days} day{days !== 1 ? "s" : ""}
-                          </Badge>
-                        </Td>
-                        <Td><PriorityBadge days={days} /></Td>
-                        <Td className="min-w-[220px]">
-                          {canEdit ? (
-                            <EditableNote
-                              value={inv.notes || ""}
-                              onSave={(v) => saveInvoiceNotes(inv.id, v)}
-                              placeholder="Add follow-up note…"
-                            />
-                          ) : (
-                            <span className="text-ink-muted">{inv.notes || "—"}</span>
-                          )}
-                        </Td>
-                        {canEdit && (
-                          <Td align="right">
-                            <Button
-                              size="xs"
-                              variant="secondary"
-                              leftIcon={<Check className="h-3 w-3" />}
-                              loading={marking === inv.id}
-                              onClick={() => setPending({ kind: "invoice", id: inv.id, label: `${group.name} · ${inv.invoiceNumber}` })}
-                            >
-                              Mark paid
-                            </Button>
-                          </Td>
-                        )}
-                      </tr>
-                    );
-                  })
-                )
-              )}
-            </tbody>
-          </Table>
-        </div>
-      </Card>
 
       {/* Pending signatures */}
       <Card padding="none" className="overflow-hidden">
@@ -341,9 +226,9 @@ export function FollowUpClient({ overdueInvoices, unsignedContracts, canEdit }: 
       <ConfirmModal
         open={!!pending}
         onOpenChange={(o) => { if (!o) setPending(null); }}
-        title={pending?.kind === "contract" ? "Mark contract as signed?" : "Mark invoice as paid?"}
+        title="Mark contract as signed?"
         description={pending ? `${pending.label} — this updates the record for everyone.` : undefined}
-        confirmLabel={pending?.kind === "contract" ? "Mark signed" : "Mark paid"}
+        confirmLabel="Mark signed"
         onConfirm={confirmPending}
       />
     </div>

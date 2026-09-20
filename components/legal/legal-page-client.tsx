@@ -12,7 +12,7 @@ import { TableWrap, Table, Th, Td } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { PageHeader, SectionHeader } from "@/components/layout/header";
 import { Send, Upload, FileText, Check, X, Plus, Copy, Scale } from "lucide-react";
-import { apiErrorMessage } from "@/components/finance/invoice-status";
+import { apiErrorMessage } from "@/lib/form-helpers";
 
 type ContractRow = {
   id: string;

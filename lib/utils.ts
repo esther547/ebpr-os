@@ -4,8 +4,6 @@ import { format, startOfMonth, endOfMonth } from "date-fns";
 // Using string types instead of @prisma/client imports to support client components
 type DeliverableStatus = "IDEA" | "OUTREACH" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 type DeliverableType = "PRESS_PLACEMENT" | "INTERVIEW" | "INFLUENCER_COLLAB" | "EVENT_APPEARANCE" | "BRAND_OPPORTUNITY" | "INTRODUCTION" | "SOCIAL_MEDIA" | "PRESS_RELEASE" | "OTHER";
-type InvoiceStatus = "DRAFT" | "SENT" | "PAID" | "OVERDUE" | "CANCELLED";
-type PaymentMethod = "CHECK" | "WIRE" | "ACH" | "CREDIT_CARD" | "OTHER";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -75,7 +73,8 @@ export const DELIVERABLE_TYPE_LABELS: Record<DeliverableType, string> = {
 // ─── Pacing ──────────────────────────────────────────────
 
 export function getPacingStatus(completed: number, target: number) {
-  const pct = target > 0 ? (completed / target) * 100 : 0;
+  if (target <= 0) return { label: "Prep month", color: "text-ink-muted" };
+  const pct = (completed / target) * 100;
   if (pct >= 100) return { label: "On Target", color: "text-green-700" };
   if (pct >= 60) return { label: "On Track", color: "text-amber-700" };
   return { label: "Behind", color: "text-red-600" };
@@ -88,31 +87,6 @@ export function formatCurrency(amount: number | string | null | undefined): stri
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(amount));
 }
 
-// ─── Invoice helpers ────────────────────────────────────
-
-export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
-  DRAFT: "Draft",
-  SENT: "Sent",
-  PAID: "Paid",
-  OVERDUE: "Overdue",
-  CANCELLED: "Cancelled",
-};
-
-export const INVOICE_STATUS_COLORS: Record<InvoiceStatus, string> = {
-  DRAFT: "bg-surface-2 text-ink-secondary",
-  SENT: "bg-amber-50 text-amber-700",
-  PAID: "bg-green-50 text-green-700",
-  OVERDUE: "bg-red-50 text-red-600",
-  CANCELLED: "bg-surface-2 text-ink-muted",
-};
-
-export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  CHECK: "Check",
-  WIRE: "Wire Transfer",
-  ACH: "ACH",
-  CREDIT_CARD: "Credit Card",
-  OTHER: "Other",
-};
 
 // ─── File helpers ────────────────────────────────────────
 

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canManageContracts, canViewContracts } from "@/lib/permissions";
-import { parseDateInput } from "@/components/finance/invoice-status";
+import { parseDateInput } from "@/lib/form-helpers";
 
 const createContractSchema = z.object({
   clientId: z.string().min(1),

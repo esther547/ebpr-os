@@ -3,7 +3,7 @@ import { canManageUsers } from "@/lib/permissions";
 import { PageHeader } from "@/components/layout/header";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, DollarSign, MessageSquare, Mail, Link2 } from "lucide-react";
+import { Calendar, MessageSquare, Mail, Link2 } from "lucide-react";
 
 export const metadata = { title: "Integrations" };
 export const dynamic = "force-dynamic";
@@ -15,7 +15,6 @@ export default async function IntegrationsPage() {
   }
 
   const hasSlack = !!process.env.SLACK_WEBHOOK_URL;
-  const hasQBO = !!(process.env.QBO_CLIENT_ID && process.env.QBO_CLIENT_SECRET);
   const hasGmail = !!(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
 
   const integrations = [
@@ -29,17 +28,10 @@ export default async function IntegrationsPage() {
     },
     {
       name: "Slack Notifications",
-      description: "Get real-time notifications in Slack when deliverables are completed, payments are overdue, or new clients are onboarded.",
+      description: "Get real-time notifications in Slack when deliverables are completed or new clients are onboarded.",
       icon: <MessageSquare className="h-5 w-5" />,
       connected: hasSlack,
       instructions: hasSlack ? "Connected and active" : "1. Go to api.slack.com/messaging/webhooks\n2. Create an incoming webhook\n3. Add SLACK_WEBHOOK_URL to Vercel env vars\n4. Redeploy",
-    },
-    {
-      name: "QuickBooks Online",
-      description: "Sync invoices and payments with QuickBooks Online for accounting automation.",
-      icon: <DollarSign className="h-5 w-5" />,
-      connected: hasQBO,
-      instructions: hasQBO ? "Configured — connect via OAuth" : "1. Create app at developer.intuit.com\n2. Add QBO_CLIENT_ID and QBO_CLIENT_SECRET to Vercel env vars\n3. Redeploy",
     },
     {
       name: "Email Digests (Gmail / Google Workspace)",

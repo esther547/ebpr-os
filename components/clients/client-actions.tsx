@@ -12,10 +12,11 @@ interface Props {
   clientName: string;
   industry?: string | null;
   monthlyTarget: number;
+  cycleDay: number | null;
   status: string;
 }
 
-export function ClientActions({ clientId, clientName, industry, monthlyTarget, status }: Props) {
+export function ClientActions({ clientId, clientName, industry, monthlyTarget, cycleDay, status }: Props) {
   const [showEdit, setShowEdit] = useState(false);
   const [toggling, setToggling] = useState(false);
   const router = useRouter();
@@ -94,6 +95,7 @@ export function ClientActions({ clientId, clientName, industry, monthlyTarget, s
         clientName={clientName}
         industry={industry ?? ""}
         monthlyTarget={monthlyTarget}
+        cycleDay={cycleDay ?? null}
         status={status}
       />
     </>
@@ -107,6 +109,7 @@ function EditClientModal({
   clientName,
   industry,
   monthlyTarget,
+  cycleDay,
   status,
 }: {
   open: boolean;
@@ -115,6 +118,7 @@ function EditClientModal({
   clientName: string;
   industry: string;
   monthlyTarget: number;
+  cycleDay: number | null;
   status: string;
 }) {
   const router = useRouter();
@@ -130,6 +134,7 @@ function EditClientModal({
       name: form.get("name") as string,
       industry: ((form.get("industry") as string) || "").trim() || null,
       monthlyTarget: parseInt(form.get("monthlyTarget") as string),
+      cycleDay: (form.get("cycleDay") as string) ? parseInt(form.get("cycleDay") as string) : null,
       status: form.get("status") as string,
     };
 
@@ -174,8 +179,10 @@ function EditClientModal({
 
         <FormGroup label="Monthly Deliverables" htmlFor="ec-target" required>
           <Select id="ec-target" name="monthlyTarget" defaultValue={monthlyTarget.toString()} required>
+            <option value="0">Preparation month (no target yet)</option>
             <option value="2">2 deliverables/month</option>
             <option value="4">4 deliverables/month</option>
+            <option value="5">5 deliverables/month</option>
             <option value="6">6 deliverables/month</option>
             <option value="7">7 deliverables/month</option>
             <option value="8">8 deliverables/month</option>
@@ -183,6 +190,10 @@ function EditClientModal({
             <option value="12">12 deliverables/month</option>
             <option value="15">15 deliverables/month</option>
           </Select>
+        </FormGroup>
+
+        <FormGroup label="Cycle reset day" htmlFor="ec-cycle" hint="fecha de corte" description="Day of the month the client's deliverable count restarts (1-31). Leave blank if unknown.">
+          <Input id="ec-cycle" name="cycleDay" type="number" min={1} max={31} defaultValue={cycleDay ?? ""} placeholder="e.g. 15" />
         </FormGroup>
 
         <FormGroup label="Status" htmlFor="ec-status" required>

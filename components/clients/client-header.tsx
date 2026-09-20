@@ -12,6 +12,7 @@ export type ClientHeaderClient = {
   name: string;
   status: string;
   monthlyTarget: number;
+  cycleDay?: number | null;
   industry?: string | null;
 };
 
@@ -69,7 +70,12 @@ export function ClientHeader({
           </Badge>
           {client.industry && <span>{client.industry}</span>}
           <span className="text-ink-muted">
-            Target <span className="tabular">{client.monthlyTarget}</span> deliverables/month
+            {client.monthlyTarget > 0 ? (
+              <>Target <span className="tabular">{client.monthlyTarget}</span> deliverables/month</>
+            ) : (
+              <>Preparation month</>
+            )}
+            {client.cycleDay ? <> · cycle resets day <span className="tabular">{client.cycleDay}</span></> : null}
           </span>
         </span>
       }
@@ -80,6 +86,7 @@ export function ClientHeader({
             clientName={client.name}
             industry={client.industry}
             monthlyTarget={client.monthlyTarget}
+            cycleDay={client.cycleDay ?? null}
             status={client.status}
           />
           <ShareMonitorButton clientId={client.id} />

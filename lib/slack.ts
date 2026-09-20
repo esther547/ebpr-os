@@ -42,21 +42,6 @@ export function slackDeliverableCompleted(clientName: string, title: string, out
   });
 }
 
-export function slackOverduePayment(clientName: string, daysOverdue: number) {
-  return sendSlackNotification({
-    text: `Payment overdue for ${clientName} (${daysOverdue} days)`,
-    blocks: [
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `*Payment Overdue* :warning:\n*Client:* ${clientName}\n*Days Overdue:* ${daysOverdue}`,
-        },
-      },
-    ],
-  });
-}
-
 export function slackNewClient(clientName: string) {
   return sendSlackNotification({
     text: `New client onboarded: ${clientName}`,

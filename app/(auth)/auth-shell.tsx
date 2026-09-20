@@ -21,7 +21,7 @@ export function AuthShell({ children, footnote }: { children: React.ReactNode; f
         <div className="relative max-w-md">
           <p className="eyebrow !text-white/50">EBPR OS</p>
           <h2 className="mt-3 text-3xl font-semibold leading-tight tracking-tight">
-            One place for every client, deliverable, runner, and invoice.
+            One place for every client, deliverable, runner, and contract.
           </h2>
           <p className="mt-4 text-sm leading-relaxed text-white/60">
             Preparation month, monthly execution, and reporting for EB Public Relations, Miami.

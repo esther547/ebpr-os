@@ -16,7 +16,6 @@ const targets: { table: string; columns: string[] }[] = [
   { table: "tasks", columns: ["dueDate"] },
   { table: "campaigns", columns: ["startDate", "endDate"] },
   { table: "contracts", columns: ["startDate", "endDate"] },
-  { table: "invoices", columns: ["issuedAt", "dueDate", "sentAt"] },
   { table: "strategy_items", columns: ["targetDate", "scheduledDate"] },
   { table: "strategy_documents", columns: ["prepMonthStart", "prepMonthEnd", "campaignStart", "phase1Start", "phase1End", "phase2Start", "phase2End"] },
   { table: "onboardings", columns: ["kickoffDate"] },

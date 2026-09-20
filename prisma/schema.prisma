@@ -132,22 +132,6 @@ enum AssignmentStatus {
   CANCELLED
 }
 
-enum InvoiceStatus {
-  DRAFT
-  SENT
-  PAID
-  OVERDUE
-  CANCELLED
-}
-
-enum PaymentMethod {
-  CHECK
-  WIRE
-  ACH
-  CREDIT_CARD
-  OTHER
-}
-
 // ─── USERS ───────────────────────────────────────────────
 
 model User {
@@ -210,11 +194,11 @@ model Client {
   shareToken     String?      @unique // for public campaign monitor link
   strategyDocUrl String?      // Google Doc link for client strategy
 
-  // Monthly deliverable target
+  // Monthly deliverable target (0 = preparation month, no target yet)
   monthlyTarget Int @default(6)
+  // Day of month the client's cycle resets ("fecha de corte"), 1-31
+  cycleDay      Int?
 
-  // Finance spreadsheet row color
-  rowColor String? // e.g. "blue", "green", "pink", "purple", "yellow"
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -222,7 +206,6 @@ model Client {
   contacts         Contact[]
   clientUsers      ClientUser[]
   contracts        Contract[]
-  invoices         Invoice[]
   onboarding       Onboarding?
   strategyDocument StrategyDocument?
   campaigns        Campaign[]
@@ -276,52 +259,9 @@ model Contract {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  invoices   Invoice[]
   signatures ContractSignature[]
 
   @@map("contracts")
-}
-
-// ─── INVOICES ────────────────────────────────────────────
-
-model Invoice {
-  id            String        @id @default(cuid())
-  clientId      String
-  client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  contractId    String?
-  contract      Contract?     @relation(fields: [contractId], references: [id])
-  invoiceNumber String        @unique
-  amount        Decimal       @db.Decimal(12, 2)
-  status        InvoiceStatus @default(DRAFT)
-  issuedAt      DateTime?
-  dueDate       DateTime?
-  sentAt        DateTime?     // date invoice was actually sent
-  paidAt        DateTime?
-  notes         String?
-  fileUrl       String?
-  fileName      String?
-
-  payments Payment[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("invoices")
-}
-
-model Payment {
-  id        String        @id @default(cuid())
-  invoiceId String
-  invoice   Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  amount    Decimal       @db.Decimal(12, 2)
-  paidAt    DateTime      @default(now())
-  method    PaymentMethod
-  reference String?
-  notes     String?
-
-  createdAt DateTime @default(now())
-
-  @@map("payments")
 }
 
 // ─── ONBOARDING ──────────────────────────────────────────
