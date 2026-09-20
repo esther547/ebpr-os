@@ -20,7 +20,7 @@ const ROWS: Row[] = [
   { name: "Benme Legal / IT",    match: "Hector Benitez",     target: 8, cycleDay: 25, done: 6 },
   { name: "Karime",              match: "Karime Pindter",     target: 8, cycleDay: 15, done: 0 },
   { name: "Perro Negro",         match: "Perro Negro",        target: 8, cycleDay: 16, done: 0 },
-  { name: "Mami Lover",          match: "Mami Lover",         target: 8, cycleDay: 1,  done: 1 },
+  { name: "Mami Lover",          match: "Tatiana Guiribitey",       target: 8, cycleDay: 1,  done: 1 },
   { name: "Pao Ruiz",            match: "Pao Ruiz",           target: 4, cycleDay: 1,  done: 0 },
   { name: "Marko",               match: "Marko",              target: 8, cycleDay: 19, done: 9 },
   { name: "Charlie Rincón",      match: "Charlie Rincon",     target: 8, cycleDay: 23, done: 0 },
@@ -29,7 +29,7 @@ const ROWS: Row[] = [
   { name: "Alejandra Jaramillo", match: "Alejandra Jaramillo",target: 8, cycleDay: 1,  done: 0 },
   { name: "Camila Guribitey",    match: "Camila Guiribitey",  target: 8, cycleDay: 1,  done: 0 },
   { name: "Jonathan Molly",      match: "Jonathan Moly",      target: 8, cycleDay: 17, done: 0 },
-  { name: "Rico Bueno",          match: "Rico Rubio",         target: 8, cycleDay: 18, done: 0 }, // roster said "Rico Rubio" — CONFIRM
+  { name: "Rico Rubio",          match: "Rico Rubio",         target: 8, cycleDay: 18, done: 0 },
   { name: "Lex Borrero",         match: "Lex Borrero",        target: 5, cycleDay: 15, done: 0 },
   { name: "Beta Mejía",          match: "Beta Mejia",         target: 8, cycleDay: 1,  done: 0 },
   { name: "Delfina Saud",        match: "Delfina Saud",       target: 8, cycleDay: 1,  done: 4 },
