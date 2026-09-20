@@ -102,6 +102,7 @@ export default async function ClientPage({ params }: Props) {
           <ClientActions
             clientId={client.id}
             clientName={client.name}
+            industry={client.industry}
             monthlyTarget={client.monthlyTarget}
             status={client.status}
           />
@@ -175,7 +176,7 @@ export default async function ClientPage({ params }: Props) {
                 {client.campaigns.map((campaign) => (
                   <Link
                     key={campaign.id}
-                    href={`/clients/${client.id}/campaigns/${campaign.id}`}
+                    href={`/clients/${client.id}/campaigns`}
                     className="flex items-center justify-between rounded-md border border-border p-3 hover:border-border-strong transition-colors"
                   >
                     <span className="font-medium text-sm text-ink-primary">
@@ -206,7 +207,7 @@ export default async function ClientPage({ params }: Props) {
                 {activity.map((log) => (
                   <li key={log.id} className="flex items-start gap-3 text-sm">
                     <div className="mt-0.5 h-6 w-6 flex-shrink-0 rounded-full bg-surface-2 flex items-center justify-center text-xs font-semibold text-ink-secondary">
-                      {log.user.name[0].toUpperCase()}
+                      {(log.user.name?.[0] ?? "?").toUpperCase()}
                     </div>
                     <div>
                       <span className="font-medium text-ink-primary">

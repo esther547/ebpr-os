@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatDate, cn } from "@/lib/utils";
 import { EBPRLogoHorizontal } from "@/components/brand/ebpr-logo";
+import { PrintButton } from "@/components/strategy/print-button";
 
 type Props = { params: { clientId: string } };
 
@@ -66,12 +67,7 @@ export default async function StrategyBriefPage({ params }: Props) {
         >
           ← Back to Strategy
         </a>
-        <button
-          onClick={() => window.print()}
-          className="inline-flex h-8 items-center rounded-md bg-ink-primary px-4 text-xs font-medium text-ink-inverted hover:bg-ink-primary/90 transition-colors"
-        >
-          Print / Export PDF
-        </button>
+        <PrintButton className="inline-flex h-8 items-center rounded-md bg-ink-primary px-4 text-xs font-medium text-ink-inverted hover:bg-ink-primary/90 transition-colors" />
       </div>
 
       {/* Brief content */}

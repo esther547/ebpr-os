@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canManageDeliverables } from "@/lib/permissions";
 import { currentMonthYear } from "@/lib/utils";
+import { parseDateInput } from "./_lib/status-transition";
 
 const createDeliverableSchema = z.object({
   clientId: z.string().min(1),
@@ -28,35 +29,70 @@ const createDeliverableSchema = z.object({
   isClientVisible: z.boolean().default(true),
 });
 
-export async function POST(req: NextRequest) {
-  try {
-    const user = await requireUser();
-    if (!canManageDeliverables(user)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+function zodMessage(err: z.ZodError) {
+  return err.issues
+    .map((i) => (i.path.length ? `${i.path.join(".")}: ` : "") + i.message)
+    .join("; ");
+}
 
+export async function POST(req: NextRequest) {
+  let user;
+  try {
+    user = await requireUser();
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!canManageDeliverables(user)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
     const body = await req.json();
     const parsed = createDeliverableSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+      return NextResponse.json(
+        { error: zodMessage(parsed.error), details: parsed.error.flatten() },
+        { status: 400 }
+      );
     }
 
-    const { month: bodyMonth, year: bodyYear, ...rest } = parsed.data;
-    const { month, year } = currentMonthYear();
+    const { month: bodyMonth, year: bodyYear, dueDate: dueDateStr, ...rest } = parsed.data;
+
+    const client = await db.client.findUnique({
+      where: { id: rest.clientId },
+      select: { id: true, name: true, status: true },
+    });
+    if (!client) {
+      return NextResponse.json({ error: "Client not found" }, { status: 404 });
+    }
+    // Business rule: paused (and churned) clients get no new deliverables
+    if (client.status === "PAUSED" || client.status === "CHURNED") {
+      return NextResponse.json(
+        { error: `${client.name} is ${client.status.toLowerCase()} — reactivate the client before adding deliverables.` },
+        { status: 409 }
+      );
+    }
+
+    // Month/year: explicit body values win, then the due date's month, then today.
+    const dueDate = dueDateStr ? parseDateInput(dueDateStr) : undefined;
+    const fallback = dueDate
+      ? { month: dueDate.getUTCMonth() + 1, year: dueDate.getUTCFullYear() }
+      : currentMonthYear();
 
     const deliverable = await db.deliverable.create({
       data: {
         ...rest,
-        month: bodyMonth ?? month,
-        year: bodyYear ?? year,
-        dueDate: rest.dueDate ? new Date(rest.dueDate) : undefined,
+        assigneeId: rest.assigneeId || undefined,
+        campaignId: rest.campaignId || undefined,
+        month: bodyMonth ?? fallback.month,
+        year: bodyYear ?? fallback.year,
+        dueDate,
       },
       include: {
         assignee: { select: { id: true, name: true, avatar: true } },
       },
     });
 
-    // Log
     await db.activityLog.create({
       data: {
         clientId: parsed.data.clientId,
@@ -68,7 +104,8 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ data: deliverable }, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (err) {
+    console.error("POST /api/deliverables failed:", err);
+    return NextResponse.json({ error: "Could not create deliverable" }, { status: 500 });
   }
 }

@@ -31,11 +31,22 @@ const TYPE_STYLES: Record<string, string> = {
 
 export function ClientReminders({ clientId, reminders }: Props) {
   const [showAdd, setShowAdd] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   async function markDone(id: string) {
-    await fetch(`/api/reminders/${id}`, { method: "DELETE" });
-    router.refresh();
+    setError(null);
+    try {
+      const res = await fetch(`/api/reminders/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(typeof data.error === "string" ? data.error : "Could not complete reminder");
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError("Network error");
+    }
   }
 
   const active = reminders.filter((r) => !r.isDone);
@@ -54,6 +65,8 @@ export function ClientReminders({ clientId, reminders }: Props) {
           <Plus className="h-3 w-3" /> Add
         </button>
       </div>
+
+      {error && <p className="mb-2 text-xs text-red-600" role="alert">{error}</p>}
 
       {active.length > 0 ? (
         <ul className="space-y-2">
@@ -95,33 +108,46 @@ export function ClientReminders({ clientId, reminders }: Props) {
 function AddReminderModal({ open, onOpenChange, clientId }: { open: boolean; onOpenChange: (o: boolean) => void; clientId: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
+    setError(null);
 
     const form = new FormData(e.currentTarget);
     const body = {
       clientId,
-      title: form.get("title") as string,
+      title: (form.get("title") as string).trim(),
       remindAt: form.get("remindAt") as string,
-      type: form.get("type") as string || undefined,
+      type: (form.get("type") as string) || undefined,
     };
 
-    await fetch("/api/reminders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    onOpenChange(false);
-    setLoading(false);
-    router.refresh();
+    try {
+      const res = await fetch("/api/reminders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(typeof data.error === "string" ? data.error : "Could not add reminder");
+        setLoading(false);
+        return;
+      }
+      onOpenChange(false);
+      setLoading(false);
+      router.refresh();
+    } catch {
+      setError("Network error — could not reach the server");
+      setLoading(false);
+    }
   }
 
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Add Reminder" description="Set a reminder for this client">
       <form onSubmit={handleSubmit} className="space-y-4">
+        {error && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
         <FormGroup label="Reminder" htmlFor="rem-title" required>
           <Input id="rem-title" name="title" placeholder="e.g., Follow up on interview" required autoFocus />
         </FormGroup>

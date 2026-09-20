@@ -17,7 +17,7 @@ export function PortalNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex items-center gap-1">
+    <nav aria-label="Portal" className="no-scrollbar flex min-w-0 items-center gap-1 overflow-x-auto">
       {NAV.map((item) => {
         const isActive =
           item.href === "/portal"
@@ -29,7 +29,7 @@ export function PortalNav() {
             key={item.href}
             href={item.href}
             className={cn(
-              "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+              "shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
               isActive
                 ? "text-ink-primary bg-surface-2"
                 : "text-ink-muted hover:text-ink-primary hover:bg-surface-1"

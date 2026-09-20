@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/modal";
 import { Button, Input, Select, Textarea, FormGroup } from "@/components/ui/form-field";
+import { apiErrorMessage } from "@/components/finance/invoice-status";
 
 interface Props {
   open: boolean;
@@ -36,20 +37,28 @@ export function CreateInvoiceModal({ open, onOpenChange, clients, contracts }: P
       notes: (form.get("notes") as string) || undefined,
     };
 
-    const res = await fetch("/api/invoices", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/invoices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      setError("Network error — invoice not created");
+      setLoading(false);
+      return;
+    }
 
     if (!res.ok) {
-      const data = await res.json();
-      setError(data.error || "Failed to create invoice");
+      const data = await res.json().catch(() => null);
+      setError(apiErrorMessage(data, "Failed to create invoice"));
       setLoading(false);
       return;
     }
 
     setSelectedClient("");
+    setLoading(false);
     onOpenChange(false);
     router.refresh();
   }
@@ -93,7 +102,7 @@ export function CreateInvoiceModal({ open, onOpenChange, clients, contracts }: P
 
         <div className="grid grid-cols-2 gap-4">
           <FormGroup label="Amount ($)" htmlFor="inv-amount" required>
-            <Input id="inv-amount" name="amount" type="number" step="0.01" min="0" placeholder="0.00" required />
+            <Input id="inv-amount" name="amount" type="number" step="0.01" min="0.01" placeholder="0.00" required />
           </FormGroup>
           <FormGroup label="Due Date" htmlFor="inv-due">
             <Input id="inv-due" name="dueDate" type="date" />

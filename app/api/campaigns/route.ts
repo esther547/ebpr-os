@@ -4,6 +4,19 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canManageClients } from "@/lib/permissions";
 
+/** "YYYY-MM-DD" -> noon UTC so the calendar day is stable in every timezone. */
+function parseDateInput(value: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12));
+  return new Date(value);
+}
+
+function zodMessage(err: z.ZodError) {
+  return err.issues
+    .map((i) => (i.path.length ? `${i.path.join(".")}: ` : "") + i.message)
+    .join("; ");
+}
+
 const createCampaignSchema = z.object({
   clientId: z.string().min(1),
   name: z.string().min(1).max(200),
@@ -50,20 +63,25 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const parsed = createCampaignSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+      return NextResponse.json({ error: zodMessage(parsed.error), details: parsed.error.flatten() }, { status: 400 });
     }
 
     const { clientId, name, description, startDate, endDate, objectives, ownerId, monthlyTarget } = parsed.data;
+
+    const client = await db.client.findUnique({ where: { id: clientId }, select: { id: true } });
+    if (!client) {
+      return NextResponse.json({ error: "Client not found" }, { status: 404 });
+    }
 
     const campaign = await db.campaign.create({
       data: {
         clientId,
         name,
         description,
-        startDate: startDate ? new Date(startDate) : undefined,
-        endDate: endDate ? new Date(endDate) : undefined,
+        startDate: startDate ? parseDateInput(startDate) : undefined,
+        endDate: endDate ? parseDateInput(endDate) : undefined,
         objectives: objectives ?? [],
-        ownerId,
+        ownerId: ownerId || undefined,
         monthlyTarget,
       },
     });
@@ -78,7 +96,11 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ data: campaign }, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (err) {
+    if (err instanceof Error && (err.message === "Unauthorized" || err.message === "Forbidden")) {
+      return NextResponse.json({ error: err.message }, { status: err.message === "Forbidden" ? 403 : 401 });
+    }
+    console.error("POST /api/campaigns failed:", err);
+    return NextResponse.json({ error: "Could not create campaign" }, { status: 500 });
   }
 }

@@ -15,7 +15,23 @@ export default async function SettingsPage() {
 
   const users = await db.user.findMany({
     orderBy: [{ role: "asc" }, { name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      isActive: true,
+      clerkId: true,
+      createdAt: true,
+    },
   });
+
+  // A "pending_" clerkId means the person has been added but has not signed in yet.
+  const rows = users.map(({ clerkId, createdAt, ...u }) => ({
+    ...u,
+    hasSignedIn: !clerkId.startsWith("pending_"),
+    createdAt: createdAt.toISOString(),
+  }));
 
   return (
     <>
@@ -23,7 +39,7 @@ export default async function SettingsPage() {
         title="Settings"
         subtitle="Team members & system configuration"
       />
-      <SettingsPageClient users={JSON.parse(JSON.stringify(users))} />
+      <SettingsPageClient users={rows} currentUserId={user.id} />
     </>
   );
 }

@@ -1,12 +1,13 @@
 "use client";
 
-import { format, addDays, isSameDay } from "date-fns";
 import { cn } from "@/lib/utils";
+import { addDaysKey, formatDayKey } from "@/components/runners/miami-time";
 
 type Event = {
   id: string;
   eventName: string;
-  eventDate: Date;
+  /** "yyyy-MM-dd" in Miami time, computed on the server. */
+  dayKey: string;
   location: string | null;
   clientId: string | null;
   status: string;
@@ -15,7 +16,10 @@ type Event = {
 
 type Props = {
   events: Event[];
-  weekStart: Date;
+  /** Monday of the current week, "yyyy-MM-dd" (Miami). */
+  weekStartKey: string;
+  /** Today, "yyyy-MM-dd" (Miami). */
+  todayKey: string;
 };
 
 const STATUS_DOT: Record<string, string> = {
@@ -27,13 +31,12 @@ const STATUS_DOT: Record<string, string> = {
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-export function WeekCalendarStrip({ events, weekStart }: Props) {
+export function WeekCalendarStrip({ events, weekStartKey, todayKey }: Props) {
   const days = DAYS.map((label, i) => ({
     label,
-    date: addDays(weekStart, i),
+    key: addDaysKey(weekStartKey, i),
   }));
 
-  const today = new Date();
   const hasEvents = events.length > 0;
 
   return (
@@ -41,13 +44,14 @@ export function WeekCalendarStrip({ events, weekStart }: Props) {
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-bold text-ink-primary">This Week</h3>
         <span className="text-xs text-ink-muted">
-          {format(weekStart, "MMM d")} – {format(addDays(weekStart, 6), "MMM d")}
+          {formatDayKey(weekStartKey, "MMM d")} –{" "}
+          {formatDayKey(addDaysKey(weekStartKey, 6), "MMM d")}
         </span>
       </div>
 
       {/* Day headers */}
       <div className="grid grid-cols-7 gap-0.5 mb-2">
-        {days.map(({ label, date }) => (
+        {days.map(({ label, key }) => (
           <div key={label} className="text-center">
             <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">
               {label}
@@ -55,12 +59,12 @@ export function WeekCalendarStrip({ events, weekStart }: Props) {
             <p
               className={cn(
                 "mt-0.5 text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center mx-auto",
-                isSameDay(date, today)
+                key === todayKey
                   ? "bg-ink-primary text-ink-inverted"
                   : "text-ink-secondary"
               )}
             >
-              {format(date, "d")}
+              {formatDayKey(key, "d")}
             </p>
           </div>
         ))}
@@ -68,10 +72,8 @@ export function WeekCalendarStrip({ events, weekStart }: Props) {
 
       {/* Event dots per day */}
       <div className="grid grid-cols-7 gap-0.5 min-h-[48px]">
-        {days.map(({ date }, i) => {
-          const dayEvents = events.filter((e) =>
-            isSameDay(new Date(e.eventDate), date)
-          );
+        {days.map(({ key }, i) => {
+          const dayEvents = events.filter((e) => e.dayKey === key);
           return (
             <div key={i} className="flex flex-col gap-1 min-h-[48px]">
               {dayEvents.map((e) => (

@@ -2,18 +2,20 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { format, isToday, isTomorrow, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
-import { MapPin, Clock, User, FileText, Check, MessageSquare } from "lucide-react";
+import { MapPin, Clock, User, FileText, Check, Briefcase } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button, Textarea, FormGroup } from "@/components/ui/form-field";
+import { addDaysKey, formatDayKey, formatInTz } from "@/components/runners/miami-time";
 
-type Assignment = {
+export type ScheduleItem = {
   id: string;
   eventName: string;
-  eventDate: string | Date;
-  arrivalTime: string | Date | null;
-  eventTime: string | Date | null;
+  eventDate: string;
+  /** "yyyy-MM-dd" in Miami time, computed on the server. */
+  dayKey: string;
+  arrivalTime: string | null;
+  eventTime: string | null;
   venueName: string | null;
   venueAddress: string | null;
   itemType: string | null;
@@ -21,8 +23,9 @@ type Assignment = {
   notes: string | null;
   status: string;
   accompanistCount: number;
-  deliverableId: string | null;
-  runner: { id: string; name: string } | null;
+  /** Display name only — runners never receive client IDs. */
+  clientName: string | null;
+  runner?: { id: string; name: string } | null;
 };
 
 const STATUS_STYLES: Record<string, string> = {
@@ -31,8 +34,21 @@ const STATUS_STYLES: Record<string, string> = {
   COMPLETED: "bg-surface-2 text-ink-muted",
 };
 
-export function MyScheduleView({ assignments, showActions = false }: { assignments: Assignment[]; showActions?: boolean }) {
-  const [completeAssignment, setCompleteAssignment] = useState<Assignment | null>(null);
+const TIME: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
+
+export function MyScheduleView({
+  assignments,
+  todayKey,
+  showRunner = false,
+}: {
+  assignments: ScheduleItem[];
+  /** Today, "yyyy-MM-dd" (Miami). */
+  todayKey: string;
+  /** Show the runner's name on each card (internal views only). */
+  showRunner?: boolean;
+}) {
+  const [completeAssignment, setCompleteAssignment] = useState<ScheduleItem | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   if (assignments.length === 0) {
@@ -44,35 +60,52 @@ export function MyScheduleView({ assignments, showActions = false }: { assignmen
     );
   }
 
-  async function markCompleted(id: string, notes?: string) {
-    await fetch(`/api/runner-assignments/${id}/complete`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ notes }),
-    });
-    setCompleteAssignment(null);
-    router.refresh();
+  async function markCompleted(id: string, notes?: string): Promise<boolean> {
+    setError(null);
+    try {
+      const res = await fetch(`/api/runner-assignments/${id}/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(typeof data?.error === "string" ? data.error : "Could not mark as completed");
+        return false;
+      }
+      setCompleteAssignment(null);
+      router.refresh();
+      return true;
+    } catch {
+      setError("Network error — please try again");
+      return false;
+    }
   }
 
-  // Group by date
-  const grouped = new Map<string, Assignment[]>();
+  // Group by Miami calendar day (same key the server used)
+  const grouped = new Map<string, ScheduleItem[]>();
   for (const a of assignments) {
-    const dateKey = format(new Date(a.eventDate), "yyyy-MM-dd");
-    const arr = grouped.get(dateKey) ?? [];
+    const arr = grouped.get(a.dayKey) ?? [];
     arr.push(a);
-    grouped.set(dateKey, arr);
+    grouped.set(a.dayKey, arr);
   }
+  const tomorrowKey = addDaysKey(todayKey, 1);
 
   return (
     <>
+      {error && (
+        <div className="mb-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      )}
       <div className="space-y-6">
         {Array.from(grouped.entries()).map(([dateKey, items]) => {
-          const date = parseISO(dateKey);
-          const dayLabel = isToday(date)
-            ? "Today"
-            : isTomorrow(date)
-              ? "Tomorrow"
-              : format(date, "EEEE, MMMM d");
+          const dayLabel =
+            dateKey === todayKey
+              ? "Today"
+              : dateKey === tomorrowKey
+                ? "Tomorrow"
+                : dateKey < todayKey
+                  ? `${formatDayKey(dateKey, "EEEE, MMMM d")} · Pending completion`
+                  : formatDayKey(dateKey, "EEEE, MMMM d");
 
           return (
             <div key={dateKey}>
@@ -83,6 +116,7 @@ export function MyScheduleView({ assignments, showActions = false }: { assignmen
                 {items.map((a) => (
                   <div
                     key={a.id}
+                    id={`assignment-${a.id}`}
                     className="rounded-lg border border-border bg-white p-4 hover:shadow-sm transition-shadow"
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -94,28 +128,48 @@ export function MyScheduleView({ assignments, showActions = false }: { assignmen
                           </span>
                         </div>
 
-                        {a.itemType && (
-                          <span className="inline-block rounded bg-surface-2 px-2 py-0.5 text-2xs font-medium text-ink-secondary mb-2">
-                            {a.itemType}
-                          </span>
-                        )}
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          {a.clientName && (
+                            <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-2 py-0.5 text-2xs font-medium text-ink-primary">
+                              <Briefcase className="h-3 w-3 text-ink-muted" />
+                              {a.clientName}
+                            </span>
+                          )}
+                          {a.itemType && (
+                            <span className="inline-block rounded bg-surface-2 px-2 py-0.5 text-2xs font-medium text-ink-secondary">
+                              {a.itemType}
+                            </span>
+                          )}
+                          {showRunner && a.runner && (
+                            <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-2 py-0.5 text-2xs font-medium text-ink-secondary">
+                              <User className="h-3 w-3 text-ink-muted" />
+                              {a.runner.name}
+                            </span>
+                          )}
+                        </div>
 
                         <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-ink-secondary mt-1">
-                          {(a.arrivalTime || a.eventTime) && (
-                            <div className="flex items-center gap-1.5">
-                              <Clock className="h-3.5 w-3.5 text-ink-muted" />
-                              {a.arrivalTime && (
-                                <span>Arrive {format(new Date(a.arrivalTime), "h:mm a")}</span>
-                              )}
-                              {a.eventTime && (
-                                <span className="font-medium">· On Air {format(new Date(a.eventTime), "h:mm a")}</span>
-                              )}
-                            </div>
-                          )}
-                          {a.venueName && (
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5 text-ink-muted" />
+                            {a.arrivalTime && (
+                              <span>Arrive {formatInTz(a.arrivalTime, TIME)}</span>
+                            )}
+                            {a.eventTime ? (
+                              <span className="font-medium">
+                                {a.arrivalTime ? "· " : ""}On Air {formatInTz(a.eventTime, TIME)}
+                              </span>
+                            ) : !a.arrivalTime ? (
+                              <span>{formatInTz(a.eventDate, TIME)}</span>
+                            ) : null}
+                          </div>
+                          {(a.venueName || a.location) && (
                             <div className="flex items-center gap-1.5">
                               <MapPin className="h-3.5 w-3.5 text-ink-muted" />
-                              <span>{a.venueName}</span>
+                              <span>
+                                {a.venueName}
+                                {a.venueName && a.location ? " · " : ""}
+                                {a.location}
+                              </span>
                             </div>
                           )}
                           {a.accompanistCount > 0 && (
@@ -133,15 +187,16 @@ export function MyScheduleView({ assignments, showActions = false }: { assignmen
                         {a.notes && (
                           <div className="flex items-start gap-1.5 mt-2 text-xs text-ink-secondary">
                             <FileText className="h-3 w-3 text-ink-muted mt-0.5 flex-shrink-0" />
-                            <span>{a.notes}</span>
+                            <span className="whitespace-pre-line">{a.notes}</span>
                           </div>
                         )}
                       </div>
 
                       {/* Action buttons for runners */}
-                      {a.status !== "COMPLETED" && (
+                      {a.status !== "COMPLETED" && a.status !== "CANCELLED" && (
                         <div className="flex-shrink-0">
                           <button
+                            type="button"
                             onClick={() => setCompleteAssignment(a)}
                             className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 transition-colors"
                           >
@@ -180,17 +235,18 @@ function CompleteModal({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  assignment: Assignment;
-  onComplete: (id: string, notes?: string) => void;
+  assignment: ScheduleItem;
+  onComplete: (id: string, notes?: string) => Promise<boolean>;
 }) {
   const [loading, setLoading] = useState(false);
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     const form = new FormData(e.currentTarget);
-    const notes = (form.get("notes") as string) || undefined;
-    onComplete(assignment.id, notes);
+    const notes = ((form.get("notes") as string) || "").trim() || undefined;
+    const ok = await onComplete(assignment.id, notes);
+    if (!ok) setLoading(false);
   }
 
   return (

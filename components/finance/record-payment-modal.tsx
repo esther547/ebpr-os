@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/modal";
 import { Button, Input, Select, Textarea, FormGroup } from "@/components/ui/form-field";
 import { formatCurrency } from "@/lib/utils";
+import { apiErrorMessage, localDateInputValue } from "@/components/finance/invoice-status";
 
 interface Props {
   open: boolean;
@@ -39,17 +40,25 @@ export function RecordPaymentModal({ open, onOpenChange, invoice }: Props) {
       method: form.get("method") as string,
       reference: (form.get("reference") as string) || undefined,
       notes: (form.get("notes") as string) || undefined,
+      paidAt: (form.get("paidAt") as string) || undefined,
     };
 
-    const res = await fetch("/api/payments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      setError("Network error — payment not recorded");
+      setLoading(false);
+      return;
+    }
 
     if (!res.ok) {
-      const data = await res.json();
-      setError(data.error || "Failed to record payment");
+      const data = await res.json().catch(() => null);
+      setError(apiErrorMessage(data, "Failed to record payment"));
       setLoading(false);
       return;
     }
@@ -77,11 +86,17 @@ export function RecordPaymentModal({ open, onOpenChange, invoice }: Props) {
               name="amount"
               type="number"
               step="0.01"
-              min="0"
+              min="0.01"
               defaultValue={remaining > 0 ? remaining.toFixed(2) : ""}
               required
             />
           </FormGroup>
+          <FormGroup label="Payment Date" htmlFor="pay-date" required>
+            <Input id="pay-date" name="paidAt" type="date" defaultValue={localDateInputValue()} required />
+          </FormGroup>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
           <FormGroup label="Payment Method" htmlFor="pay-method" required>
             <Select id="pay-method" name="method" required>
               <option value="">Select...</option>
@@ -92,11 +107,10 @@ export function RecordPaymentModal({ open, onOpenChange, invoice }: Props) {
               <option value="OTHER">Other</option>
             </Select>
           </FormGroup>
+          <FormGroup label="Reference #" htmlFor="pay-ref">
+            <Input id="pay-ref" name="reference" placeholder="Check number, transaction ID..." />
+          </FormGroup>
         </div>
-
-        <FormGroup label="Reference #" htmlFor="pay-ref">
-          <Input id="pay-ref" name="reference" placeholder="Check number, transaction ID..." />
-        </FormGroup>
 
         <FormGroup label="Notes" htmlFor="pay-notes">
           <Textarea id="pay-notes" name="notes" rows={2} placeholder="Optional notes..." />

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { canManageClients } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import type { StrategyCategory, StrategyStatus } from "@prisma/client";
@@ -39,7 +40,15 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { clientId: string } }
 ) {
-  await requireUser();
+  let user;
+  try {
+    user = await requireUser();
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!canManageClients(user)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const client = await db.client.findUnique({
     where: { id: params.clientId },
@@ -53,7 +62,12 @@ export async function POST(
   const parsed = bulkSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: parsed.error.flatten().fieldErrors },
+      {
+        error: parsed.error.issues
+          .map((i) => (i.path.length ? `${i.path.join(".")}: ` : "") + i.message)
+          .join("; "),
+        details: parsed.error.flatten().fieldErrors,
+      },
       { status: 400 }
     );
   }
@@ -105,7 +119,15 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { clientId: string } }
 ) {
-  await requireUser();
+  let user;
+  try {
+    user = await requireUser();
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!canManageClients(user)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { searchParams } = new URL(req.url);
   const category = searchParams.get("category");

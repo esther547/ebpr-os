@@ -1,7 +1,30 @@
 import { google } from "googleapis";
 
+export const GOOGLE_NOT_CONFIGURED =
+  "Google Docs integration is not configured on this server (GOOGLE_SERVICE_ACCOUNT_KEY missing or invalid).";
+
+/** True when a usable service-account key is present in the environment. */
+export function isGoogleDocsConfigured(): boolean {
+  return getCredentials() !== null;
+}
+
+function getCredentials(): { client_email: string; private_key: string } | null {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.client_email === "string" && typeof parsed.private_key === "string") {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function getAuth() {
-  const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || "{}");
+  const credentials = getCredentials();
+  if (!credentials) throw new Error(GOOGLE_NOT_CONFIGURED);
   return new google.auth.GoogleAuth({
     credentials,
     scopes: ["https://www.googleapis.com/auth/documents.readonly"],
@@ -15,7 +38,7 @@ export function extractDocId(url: string): string | null {
 
 export async function readGoogleDoc(docUrl: string): Promise<string> {
   const docId = extractDocId(docUrl);
-  if (!docId) throw new Error("Invalid Google Docs URL");
+  if (!docId) throw new Error("Invalid Google Docs URL. Expected a link like https://docs.google.com/document/d/<id>/edit");
 
   const auth = getAuth();
   const docs = google.docs({ version: "v1", auth });

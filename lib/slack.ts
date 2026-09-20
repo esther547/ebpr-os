@@ -2,20 +2,25 @@
 // To activate: Set SLACK_WEBHOOK_URL in Vercel env vars
 // Get webhook URL from: https://api.slack.com/messaging/webhooks
 
-const WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
-
 export async function sendSlackNotification(message: {
   text: string;
   blocks?: unknown[];
 }) {
-  if (!WEBHOOK_URL) return; // silently skip if not configured
+  // Read at call time so the value is picked up in every runtime/bundle
+  const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+  if (!webhookUrl) return; // silently skip if not configured
 
   try {
-    await fetch(WEBHOOK_URL, {
+    const res = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(message),
+      signal: AbortSignal.timeout(8000),
     });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error(`Slack notification failed: ${res.status} ${body}`.trim());
+    }
   } catch (err) {
     console.error("Slack notification failed:", err);
   }

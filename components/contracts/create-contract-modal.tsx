@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/modal";
 import { Button, Input, Select, Textarea, FormGroup } from "@/components/ui/form-field";
+import { apiErrorMessage } from "@/components/finance/invoice-status";
 
 interface Props {
   open: boolean;
@@ -32,19 +33,27 @@ export function CreateContractModal({ open, onOpenChange, clients }: Props) {
       notes: (form.get("notes") as string) || undefined,
     };
 
-    const res = await fetch("/api/contracts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error || "Failed to create contract");
+    let res: Response;
+    try {
+      res = await fetch("/api/contracts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      setError("Network error — contract not created");
       setLoading(false);
       return;
     }
 
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setError(apiErrorMessage(data, "Failed to create contract"));
+      setLoading(false);
+      return;
+    }
+
+    setLoading(false);
     onOpenChange(false);
     router.refresh();
   }

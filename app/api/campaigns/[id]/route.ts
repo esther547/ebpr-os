@@ -4,6 +4,19 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canManageClients } from "@/lib/permissions";
 
+/** "YYYY-MM-DD" -> noon UTC so the calendar day is stable in every timezone. */
+function parseDateInput(value: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12));
+  return new Date(value);
+}
+
+function zodMessage(err: z.ZodError) {
+  return err.issues
+    .map((i) => (i.path.length ? `${i.path.join(".")}: ` : "") + i.message)
+    .join("; ");
+}
+
 const updateCampaignSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().nullable().optional(),
@@ -59,7 +72,7 @@ export async function PUT(
     const body = await req.json();
     const parsed = updateCampaignSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+      return NextResponse.json({ error: zodMessage(parsed.error), details: parsed.error.flatten() }, { status: 400 });
     }
 
     const data: Record<string, unknown> = {};
@@ -67,8 +80,8 @@ export async function PUT(
     if (d.name !== undefined) data.name = d.name;
     if (d.description !== undefined) data.description = d.description;
     if (d.status !== undefined) data.status = d.status;
-    if (d.startDate !== undefined) data.startDate = d.startDate ? new Date(d.startDate) : null;
-    if (d.endDate !== undefined) data.endDate = d.endDate ? new Date(d.endDate) : null;
+    if (d.startDate !== undefined) data.startDate = d.startDate ? parseDateInput(d.startDate) : null;
+    if (d.endDate !== undefined) data.endDate = d.endDate ? parseDateInput(d.endDate) : null;
     if (d.objectives !== undefined) data.objectives = d.objectives;
     if (d.ownerId !== undefined) data.ownerId = d.ownerId;
     if (d.monthlyTarget !== undefined) data.monthlyTarget = d.monthlyTarget;

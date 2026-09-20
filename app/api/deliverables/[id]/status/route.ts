@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canManageDeliverables } from "@/lib/permissions";
-import { slackDeliverableCompleted } from "@/lib/slack";
+import { recordStatusTransition } from "../../_lib/status-transition";
 
 const updateStatusSchema = z.object({
   status: z.enum([
@@ -20,16 +20,24 @@ const updateStatusSchema = z.object({
 type Params = { params: { id: string } };
 
 export async function POST(req: NextRequest, { params }: Params) {
+  let user;
   try {
-    const user = await requireUser();
-    if (!canManageDeliverables(user)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    user = await requireUser();
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!canManageDeliverables(user)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
+  try {
     const body = await req.json();
     const parsed = updateStatusSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+      return NextResponse.json(
+        { error: parsed.error.issues.map((i) => i.message).join("; ") },
+        { status: 400 }
+      );
     }
 
     const existing = await db.deliverable.findUnique({
@@ -40,83 +48,28 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    const to = parsed.data.status;
     const deliverable = await db.deliverable.update({
       where: { id: params.id },
       data: {
-        status: parsed.data.status,
-        outcome: parsed.data.outcome,
+        status: to,
+        ...(parsed.data.outcome !== undefined && { outcome: parsed.data.outcome }),
         completedAt:
-          parsed.data.status === "COMPLETED" ? new Date() : undefined,
+          to === "COMPLETED" ? new Date() : to === existing.status ? undefined : null,
       },
     });
 
-    await db.activityLog.create({
-      data: {
-        clientId: existing.clientId,
-        deliverableId: deliverable.id,
-        userId: user.id,
-        action: "status_changed",
-        description: `"${existing.title}" moved to ${parsed.data.status.replace(/_/g, " ").toLowerCase()}`,
-        metadata: {
-          from: existing.status,
-          to: parsed.data.status,
-        },
-      },
+    await recordStatusTransition({
+      deliverable: existing,
+      from: existing.status,
+      to,
+      userId: user.id,
+      outcome: parsed.data.outcome,
     });
-
-    // Slack notification for completed deliverables
-    if (parsed.data.status === "COMPLETED" && existing.status !== "COMPLETED") {
-      const clientData = await db.client.findUnique({ where: { id: existing.clientId }, select: { name: true } });
-      if (clientData) {
-        slackDeliverableCompleted(clientData.name, existing.title, parsed.data.outcome);
-      }
-    }
-
-    // Notify client portal users when a deliverable is completed
-    if (parsed.data.status === "COMPLETED" && existing.status !== "COMPLETED") {
-      const clientUsers = await db.clientUser.findMany({
-        where: { clientId: existing.clientId, isActive: true },
-        select: { id: true },
-      });
-      // Also notify all internal team about completion
-      const teamUsers = await db.user.findMany({
-        where: { isActive: true, role: { in: ["SUPER_ADMIN", "STRATEGIST"] } },
-        select: { id: true },
-      });
-      for (const cu of teamUsers) {
-        await db.notification.create({
-          data: {
-            userId: cu.id,
-            title: "Deliverable Completed",
-            message: `"${existing.title}" has been marked as completed`,
-            type: "deliverable_completed",
-            link: `/clients/${existing.clientId}/deliverables/${existing.id}`,
-          },
-        });
-      }
-    }
-
-    // Notify when deliverable goes from IDEA/OUTREACH → CONFIRMED (goes live)
-    if (parsed.data.status === "CONFIRMED" && (existing.status === "IDEA" || existing.status === "OUTREACH")) {
-      const teamUsers = await db.user.findMany({
-        where: { isActive: true, role: { in: ["SUPER_ADMIN", "STRATEGIST"] } },
-        select: { id: true },
-      });
-      for (const u of teamUsers) {
-        await db.notification.create({
-          data: {
-            userId: u.id,
-            title: "Deliverable Confirmed",
-            message: `"${existing.title}" has been confirmed — assign a runner if needed`,
-            type: "deliverable_confirmed",
-            link: `/clients/${existing.clientId}/deliverables/${existing.id}`,
-          },
-        });
-      }
-    }
 
     return NextResponse.json({ data: deliverable });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (err) {
+    console.error("POST /api/deliverables/[id]/status failed:", err);
+    return NextResponse.json({ error: "Could not update status" }, { status: 500 });
   }
 }

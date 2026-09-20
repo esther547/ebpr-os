@@ -1,8 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { cn, DELIVERABLE_TYPE_LABELS, monthLabel } from "@/lib/utils";
-import { Trophy, Target, TrendingUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { DELIVERABLE_TYPE_LABELS, monthLabel } from "@/lib/utils";
+import { Trophy, Target, TrendingUp, ChevronLeft, ChevronRight, BarChart3 } from "lucide-react";
+import { PageHeader, SectionHeader } from "@/components/layout/header";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge, statusTone, humanize } from "@/components/ui/badge";
+import { StatTile } from "@/components/ui/stat-tile";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Deliverable = {
   id: string;
@@ -10,58 +18,53 @@ type Deliverable = {
   type: string;
   status: string;
   outcome: string | null;
-  completedAt: string | Date | null;
+  completedAt: string | null;
 };
 
 interface Props {
-  clientId: string;
   clientName: string;
   monthlyTarget: number;
-  initialDeliverables: Deliverable[];
-  initialMonth: number;
-  initialYear: number;
+  deliverables: Deliverable[];
+  month: number;
+  year: number;
+  currentMonth: number;
+  currentYear: number;
 }
 
 export function PortalReportsClient({
-  clientId,
   clientName,
   monthlyTarget,
-  initialDeliverables,
-  initialMonth,
-  initialYear,
+  deliverables,
+  month,
+  year,
+  currentMonth,
+  currentYear,
 }: Props) {
-  const [month, setMonth] = useState(initialMonth);
-  const [year, setYear] = useState(initialYear);
-  const [deliverables, setDeliverables] = useState(initialDeliverables);
-  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [target, setTarget] = useState<{ month: number; year: number } | null>(null);
 
-  const isCurrentMonth = month === initialMonth && year === initialYear;
+  const isCurrentMonth = month === currentMonth && year === currentYear;
 
-  useEffect(() => {
-    if (isCurrentMonth) {
-      setDeliverables(initialDeliverables);
-      return;
-    }
-
-    setLoading(true);
-    fetch(`/api/reports/${clientId}/monthly?month=${month}&year=${year}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setDeliverables(data.data?.deliverables ?? []);
-      })
-      .finally(() => setLoading(false));
-  }, [month, year, clientId, isCurrentMonth, initialDeliverables]);
+  function navigate(m: number, y: number) {
+    setTarget({ month: m, year: y });
+    startTransition(() => {
+      router.push(`/portal/reports?month=${m}&year=${y}`);
+    });
+  }
 
   function prevMonth() {
-    if (month === 1) { setMonth(12); setYear(year - 1); }
-    else setMonth(month - 1);
+    if (month === 1) navigate(12, year - 1);
+    else navigate(month - 1, year);
   }
 
   function nextMonth() {
-    if (month === initialMonth && year === initialYear) return;
-    if (month === 12) { setMonth(1); setYear(year + 1); }
-    else setMonth(month + 1);
+    if (isCurrentMonth) return;
+    if (month === 12) navigate(1, year + 1);
+    else navigate(month + 1, year);
   }
+
+  const shown = pending && target ? target : { month, year };
 
   const completed = deliverables.filter((d) => d.status === "COMPLETED");
   const inProgress = deliverables.filter((d) =>
@@ -79,113 +82,109 @@ export function PortalReportsClient({
   }, {} as Record<string, number>);
 
   return (
-    <div>
-      {/* Month Navigation */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-ink-primary">Monthly Report</h1>
-          <p className="text-sm text-ink-muted">{clientName}</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={prevMonth}
-            className="rounded-md p-1.5 hover:bg-surface-2 transition-colors"
-          >
-            <ChevronLeft className="h-5 w-5 text-ink-secondary" />
-          </button>
-          <span className="text-sm font-medium text-ink-primary min-w-[140px] text-center">
-            {monthLabel(month, year)}
-          </span>
-          <button
-            onClick={nextMonth}
-            disabled={isCurrentMonth}
-            className={cn(
-              "rounded-md p-1.5 transition-colors",
-              isCurrentMonth ? "opacity-30 cursor-not-allowed" : "hover:bg-surface-2"
-            )}
-          >
-            <ChevronRight className="h-5 w-5 text-ink-secondary" />
-          </button>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        className="pt-0 pb-0 sm:pt-0"
+        title="Monthly Report"
+        subtitle={clientName}
+        actions={
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-white p-1 shadow-card">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={prevMonth}
+              disabled={pending}
+              aria-label="Previous month"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="min-w-[140px] text-center text-sm font-medium text-ink-primary tabular">
+              {monthLabel(shown.month, shown.year)}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={nextMonth}
+              disabled={isCurrentMonth || pending}
+              aria-label="Next month"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        }
+      />
 
-      {loading ? (
-        <div className="text-center py-20">
-          <p className="text-sm text-ink-muted">Loading...</p>
+      {pending ? (
+        <div className="space-y-6" aria-busy="true">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+          </div>
+          <Skeleton className="h-16" />
+          <Skeleton className="h-40" />
         </div>
       ) : (
         <>
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <div className="rounded-lg border border-border bg-white p-5 text-center">
-              <Trophy className="mx-auto h-5 w-5 text-green-600 mb-2" />
-              <p className="text-2xl font-bold text-ink-primary">{completed.length}</p>
-              <p className="text-xs text-ink-muted mt-1">Wins Delivered</p>
-            </div>
-            <div className="rounded-lg border border-border bg-white p-5 text-center">
-              <Target className="mx-auto h-5 w-5 text-blue-600 mb-2" />
-              <p className="text-2xl font-bold text-ink-primary">{monthlyTarget}</p>
-              <p className="text-xs text-ink-muted mt-1">Monthly Target</p>
-            </div>
-            <div className="rounded-lg border border-border bg-white p-5 text-center">
-              <TrendingUp className="mx-auto h-5 w-5 text-amber-600 mb-2" />
-              <p className="text-2xl font-bold text-ink-primary">{completionRate}%</p>
-              <p className="text-xs text-ink-muted mt-1">Completion Rate</p>
-            </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <StatTile
+              label="Wins Delivered"
+              value={completed.length}
+              icon={<Trophy />}
+              tone={completed.length >= monthlyTarget && monthlyTarget > 0 ? "success" : "neutral"}
+              hint={`of ${monthlyTarget} target`}
+            />
+            <StatTile label="Monthly Target" value={monthlyTarget} icon={<Target />} />
+            <StatTile label="Completion Rate" value={`${completionRate}%`} icon={<TrendingUp />} />
           </div>
 
           {/* Progress Bar */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between text-xs text-ink-muted mb-1.5">
-              <span>Progress</span>
-              <span>{completed.length} / {monthlyTarget}</span>
+          <Card padding="sm">
+            <div className="mb-2 flex items-center justify-between text-xs text-ink-muted">
+              <span className="eyebrow">Progress</span>
+              <span className="tabular">{completed.length} / {monthlyTarget}</span>
             </div>
-            <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
+            <div className="h-2 overflow-hidden rounded-full bg-surface-2">
               <div
                 className="h-full rounded-full bg-ink-primary transition-all duration-500"
                 style={{ width: `${Math.min(completionRate, 100)}%` }}
               />
             </div>
-          </div>
+          </Card>
 
           {/* Type Breakdown */}
           {Object.keys(typeBreakdown).length > 0 && (
-            <div className="mb-8">
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-                Media Breakdown
-              </h2>
+            <section>
+              <SectionHeader title="Media Breakdown" />
               <div className="flex flex-wrap gap-2">
                 {Object.entries(typeBreakdown).map(([type, count]) => (
-                  <span
-                    key={type}
-                    className="rounded-full bg-surface-2 px-3 py-1 text-xs font-medium text-ink-secondary"
-                  >
-                    {DELIVERABLE_TYPE_LABELS[type as keyof typeof DELIVERABLE_TYPE_LABELS] || type}: {count}
-                  </span>
+                  <Badge key={type} tone="neutral" size="md">
+                    {DELIVERABLE_TYPE_LABELS[type as keyof typeof DELIVERABLE_TYPE_LABELS] || type}
+                    <span className="text-ink-primary tabular">{count}</span>
+                  </Badge>
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
           {/* Wins */}
           {completed.length > 0 && (
-            <section className="mb-8">
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-                Completed Wins
-              </h2>
+            <section>
+              <SectionHeader title="Completed Wins" />
               <div className="space-y-3">
                 {completed.map((d) => (
-                  <div key={d.id} className="rounded-lg border border-border bg-white p-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="rounded-full bg-green-50 px-2 py-0.5 text-2xs font-medium text-green-700">
+                  <Card key={d.id} padding="sm">
+                    <div className="mb-1.5">
+                      <Badge tone="success" size="xs">
                         {DELIVERABLE_TYPE_LABELS[d.type as keyof typeof DELIVERABLE_TYPE_LABELS] || d.type}
-                      </span>
+                      </Badge>
                     </div>
                     <p className="text-sm font-medium text-ink-primary">{d.title}</p>
                     {d.outcome && (
-                      <p className="mt-1 text-sm text-ink-secondary">{d.outcome}</p>
+                      <p className="mt-1 max-w-prose text-sm text-ink-secondary">{d.outcome}</p>
                     )}
-                  </div>
+                  </Card>
                 ))}
               </div>
             </section>
@@ -194,26 +193,26 @@ export function PortalReportsClient({
           {/* In Progress */}
           {inProgress.length > 0 && (
             <section>
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-                In Progress ({inProgress.length})
-              </h2>
-              <div className="space-y-2">
+              <SectionHeader title={`In Progress (${inProgress.length})`} />
+              <Card padding="none" className="divide-y divide-border">
                 {inProgress.map((d) => (
-                  <div key={d.id} className="flex items-center gap-3 rounded-lg border border-border bg-white px-4 py-3">
-                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-2xs font-medium text-blue-700">
-                      {d.status.replace("_", " ")}
-                    </span>
-                    <span className="text-sm text-ink-primary">{d.title}</span>
+                  <div key={d.id} className="flex items-center gap-3 px-4 py-3">
+                    <Badge tone={statusTone(d.status)} size="xs" dot className="shrink-0">
+                      {humanize(d.status)}
+                    </Badge>
+                    <span className="min-w-0 truncate text-sm text-ink-primary">{d.title}</span>
                   </div>
                 ))}
-              </div>
+              </Card>
             </section>
           )}
 
           {deliverables.length === 0 && (
-            <div className="text-center py-20">
-              <p className="text-sm text-ink-muted">No deliverables this month.</p>
-            </div>
+            <EmptyState
+              icon={<BarChart3 />}
+              title="No deliverables this month"
+              description={`Nothing was shared for ${monthLabel(month, year)}. Use the arrows to browse other months.`}
+            />
           )}
         </>
       )}

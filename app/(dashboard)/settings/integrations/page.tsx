@@ -41,11 +41,11 @@ export default async function IntegrationsPage() {
     },
     {
       name: "Email Digests (Gmail / Google Workspace)",
-      description: "Send weekly email digests to clients from your @ebmanagement.io account. Every Monday at 9am.",
+      description: "Send weekly email digests to clients from your @ebmanagement.io account. Automatic sending is disabled — digests only go out when triggered manually.",
       icon: <Mail className="h-5 w-5" />,
       connected: hasGmail,
       instructions: hasGmail
-        ? `Connected — sending from ${process.env.GMAIL_USER}. Digests go out every Monday at 9am.`
+        ? `Connected — sending from ${process.env.GMAIL_USER}. Preview: GET /api/digest. Send: POST /api/digest (manual only; no cron).`
         : "1. Go to myaccount.google.com with your @ebmanagement.io account\n2. Security → 2-Step Verification (enable if not already)\n3. Search 'App Passwords' → Generate one for 'EBPR OS'\n4. Set GMAIL_USER and GMAIL_APP_PASSWORD in Vercel env vars\n5. Redeploy",
     },
     {

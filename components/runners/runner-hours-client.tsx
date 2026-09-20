@@ -2,22 +2,32 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { formatDate } from "@/lib/utils";
 import { Button, Input, FormGroup } from "@/components/ui/form-field";
 import { Modal } from "@/components/ui/modal";
 import { Clock } from "lucide-react";
+import { formatDayKey } from "@/components/runners/miami-time";
 
 type HourEntry = {
   id: string;
-  date: string | Date;
-  hours: unknown;
+  date: string;
+  /** "yyyy-MM-dd" in Miami time, computed on the server. */
+  dayKey: string;
+  hours: number;
   description: string | null;
   clientName: string | null;
 };
 
-export function RunnerHoursClient({ hours, totalHours }: { hours: HourEntry[]; totalHours: number }) {
+export function RunnerHoursClient({
+  hours,
+  totalHours,
+  todayKey,
+}: {
+  hours: HourEntry[];
+  totalHours: number;
+  /** Today, "yyyy-MM-dd" (Miami). */
+  todayKey: string;
+}) {
   const [showAdd, setShowAdd] = useState(false);
-  const router = useRouter();
 
   return (
     <div>
@@ -48,8 +58,8 @@ export function RunnerHoursClient({ hours, totalHours }: { hours: HourEntry[]; t
             <tbody className="divide-y divide-border">
               {hours.map((h) => (
                 <tr key={h.id}>
-                  <td className="px-4 py-3 text-ink-secondary">{formatDate(h.date)}</td>
-                  <td className="px-4 py-3 font-medium text-ink-primary">{Number(h.hours)}h</td>
+                  <td className="px-4 py-3 text-ink-secondary">{formatDayKey(h.dayKey, "MMM d, yyyy")}</td>
+                  <td className="px-4 py-3 font-medium text-ink-primary">{h.hours}h</td>
                   <td className="px-4 py-3 text-ink-secondary">{h.clientName || "—"}</td>
                   <td className="px-4 py-3 text-ink-muted">{h.description || "—"}</td>
                 </tr>
@@ -59,12 +69,20 @@ export function RunnerHoursClient({ hours, totalHours }: { hours: HourEntry[]; t
         </div>
       )}
 
-      <LogHoursModal open={showAdd} onOpenChange={setShowAdd} />
+      <LogHoursModal open={showAdd} onOpenChange={setShowAdd} todayKey={todayKey} />
     </div>
   );
 }
 
-function LogHoursModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+function LogHoursModal({
+  open,
+  onOpenChange,
+  todayKey,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  todayKey: string;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,27 +93,47 @@ function LogHoursModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o
     setError(null);
 
     const form = new FormData(e.currentTarget);
-    const body = {
-      date: form.get("date") as string,
-      hours: parseFloat(form.get("hours") as string),
-      clientName: (form.get("clientName") as string) || undefined,
-      description: (form.get("description") as string) || undefined,
-    };
-
-    const res = await fetch("/api/runner-hours", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      setError("Failed to log hours");
+    const hoursValue = parseFloat(form.get("hours") as string);
+    if (!Number.isFinite(hoursValue) || hoursValue <= 0) {
+      setError("Please enter a valid number of hours");
       setLoading(false);
       return;
     }
+    const body = {
+      date: form.get("date") as string,
+      hours: hoursValue,
+      clientName: ((form.get("clientName") as string) || "").trim() || undefined,
+      description: ((form.get("description") as string) || "").trim() || undefined,
+    };
 
-    onOpenChange(false);
-    router.refresh();
+    try {
+      const res = await fetch("/api/runner-hours", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const err = data?.error;
+        setError(
+          typeof err === "string"
+            ? err
+            : err && typeof err === "object"
+              ? Object.values(err as Record<string, string[]>).flat().join(", ")
+              : "Failed to log hours"
+        );
+        setLoading(false);
+        return;
+      }
+
+      onOpenChange(false);
+      setLoading(false);
+      router.refresh();
+    } catch {
+      setError("Network error — please try again");
+      setLoading(false);
+    }
   }
 
   return (
@@ -105,10 +143,10 @@ function LogHoursModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o
 
         <div className="grid grid-cols-2 gap-4">
           <FormGroup label="Date" htmlFor="rh-date" required>
-            <Input id="rh-date" name="date" type="date" required defaultValue={new Date().toISOString().split("T")[0]} />
+            <Input id="rh-date" name="date" type="date" required defaultValue={todayKey} max={todayKey} />
           </FormGroup>
           <FormGroup label="Hours" htmlFor="rh-hours" required>
-            <Input id="rh-hours" name="hours" type="number" step="0.5" min="0.5" max="24" required placeholder="e.g., 3.5" />
+            <Input id="rh-hours" name="hours" type="number" step="0.25" min="0.25" max="24" required placeholder="e.g., 3.5" />
           </FormGroup>
         </div>
 

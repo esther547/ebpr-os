@@ -23,36 +23,112 @@
     --border: 228 228 225;
     --input: 228 228 225;
     --ring: 10 10 10;
-    --radius: 0.5rem;
+    --radius: 0.625rem;
+    --sidebar-width: 240px;
   }
 
   * {
     @apply border-border;
   }
 
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
   body {
     @apply bg-surface-1 text-ink-primary antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1, "cv11" 1;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3, h4 {
+    @apply tracking-tight;
+  }
+
+  /* Accessible, brand-consistent focus ring */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ink-primary/25 ring-offset-2 ring-offset-surface-1;
+  }
+  input:focus-visible, select:focus-visible, textarea:focus-visible {
+    @apply ring-0 ring-offset-0;
+  }
+
+  /* Native form controls */
+  input[type="date"], input[type="time"], input[type="datetime-local"] {
+    @apply appearance-none;
+  }
+  select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239A9A98' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1.25em 1.25em;
+    padding-right: 2.25rem;
+    -webkit-appearance: none;
+    appearance: none;
   }
 
   /* Custom scrollbar */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-border rounded-full;
+    @apply rounded-full bg-border;
+    border: 2px solid transparent;
+    background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-border-strong;
+    background-clip: padding-box;
+  }
+
+  ::selection {
+    @apply bg-ink-primary text-white;
+  }
+}
+
+@layer components {
+  /* Page-level entrance */
+  .page-enter {
+    animation: fade-in 0.25s ease-out both;
+  }
+
+  /* Data table defaults (used by components/ui/table.tsx) */
+  .ebpr-table th {
+    @apply sticky top-0 z-10 bg-surface-2/95 px-4 py-2.5 text-left text-2xs font-semibold uppercase tracking-wider text-ink-muted backdrop-blur;
+  }
+  .ebpr-table td {
+    @apply px-4 py-3 align-middle text-sm text-ink-primary;
+  }
+  .ebpr-table tbody tr {
+    @apply border-t border-border transition-colors;
+  }
+  .ebpr-table tbody tr:hover {
+    @apply bg-surface-1;
+  }
+
+  /* Thin divider label */
+  .eyebrow {
+    @apply text-2xs font-semibold uppercase tracking-[0.14em] text-ink-muted;
   }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }

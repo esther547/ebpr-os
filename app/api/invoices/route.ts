@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
 import { canViewFinance, canManageFinance } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { parseDateInput } from "@/components/finance/invoice-status";
 
 const createSchema = z.object({
   clientId: z.string().min(1),
-  contractId: z.string().optional(),
-  invoiceNumber: z.string().min(1),
+  contractId: z.string().nullable().optional(),
+  invoiceNumber: z.string().trim().min(1),
   amount: z.number().positive(),
-  dueDate: z.string().optional(),
-  notes: z.string().optional(),
+  dueDate: z.string().nullable().optional(),
+  sentAt: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
 });
 
 export async function GET() {
@@ -43,18 +46,44 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
   }
 
-  const { clientId, contractId, invoiceNumber, amount, dueDate, notes } = parsed.data;
+  const { clientId, contractId, invoiceNumber, amount, dueDate, sentAt, notes } = parsed.data;
 
-  const invoice = await db.invoice.create({
-    data: {
-      clientId,
-      contractId: contractId || undefined,
-      invoiceNumber,
-      amount,
-      dueDate: dueDate ? new Date(dueDate) : undefined,
-      notes,
-    },
-  });
+  const client = await db.client.findUnique({ where: { id: clientId }, select: { id: true } });
+  if (!client) {
+    return NextResponse.json({ error: "Client not found" }, { status: 404 });
+  }
+
+  const sentDate = parseDateInput(sentAt);
+
+  let invoice;
+  try {
+    invoice = await db.invoice.create({
+      data: {
+        clientId,
+        contractId: contractId || undefined,
+        invoiceNumber,
+        amount,
+        dueDate: parseDateInput(dueDate),
+        sentAt: sentDate,
+        status: sentDate ? "SENT" : "DRAFT",
+        notes: notes || undefined,
+      },
+    });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      if (err.code === "P2002") {
+        return NextResponse.json(
+          { error: `Invoice number "${invoiceNumber}" already exists.` },
+          { status: 409 }
+        );
+      }
+      if (err.code === "P2003") {
+        return NextResponse.json({ error: "Contract not found" }, { status: 404 });
+      }
+    }
+    console.error("POST /api/invoices", err);
+    return NextResponse.json({ error: "Failed to create invoice" }, { status: 500 });
+  }
 
   await db.activityLog.create({
     data: {

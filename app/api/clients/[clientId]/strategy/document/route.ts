@@ -2,6 +2,34 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { canManageClients } from "@/lib/permissions";
+
+/** Accepts "YYYY-MM-DD" (date input) or a full ISO datetime. */
+const dateField = z
+  .string()
+  .refine((v) => /^\d{4}-\d{2}-\d{2}$/.test(v) || !isNaN(new Date(v).getTime()), {
+    message: "Invalid date",
+  });
+
+/** "YYYY-MM-DD" -> noon UTC so the calendar day is stable in every timezone. */
+function parseDateInput(value: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12));
+  return new Date(value);
+}
+
+async function authorize() {
+  let user;
+  try {
+    user = await requireUser();
+  } catch {
+    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+  if (!canManageClients(user)) {
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+  return { user };
+}
 
 const documentSchema = z.object({
   purpose: z.string().optional(),
@@ -14,11 +42,11 @@ const documentSchema = z.object({
   executionNotes: z.string().optional(),
   servicesProvided: z.array(z.string()).optional(),
   phase1Name: z.string().optional(),
-  phase1Start: z.string().datetime().optional().nullable(),
-  phase1End: z.string().datetime().optional().nullable(),
+  phase1Start: dateField.optional().nullable(),
+  phase1End: dateField.optional().nullable(),
   phase2Name: z.string().optional(),
-  phase2Start: z.string().datetime().optional().nullable(),
-  phase2End: z.string().datetime().optional().nullable(),
+  phase2Start: dateField.optional().nullable(),
+  phase2End: dateField.optional().nullable(),
   externalCollaborators: z
     .array(
       z.object({
@@ -28,9 +56,9 @@ const documentSchema = z.object({
       })
     )
     .optional(),
-  prepMonthStart: z.string().datetime().optional().nullable(),
-  prepMonthEnd: z.string().datetime().optional().nullable(),
-  campaignStart: z.string().datetime().optional().nullable(),
+  prepMonthStart: dateField.optional().nullable(),
+  prepMonthEnd: dateField.optional().nullable(),
+  campaignStart: dateField.optional().nullable(),
   location: z.string().optional(),
   year: z.number().int().optional(),
 });
@@ -40,7 +68,8 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: { clientId: string } }
 ) {
-  await requireUser();
+  const auth = await authorize();
+  if (auth.error) return auth.error;
 
   const doc = await db.strategyDocument.findUnique({
     where: { clientId: params.clientId },
@@ -58,13 +87,19 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { clientId: string } }
 ) {
-  await requireUser();
+  const auth = await authorize();
+  if (auth.error) return auth.error;
 
   const body = await req.json();
   const parsed = documentSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: parsed.error.flatten().fieldErrors },
+      {
+        error: parsed.error.issues
+          .map((i) => (i.path.length ? `${i.path.join(".")}: ` : "") + i.message)
+          .join("; "),
+        details: parsed.error.flatten().fieldErrors,
+      },
       { status: 400 }
     );
   }
@@ -97,13 +132,19 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: { clientId: string } }
 ) {
-  await requireUser();
+  const auth = await authorize();
+  if (auth.error) return auth.error;
 
   const body = await req.json();
   const parsed = documentSchema.partial().safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: parsed.error.flatten().fieldErrors },
+      {
+        error: parsed.error.issues
+          .map((i) => (i.path.length ? `${i.path.join(".")}: ` : "") + i.message)
+          .join("; "),
+        details: parsed.error.flatten().fieldErrors,
+      },
       { status: 400 }
     );
   }
@@ -128,7 +169,16 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: { clientId: string } }
 ) {
-  await requireUser();
+  const auth = await authorize();
+  if (auth.error) return auth.error;
+
+  const existing = await db.strategyDocument.findUnique({
+    where: { clientId: params.clientId },
+    select: { id: true },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "Strategy document not found" }, { status: 404 });
+  }
 
   await db.strategyDocument.delete({
     where: { clientId: params.clientId },
@@ -149,15 +199,15 @@ function buildDocumentFields(data: z.infer<typeof documentSchema>) {
     ...(data.executionNotes !== undefined && { executionNotes: data.executionNotes }),
     ...(data.servicesProvided !== undefined && { servicesProvided: data.servicesProvided }),
     ...(data.phase1Name !== undefined && { phase1Name: data.phase1Name }),
-    ...(data.phase1Start !== undefined && { phase1Start: data.phase1Start ? new Date(data.phase1Start) : null }),
-    ...(data.phase1End !== undefined && { phase1End: data.phase1End ? new Date(data.phase1End) : null }),
+    ...(data.phase1Start !== undefined && { phase1Start: data.phase1Start ? parseDateInput(data.phase1Start) : null }),
+    ...(data.phase1End !== undefined && { phase1End: data.phase1End ? parseDateInput(data.phase1End) : null }),
     ...(data.phase2Name !== undefined && { phase2Name: data.phase2Name }),
-    ...(data.phase2Start !== undefined && { phase2Start: data.phase2Start ? new Date(data.phase2Start) : null }),
-    ...(data.phase2End !== undefined && { phase2End: data.phase2End ? new Date(data.phase2End) : null }),
+    ...(data.phase2Start !== undefined && { phase2Start: data.phase2Start ? parseDateInput(data.phase2Start) : null }),
+    ...(data.phase2End !== undefined && { phase2End: data.phase2End ? parseDateInput(data.phase2End) : null }),
     ...(data.externalCollaborators !== undefined && { externalCollaborators: data.externalCollaborators }),
-    ...(data.prepMonthStart !== undefined && { prepMonthStart: data.prepMonthStart ? new Date(data.prepMonthStart) : null }),
-    ...(data.prepMonthEnd !== undefined && { prepMonthEnd: data.prepMonthEnd ? new Date(data.prepMonthEnd) : null }),
-    ...(data.campaignStart !== undefined && { campaignStart: data.campaignStart ? new Date(data.campaignStart) : null }),
+    ...(data.prepMonthStart !== undefined && { prepMonthStart: data.prepMonthStart ? parseDateInput(data.prepMonthStart) : null }),
+    ...(data.prepMonthEnd !== undefined && { prepMonthEnd: data.prepMonthEnd ? parseDateInput(data.prepMonthEnd) : null }),
+    ...(data.campaignStart !== undefined && { campaignStart: data.campaignStart ? parseDateInput(data.campaignStart) : null }),
     ...(data.location !== undefined && { location: data.location }),
     ...(data.year !== undefined && { year: data.year }),
   };

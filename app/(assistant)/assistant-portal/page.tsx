@@ -1,7 +1,7 @@
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { formatDate } from "@/lib/utils";
-import { AlertTriangle, FileText, Clock } from "lucide-react";
+import { daysSince, overdueInvoiceWhere } from "@/components/finance/invoice-status";
+import { AlertTriangle, FileText } from "lucide-react";
 
 export const metadata = { title: "Overdue Follow-Ups — EBPR" };
 export const dynamic = "force-dynamic";
@@ -10,17 +10,9 @@ export default async function AssistantPortalPage() {
   const user = await requireUser();
   const now = new Date();
 
-  // ── 1. Overdue Invoices (1+ day past due) — client names only ──
+  // ── 1. Overdue Invoices (1+ day past due, not PAID/CANCELLED) — client names only ──
   const overdueInvoices = await db.invoice.findMany({
-    where: {
-      OR: [
-        { status: "OVERDUE" },
-        {
-          status: "SENT",
-          dueDate: { lt: now },
-        },
-      ],
-    },
+    where: overdueInvoiceWhere(now),
     select: {
       id: true,
       dueDate: true,
@@ -32,9 +24,8 @@ export default async function AssistantPortalPage() {
   // Deduplicate by client, keep the oldest due date
   const overdueByClient = new Map<string, { name: string; daysOverdue: number }>();
   for (const inv of overdueInvoices) {
-    if (!overdueByClient.has(inv.client.id) && inv.dueDate) {
-      const days = Math.floor((now.getTime() - new Date(inv.dueDate).getTime()) / (1000 * 60 * 60 * 24));
-      overdueByClient.set(inv.client.id, { name: inv.client.name, daysOverdue: days });
+    if (!overdueByClient.has(inv.client.id)) {
+      overdueByClient.set(inv.client.id, { name: inv.client.name, daysOverdue: daysSince(inv.dueDate, now) });
     }
   }
   const overdueClients = Array.from(overdueByClient.values()).sort((a, b) => b.daysOverdue - a.daysOverdue);
@@ -48,6 +39,7 @@ export default async function AssistantPortalPage() {
       id: true,
       status: true,
       sentAt: true,
+      createdAt: true,
       client: { select: { id: true, name: true } },
     },
     orderBy: { createdAt: "asc" },
@@ -57,12 +49,11 @@ export default async function AssistantPortalPage() {
   const unsignedByClient = new Map<string, { name: string; status: string; daysPending: number }>();
   for (const c of unsignedContracts) {
     if (!unsignedByClient.has(c.client.id)) {
-      const sentDate = c.sentAt || new Date();
-      const days = Math.floor((now.getTime() - new Date(sentDate).getTime()) / (1000 * 60 * 60 * 24));
+      // Drafts have no sentAt: count from creation so they don't all read "Today".
       unsignedByClient.set(c.client.id, {
         name: c.client.name,
         status: c.status,
-        daysPending: days,
+        daysPending: daysSince(c.sentAt ?? c.createdAt, now),
       });
     }
   }

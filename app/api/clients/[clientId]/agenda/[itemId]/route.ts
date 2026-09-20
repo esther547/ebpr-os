@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { startOfWeek } from "date-fns";
+
+/** "YYYY-MM-DD" -> noon UTC so the calendar day is stable in every timezone. */
+function parseDateInput(value: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12));
+  return new Date(value);
+}
 
 const patchSchema = z.object({
   runnerId: z.string().optional(),
@@ -40,7 +48,12 @@ export async function PATCH(
   const parsed = patchSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: parsed.error.flatten().fieldErrors },
+      {
+        error: parsed.error.issues
+          .map((i) => (i.path.length ? `${i.path.join(".")}: ` : "") + i.message)
+          .join("; "),
+        details: parsed.error.flatten().fieldErrors,
+      },
       { status: 400 }
     );
   }
@@ -50,7 +63,14 @@ export async function PATCH(
 
   if (d.runnerId !== undefined) updateData.runnerId = d.runnerId;
   if (d.deliverableId !== undefined) updateData.deliverableId = d.deliverableId;
-  if (d.eventDate !== undefined) updateData.eventDate = new Date(d.eventDate);
+  if (d.eventDate !== undefined) {
+    const eventDate = parseDateInput(d.eventDate);
+    if (isNaN(eventDate.getTime())) {
+      return NextResponse.json({ error: "Event date is invalid" }, { status: 400 });
+    }
+    updateData.eventDate = eventDate;
+    updateData.weekOf = startOfWeek(eventDate, { weekStartsOn: 1 });
+  }
   if (d.arrivalTime !== undefined) updateData.arrivalTime = d.arrivalTime ? new Date(d.arrivalTime) : null;
   if (d.eventTime !== undefined) updateData.eventTime = d.eventTime ? new Date(d.eventTime) : null;
   if (d.venueName !== undefined) updateData.venueName = d.venueName;

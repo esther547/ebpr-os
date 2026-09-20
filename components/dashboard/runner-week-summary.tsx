@@ -1,15 +1,16 @@
 "use client";
 
-import { addDays, isSameDay, format } from "date-fns";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { addDaysKey, formatDayKey } from "@/components/runners/miami-time";
 
 type Runner = { id: string; name: string };
 type Assignment = {
   id: string;
   runnerId: string;
   eventName: string;
-  eventDate: Date;
+  /** "yyyy-MM-dd" in Miami time, computed on the server. */
+  dayKey: string;
   location: string | null;
   status: string;
   runner: { id: string; name: string } | null;
@@ -18,17 +19,20 @@ type Assignment = {
 type Props = {
   runners: Runner[];
   assignments: Assignment[];
-  weekStart: Date;
+  /** Monday of the current week, "yyyy-MM-dd" (Miami). */
+  weekStartKey: string;
+  /** Today, "yyyy-MM-dd" (Miami). */
+  todayKey: string;
 };
 
-export function RunnerWeekSummary({ runners, assignments, weekStart }: Props) {
-  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+export function RunnerWeekSummary({ runners, assignments, weekStartKey, todayKey }: Props) {
+  const days = Array.from({ length: 7 }, (_, i) => addDaysKey(weekStartKey, i));
 
   // Per runner: count of days assigned this week
   const runnerSummary = runners.map((runner) => {
     const myAssignments = assignments.filter((a) => a.runnerId === runner.id);
     const daysWorking = days.filter((d) =>
-      myAssignments.some((a) => isSameDay(new Date(a.eventDate), d))
+      myAssignments.some((a) => a.dayKey === d)
     ).length;
     return { ...runner, count: myAssignments.length, daysWorking };
   });
@@ -83,30 +87,26 @@ export function RunnerWeekSummary({ runners, assignments, weekStart }: Props) {
                 {/* Day availability dots */}
                 <div className="flex gap-1">
                   {days.map((day, i) => {
-                    const hasEvent = myItems.some((a) =>
-                      isSameDay(new Date(a.eventDate), day)
-                    );
-                    const event = myItems.find((a) =>
-                      isSameDay(new Date(a.eventDate), day)
-                    );
+                    const event = myItems.find((a) => a.dayKey === day);
+                    const hasEvent = !!event;
                     return (
                       <div
                         key={i}
                         title={
                           event
-                            ? `${format(day, "EEE MMM d")}: ${event.eventName}`
-                            : format(day, "EEE MMM d")
+                            ? `${formatDayKey(day, "EEE MMM d")}: ${event.eventName}`
+                            : formatDayKey(day, "EEE MMM d")
                         }
                         className={cn(
                           "flex-1 h-5 rounded-sm text-center flex items-center justify-center text-2xs font-medium transition-colors",
                           hasEvent
                             ? "bg-ink-primary text-ink-inverted"
-                            : isSameDay(day, new Date())
+                            : day === todayKey
                             ? "bg-surface-3 text-ink-secondary"
                             : "bg-surface-2 text-ink-muted"
                         )}
                       >
-                        {format(day, "d")}
+                        {formatDayKey(day, "d")}
                       </div>
                     );
                   })}
@@ -118,10 +118,11 @@ export function RunnerWeekSummary({ runners, assignments, weekStart }: Props) {
                     {myItems.slice(0, 3).map((a) => (
                       <p key={a.id} className="text-2xs text-ink-muted truncate">
                         <span className="font-medium text-ink-secondary">
-                          {format(new Date(a.eventDate), "EEE d")}
+                          {formatDayKey(a.dayKey, "EEE d")}
                         </span>{" "}
                         · {a.eventName}
                         {a.location && ` · ${a.location}`}
+                        {a.status === "COMPLETED" && " · done"}
                       </p>
                     ))}
                     {myItems.length > 3 && (

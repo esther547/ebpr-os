@@ -1,24 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sendEmail, digestEmailHtml, isEmailConfigured } from "@/lib/email";
+import { authorizeCron, NO_STORE } from "@/lib/cron-auth";
+
+export const dynamic = "force-dynamic";
 
 // Weekly client digest — generates + sends email summaries
-// Triggered by cron or manually via POST
-// GET = preview digests, POST = send them
+// GET = preview digests (never sends). POST = send them.
+// AUTO-SEND IS DISABLED ON PURPOSE: there is no cron entry for this route in vercel.json,
+// and Vercel crons only ever issue GET requests. Emails go out only when someone
+// explicitly POSTs here (SUPER_ADMIN in the browser, or a caller with CRON_SECRET).
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = await authorizeCron(req);
+  if (denied) return denied;
+
   const digests = await generateDigests();
-  return NextResponse.json({
-    generated: new Date().toISOString(),
-    emailConfigured: isEmailConfigured(),
-    totalClients: digests.totalClients,
-    digestsGenerated: digests.digests.length,
-    digests: digests.digests,
-    setupInstructions: !isEmailConfigured() ? "Set GMAIL_USER + GMAIL_APP_PASSWORD in Vercel env vars to enable email sending" : undefined,
-  });
+  return NextResponse.json(
+    {
+      generated: new Date().toISOString(),
+      preview: true,
+      autoSend: false,
+      emailConfigured: isEmailConfigured(),
+      totalClients: digests.totalClients,
+      digestsGenerated: digests.digests.length,
+      digestsWithoutContact: digests.digests.filter((d) => !d.contactEmail).length,
+      digests: digests.digests,
+      setupInstructions: !isEmailConfigured() ? "Set GMAIL_USER + GMAIL_APP_PASSWORD in Vercel env vars to enable email sending" : undefined,
+    },
+    { headers: NO_STORE }
+  );
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const denied = await authorizeCron(req);
+  if (denied) return denied;
+
   if (!isEmailConfigured()) {
     return NextResponse.json({
       error: "Email not configured. Set GMAIL_USER and GMAIL_APP_PASSWORD in Vercel env vars.",
@@ -35,9 +52,14 @@ export async function POST() {
   const { digests } = await generateDigests();
   let sent = 0;
   let failed = 0;
+  let skippedNoContact = 0;
+  const failures: string[] = [];
 
   for (const digest of digests) {
-    if (!digest.contactEmail) continue;
+    if (!digest.contactEmail) {
+      skippedNoContact++;
+      continue;
+    }
 
     const html = digestEmailHtml({
       clientName: digest.client,
@@ -49,7 +71,7 @@ export async function POST() {
         .map((d) => ({ title: d.title, outcome: d.outcome! })),
       upcomingEvents: digest.upcomingEvents.map((e) => ({
         name: e.name,
-        date: String(e.date),
+        date: e.date,
         location: e.location,
       })),
       monitorLink: digest.monitorLink,
@@ -63,15 +85,23 @@ export async function POST() {
     });
 
     if (success) sent++;
-    else failed++;
+    else {
+      failed++;
+      failures.push(digest.client);
+    }
   }
 
-  return NextResponse.json({
-    sent,
-    failed,
-    totalDigests: digests.length,
-    timestamp: new Date().toISOString(),
-  });
+  return NextResponse.json(
+    {
+      sent,
+      failed,
+      skippedNoContact,
+      failures,
+      totalDigests: digests.length,
+      timestamp: new Date().toISOString(),
+    },
+    { headers: NO_STORE }
+  );
 }
 
 // ─── Digest Generator ────────────────────────────────────
@@ -151,7 +181,7 @@ async function generateDigests() {
       })),
       upcomingEvents: upcomingAssignments.map((a) => ({
         name: a.eventName,
-        date: a.eventDate,
+        date: a.eventDate.toISOString(),
         location: a.location,
       })),
     });

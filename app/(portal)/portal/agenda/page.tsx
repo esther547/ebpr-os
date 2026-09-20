@@ -2,6 +2,12 @@ import { redirect } from "next/navigation";
 import { getCurrentClientUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { cn } from "@/lib/utils";
+import { CalendarDays } from "lucide-react";
+import { PageHeader, SectionHeader } from "@/components/layout/header";
+import { Card } from "@/components/ui/card";
+import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+
 export const metadata = { title: "My Agenda" };
 export const dynamic = "force-dynamic";
 
@@ -12,11 +18,11 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelled",
 };
 
-const STATUS_STYLES: Record<string, string> = {
-  SCHEDULED: "bg-surface-2 text-ink-muted",
-  CONFIRMED: "bg-green-50 text-green-700",
-  COMPLETED: "bg-green-100 text-green-800",
-  CANCELLED: "bg-red-50 text-red-600",
+const STATUS_TONES: Record<string, BadgeTone> = {
+  SCHEDULED: "neutral",
+  CONFIRMED: "success",
+  COMPLETED: "success",
+  CANCELLED: "danger",
 };
 
 const MONTH_NAMES = [
@@ -27,6 +33,7 @@ const MONTH_NAMES = [
 export default async function PortalAgendaPage() {
   const clientUser = await getCurrentClientUser();
   if (!clientUser) redirect("/sign-in");
+  if (!clientUser.isActive) redirect("/access-pending");
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -76,44 +83,37 @@ export default async function PortalAgendaPage() {
   ).length;
 
   return (
-    <div className="animate-fade-in">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-ink-primary">My Agenda</h1>
-        <p className="mt-1 text-ink-secondary">
-          {upcomingCount > 0
+    <div className="space-y-6">
+      <PageHeader
+        className="pt-0 pb-0 sm:pt-0"
+        title="My Agenda"
+        subtitle={
+          upcomingCount > 0
             ? `${upcomingCount} upcoming appearance${upcomingCount !== 1 ? "s" : ""}`
-            : "Your schedule for this year"}
-        </p>
-      </div>
+            : "Your schedule for this year"
+        }
+      />
 
       {items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-24 text-center">
-          <p className="text-sm font-medium text-ink-primary">No agenda yet</p>
-          <p className="mt-1 text-sm text-ink-muted">
-            Your upcoming appearances will appear here once scheduled.
-          </p>
-        </div>
+        <EmptyState
+          icon={<CalendarDays />}
+          title="No agenda yet"
+          description="Your upcoming appearances will appear here once scheduled."
+        />
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-6">
           {sortedMonths.map((monthNum) => {
             const monthItems = byMonth.get(monthNum) ?? [];
             const label = getMonthLabel(monthNum, monthItems);
 
             return (
               <section key={monthNum}>
-                {/* Month header */}
-                <div className="mb-3">
-                  <span className="text-xs font-bold uppercase tracking-widest text-ink-muted">
-                    {label}
-                  </span>
-                </div>
-
-                <div className="rounded-lg border border-border bg-white overflow-hidden divide-y divide-border">
+                <SectionHeader title={label} />
+                <Card padding="none" className="divide-y divide-border">
                   {monthItems.map((item, idx) => (
                     <AgendaRow key={item.id} item={item} index={idx + 1} />
                   ))}
-                </div>
+                </Card>
               </section>
             );
           })}
@@ -157,65 +157,54 @@ function AgendaRow({
   return (
     <div
       className={cn(
-        "flex items-start gap-4 px-5 py-4",
+        "flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start sm:gap-4",
         isPast && item.status === "SCHEDULED" ? "opacity-60" : ""
       )}
     >
-      {/* Index */}
-      <span className="flex-shrink-0 w-5 text-xs text-ink-muted pt-0.5">
-        {index}
-      </span>
-
-      {/* Date */}
-      <div className="flex-shrink-0 w-28">
-        <p className="text-xs font-semibold text-ink-primary">{dateStr}</p>
-        {arrivalStr && (
-          <p className="text-2xs text-ink-muted mt-0.5">
-            Arrival: {arrivalStr}
-          </p>
-        )}
-        {eventStr && (
-          <p className="text-2xs text-ink-muted">
-            On Air: {eventStr}
-          </p>
-        )}
+      {/* Index + date */}
+      <div className="flex shrink-0 items-start gap-3 sm:w-36">
+        <span className="w-5 pt-0.5 text-xs text-ink-muted tabular">{index}</span>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-ink-primary tabular">{dateStr}</p>
+          {arrivalStr && (
+            <p className="mt-0.5 text-2xs text-ink-muted">Arrival: {arrivalStr}</p>
+          )}
+          {eventStr && (
+            <p className="text-2xs text-ink-muted">On Air: {eventStr}</p>
+          )}
+        </div>
       </div>
 
       {/* Venue */}
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1 sm:pl-0 pl-8">
         {item.venueName && (
           <p className="text-sm font-semibold text-ink-primary">{item.venueName}</p>
         )}
         {item.venueAddress && (
-          <p className="text-xs text-ink-muted mt-0.5">{item.venueAddress}</p>
+          <p className="mt-0.5 text-xs text-ink-muted">{item.venueAddress}</p>
         )}
         {item.notes && (
-          <p className="text-xs text-ink-secondary mt-1">{item.notes}</p>
+          <p className="mt-1 max-w-prose text-xs text-ink-secondary">{item.notes}</p>
         )}
         {item.itemType && (
-          <span className="mt-1.5 inline-block rounded bg-surface-2 px-1.5 py-0.5 text-2xs font-medium text-ink-secondary">
+          <Badge tone="outline" size="xs" className="mt-1.5">
             {item.itemType}
-          </span>
+          </Badge>
         )}
       </div>
 
-      {/* Runner (name only, no phone in client view) */}
-      {item.runner && (
-        <div className="flex-shrink-0 text-right">
-          <p className="text-2xs text-ink-muted">PR</p>
-          <p className="text-xs text-ink-secondary">{item.runner.name}</p>
-        </div>
-      )}
-
-      {/* Status */}
-      <span
-        className={cn(
-          "flex-shrink-0 rounded-full px-2.5 py-0.5 text-2xs font-semibold",
-          STATUS_STYLES[item.status] ?? "bg-surface-2 text-ink-muted"
+      {/* Runner (name only, no phone in client view) + status */}
+      <div className="flex shrink-0 items-center justify-between gap-4 pl-8 sm:justify-end sm:pl-0">
+        {item.runner && (
+          <div className="sm:text-right">
+            <p className="eyebrow">PR</p>
+            <p className="text-xs text-ink-secondary">{item.runner.name}</p>
+          </div>
         )}
-      >
-        {STATUS_LABELS[item.status] ?? item.status}
-      </span>
+        <Badge tone={STATUS_TONES[item.status] ?? "neutral"} dot className="shrink-0">
+          {STATUS_LABELS[item.status] ?? item.status}
+        </Badge>
+      </div>
     </div>
   );
 }

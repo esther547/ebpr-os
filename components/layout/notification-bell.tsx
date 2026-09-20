@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Bell } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
@@ -19,36 +19,60 @@ export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
 
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(Array.isArray(data.data) ? data.data : []);
+        setUnreadCount(Number(data.unreadCount) || 0);
+      }
+    } catch {
+      // Network hiccup: keep the last known state and retry on the next poll
+    }
+  }, []);
+
   useEffect(() => {
     fetchNotifications();
     // Poll every 60 seconds
     const interval = setInterval(fetchNotifications, 60000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchNotifications]);
 
-  async function fetchNotifications() {
-    try {
-      const res = await fetch("/api/notifications");
-      if (res.ok) {
-        const data = await res.json();
-        setNotifications(data.data);
-        setUnreadCount(data.unreadCount);
-      }
-    } catch {}
-  }
+  // Refresh when the dropdown is opened so the list is current
+  useEffect(() => {
+    if (open) fetchNotifications();
+  }, [open, fetchNotifications]);
 
-  async function markRead(id: string) {
-    await fetch(`/api/notifications/${id}`, { method: "PUT" });
+  async function markRead(n: Notification) {
+    if (n.isRead) return;
+    // Optimistic update
     setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+      prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x))
     );
     setUnreadCount((c) => Math.max(0, c - 1));
+    try {
+      // keepalive so the request survives an immediate navigation
+      await fetch(`/api/notifications/${n.id}`, { method: "PUT", keepalive: true });
+    } catch {
+      // Will be corrected by the next poll
+    }
+  }
+
+  async function handleClick(n: Notification) {
+    await markRead(n);
+    if (n.link) {
+      setOpen(false);
+      window.location.href = n.link;
+    }
   }
 
   return (
     <div className="relative">
       <button
+        type="button"
         onClick={() => setOpen(!open)}
+        aria-label="Notifications"
         className="relative rounded-md p-1.5 text-ink-muted hover:bg-surface-2 hover:text-ink-primary transition-colors"
       >
         <Bell className="h-4 w-4" />
@@ -71,10 +95,7 @@ export function NotificationBell() {
                 notifications.map((n) => (
                   <div
                     key={n.id}
-                    onClick={() => {
-                      markRead(n.id);
-                      if (n.link) window.location.href = n.link;
-                    }}
+                    onClick={() => handleClick(n)}
                     className={`px-4 py-3 border-b border-border cursor-pointer hover:bg-surface-1 transition-colors ${
                       !n.isRead ? "bg-blue-50/50" : ""
                     }`}

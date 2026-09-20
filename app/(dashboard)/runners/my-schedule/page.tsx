@@ -1,8 +1,9 @@
 import { requireUser } from "@/lib/auth";
 import { canViewRunnerSchedule } from "@/lib/permissions";
-import { db } from "@/lib/db";
 import { PageHeader } from "@/components/layout/header";
 import { MyScheduleView } from "@/components/runners/my-schedule-view";
+import { addDaysKey, dayKeyInTz, tzMidnight } from "@/components/runners/miami-time";
+import { loadScheduleItems } from "@/components/runners/load-schedule";
 
 export const metadata = { title: "My Schedule" };
 export const dynamic = "force-dynamic";
@@ -16,17 +17,18 @@ export default async function MySchedulePage() {
   // Runners see only their own; admins see all
   const runnerId = user.role === "RUNNER" ? user.id : undefined;
 
-  const assignments = await db.runnerAssignment.findMany({
-    where: {
-      ...(runnerId ? { runnerId } : {}),
-      eventDate: { gte: new Date() },
-      status: { not: "CANCELLED" },
-    },
-    orderBy: { eventDate: "asc" },
-    take: 50,
-    include: {
-      runner: { select: { id: true, name: true } },
-    },
+  const todayKey = dayKeyInTz(new Date());
+  const assignments = await loadScheduleItems({
+    ...(runnerId ? { runnerId } : {}),
+    // From the start of today (Miami), plus uncompleted events from the past week
+    OR: [
+      { eventDate: { gte: tzMidnight(todayKey) } },
+      {
+        status: { in: ["SCHEDULED", "CONFIRMED"] },
+        eventDate: { gte: tzMidnight(addDaysKey(todayKey, -7)) },
+      },
+    ],
+    status: { not: "CANCELLED" },
   });
 
   const upcomingCount = assignments.filter((a) => a.status === "SCHEDULED" || a.status === "CONFIRMED").length;
@@ -37,7 +39,7 @@ export default async function MySchedulePage() {
         title="My Schedule"
         subtitle={`${upcomingCount} upcoming assignments`}
       />
-      <MyScheduleView assignments={JSON.parse(JSON.stringify(assignments))} />
+      <MyScheduleView assignments={assignments} todayKey={todayKey} showRunner={!runnerId} />
     </>
   );
 }

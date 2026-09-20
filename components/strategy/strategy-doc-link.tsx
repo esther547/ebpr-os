@@ -15,37 +15,62 @@ export function StrategyDocLink({ clientId, strategyDocUrl }: Props) {
   const [showEdit, setShowEdit] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const router = useRouter();
 
   async function importStrategy() {
     setImporting(true);
     setImportResult(null);
 
-    const res = await fetch(`/api/clients/${clientId}/import-strategy`, { method: "POST" });
-    const data = await res.json();
+    try {
+      const res = await fetch(`/api/clients/${clientId}/import-strategy`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
 
-    if (res.ok) {
-      setImportResult(`✅ ${data.message}`);
-      router.refresh();
-    } else {
-      setImportResult(`❌ ${data.error}`);
+      if (res.ok) {
+        setImportResult(`✅ ${data.message ?? "Import complete"}`);
+        router.refresh();
+      } else {
+        setImportResult(`❌ ${typeof data.error === "string" ? data.error : "Import failed"}`);
+      }
+    } catch {
+      setImportResult("❌ Network error — could not reach the server");
     }
     setImporting(false);
   }
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setSaveError(null);
+    setSaving(true);
     const form = new FormData(e.currentTarget);
-    const url = (form.get("url") as string) || null;
+    const url = ((form.get("url") as string) || "").trim() || null;
 
-    await fetch(`/api/clients/${clientId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ strategyDocUrl: url }),
-    });
+    if (url && !/^https:\/\/docs\.google\.com\/document\/d\/[A-Za-z0-9_-]+/.test(url)) {
+      setSaveError("That doesn't look like a Google Doc link (https://docs.google.com/document/d/...)");
+      setSaving(false);
+      return;
+    }
 
-    setShowEdit(false);
-    router.refresh();
+    try {
+      const res = await fetch(`/api/clients/${clientId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ strategyDocUrl: url }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setSaveError(typeof data.error === "string" ? data.error : "Could not save link");
+        setSaving(false);
+        return;
+      }
+      setSaving(false);
+      setShowEdit(false);
+      router.refresh();
+    } catch {
+      setSaveError("Network error — could not reach the server");
+      setSaving(false);
+    }
   }
 
   return (
@@ -104,6 +129,7 @@ export function StrategyDocLink({ clientId, strategyDocUrl }: Props) {
 
       <Modal open={showEdit} onOpenChange={setShowEdit} title="Strategy Document Link" description="Paste a Google Doc link for this client's strategy">
         <form onSubmit={handleSave} className="space-y-4">
+          {saveError && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{saveError}</div>}
           <FormGroup label="Google Doc URL" htmlFor="sd-url">
             <Input
               id="sd-url"
@@ -118,7 +144,7 @@ export function StrategyDocLink({ clientId, strategyDocUrl }: Props) {
             Paste the Google Doc link here. Make sure the document is shared with your team.
           </p>
           <div className="flex gap-3 pt-2">
-            <Button type="submit">Save Link</Button>
+            <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save Link"}</Button>
             <Button type="button" variant="secondary" onClick={() => setShowEdit(false)}>
               Cancel
             </Button>

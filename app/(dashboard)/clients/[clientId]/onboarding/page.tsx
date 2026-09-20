@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/layout/header";
 import { formatDate, cn } from "@/lib/utils";
+import { OnboardingActions } from "@/components/clients/onboarding-actions";
 
 type Props = { params: { clientId: string } };
 
@@ -34,7 +35,7 @@ export default async function OnboardingPage({ params }: Props) {
   });
 
   const currentStepIdx = onboarding
-    ? STATUS_STEPS.findIndex((s) => s.key === onboarding.status)
+    ? Math.max(0, STATUS_STEPS.findIndex((s) => s.key === onboarding.status))
     : 0;
 
   return (
@@ -42,6 +43,13 @@ export default async function OnboardingPage({ params }: Props) {
       <PageHeader
         title="Onboarding"
         subtitle={`${client.name} · Preparation & kickoff`}
+        actions={
+          <OnboardingActions
+            clientId={client.id}
+            status={onboarding?.status ?? null}
+            kickoffDate={onboarding?.kickoffDate ?? null}
+          />
+        }
       />
 
       {/* Progress stepper */}
@@ -225,9 +233,9 @@ export default async function OnboardingPage({ params }: Props) {
           <p className="text-sm font-medium text-ink-primary">
             Onboarding not started
           </p>
-          <button className="mt-4 inline-flex h-9 items-center rounded-md bg-ink-primary px-4 text-sm font-medium text-ink-inverted hover:bg-ink-primary/90 transition-colors">
-            Start Onboarding
-          </button>
+          <p className="mt-1 text-sm text-ink-muted">
+            Use "Start Onboarding" above to schedule the kickoff.
+          </p>
         </div>
       )}
     </>

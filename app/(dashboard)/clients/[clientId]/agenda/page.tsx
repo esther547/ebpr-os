@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/layout/header";
 import { AgendaMonthSection } from "@/components/agenda/agenda-month-section";
+import { AgendaAddItemButton } from "@/components/agenda/create-agenda-item-modal";
 import { format, getMonth } from "date-fns";
 
 type Props = { params: { clientId: string } };
@@ -15,7 +16,7 @@ export default async function AgendaPage({ params }: Props) {
 
   const client = await db.client.findUnique({
     where: { id: params.clientId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, status: true },
   });
   if (!client) notFound();
 
@@ -30,12 +31,19 @@ export default async function AgendaPage({ params }: Props) {
   const runners = await db.user.findMany({
     where: { role: "RUNNER", isActive: true },
     select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+
+  const linkableDeliverables = await db.deliverable.findMany({
+    where: { clientId: params.clientId, status: { in: ["CONFIRMED", "IN_PROGRESS"] } },
+    select: { id: true, title: true },
+    orderBy: { createdAt: "desc" },
   });
 
   // Transform to component shape
   const items = rawItems.map((item) => ({
     id: item.id,
-    eventName: item.notes ?? item.venueName ?? item.itemType ?? "Appearance",
+    eventName: item.eventName,
     eventDate: item.eventDate,
     arrivalTime: item.arrivalTime,
     eventTime: item.eventTime,
@@ -69,9 +77,12 @@ export default async function AgendaPage({ params }: Props) {
         title="Agenda"
         subtitle={`${client.name} · ${items.length} scheduled items`}
         actions={
-          <button className="inline-flex h-9 items-center rounded-md bg-ink-primary px-4 text-sm font-medium text-ink-inverted hover:bg-ink-primary/90 transition-colors">
-            + Add Item
-          </button>
+          <AgendaAddItemButton
+            clientId={client.id}
+            clientStatus={client.status}
+            runners={runners}
+            deliverables={linkableDeliverables}
+          />
         }
       />
 

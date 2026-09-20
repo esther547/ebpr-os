@@ -41,10 +41,16 @@ export async function sendEmail({
     return false;
   }
 
+  const recipients = (Array.isArray(to) ? to : [to]).map((r) => r.trim()).filter(Boolean);
+  if (recipients.length === 0) {
+    console.warn("[Email] No recipient for:", subject);
+    return false;
+  }
+
   try {
     await transporter.sendMail({
       from: `"EB Public Relations" <${process.env.GMAIL_USER}>`,
-      to: Array.isArray(to) ? to.join(", ") : to,
+      to: recipients.join(", "),
       subject,
       html,
       text: text || subject,
@@ -57,6 +63,16 @@ export async function sendEmail({
 }
 
 // ─── Email Templates ─────────────────────────────────────
+
+/** Escape user-entered text (client names, deliverable titles, outcomes) before interpolating into HTML. */
+function esc(value: string | null | undefined): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 export function digestEmailHtml({
   clientName,
@@ -77,7 +93,7 @@ export function digestEmailHtml({
   monitorLink: string | null;
   deliverables: { title: string; type: string; status: string }[];
 }): string {
-  const greeting = contactName ? `Hi ${contactName.split(" ")[0]},` : `Hi,`;
+  const greeting = contactName ? `Hi ${esc(contactName.split(" ")[0])},` : `Hi,`;
 
   return `
 <!DOCTYPE html>
@@ -117,7 +133,7 @@ export function digestEmailHtml({
   <div class="container">
     <div class="header">
       <h1>EB PUBLIC RELATIONS</h1>
-      <p>Weekly PR Update for ${clientName}</p>
+      <p>Weekly PR Update for ${esc(clientName)}</p>
     </div>
     <div class="body">
       <p class="greeting">${greeting}</p>
@@ -133,7 +149,7 @@ export function digestEmailHtml({
           </td>
           <td width="12"></td>
           <td style="background: #f9f9f9; border-radius: 8px; padding: 14px; text-align: center; width: 50%;">
-            <div style="font-size: 24px; font-weight: 700;">${monthlyProgress}</div>
+            <div style="font-size: 24px; font-weight: 700;">${esc(monthlyProgress)}</div>
             <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px;">Monthly Progress</div>
           </td>
         </tr>
@@ -144,8 +160,8 @@ export function digestEmailHtml({
           <div class="section-title">Key Wins</div>
           ${wins.map((w) => `
             <div class="win">
-              <div class="win-title">${w.title}</div>
-              <div class="win-outcome">${w.outcome}</div>
+              <div class="win-title">${esc(w.title)}</div>
+              <div class="win-outcome">${esc(w.outcome)}</div>
             </div>
           `).join("")}
         </div>
@@ -156,8 +172,8 @@ export function digestEmailHtml({
           <div class="section-title">Upcoming This Week</div>
           ${upcomingEvents.map((e) => `
             <div class="event">
-              <div class="event-name">${e.name}</div>
-              <div class="event-detail">${new Date(e.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}${e.location ? ` — ${e.location}` : ""}</div>
+              <div class="event-name">${esc(e.name)}</div>
+              <div class="event-detail">${new Date(e.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}${e.location ? ` — ${esc(e.location)}` : ""}</div>
             </div>
           `).join("")}
         </div>
@@ -168,12 +184,12 @@ export function digestEmailHtml({
           <div class="section-title">Recent Activity</div>
           ${deliverables.map((d) => {
             const badgeClass = d.status === "COMPLETED" ? "badge-completed" : d.status === "CONFIRMED" ? "badge-confirmed" : "badge-progress";
-            return `<div class="deliverable"><span>${d.title}</span><span class="badge ${badgeClass}">${d.status}</span></div>`;
+            return `<div class="deliverable"><span>${esc(d.title)}</span><span class="badge ${badgeClass}">${esc(d.status)}</span></div>`;
           }).join("")}
         </div>
       ` : ""}
 
-      ${monitorLink ? `<a href="${monitorLink}" class="cta">View Full Dashboard</a>` : ""}
+      ${monitorLink ? `<a href="${esc(monitorLink)}" class="cta">View Full Dashboard</a>` : ""}
     </div>
     <div class="footer">
       <p>EB Public Relations — Miami, FL</p>

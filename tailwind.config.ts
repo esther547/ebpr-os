@@ -61,9 +61,20 @@ const config: Config = {
         ring: "#0A0A0A",
       },
       borderRadius: {
-        lg: "0.5rem",
-        md: "0.375rem",
-        sm: "0.25rem",
+        "2xl": "1rem",
+        xl: "0.75rem",
+        lg: "0.625rem",
+        md: "0.5rem",
+        sm: "0.375rem",
+      },
+      boxShadow: {
+        card: "0 1px 2px rgba(10,10,10,0.04), 0 1px 3px rgba(10,10,10,0.06)",
+        "card-hover": "0 2px 6px rgba(10,10,10,0.06), 0 8px 24px rgba(10,10,10,0.08)",
+        pop: "0 8px 28px rgba(10,10,10,0.14), 0 2px 8px rgba(10,10,10,0.06)",
+        inset: "inset 0 1px 2px rgba(10,10,10,0.04)",
+      },
+      spacing: {
+        sidebar: "var(--sidebar-width)",
       },
       fontFamily: {
         sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
@@ -85,11 +96,30 @@ const config: Config = {
           from: { opacity: "0", transform: "translateY(4px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        "scale-in": {
+          from: { opacity: "0", transform: "translate(-50%, -50%) scale(0.97)" },
+          to: { opacity: "1", transform: "translate(-50%, -50%) scale(1)" },
+        },
+        "slide-in-right": {
+          from: { transform: "translateX(100%)", opacity: "0" },
+          to: { transform: "translateX(0)", opacity: "1" },
+        },
+        "slide-in-left": {
+          from: { transform: "translateX(-100%)" },
+          to: { transform: "translateX(0)" },
+        },
+        shimmer: {
+          "100%": { transform: "translateX(100%)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "fade-in": "fade-in 0.2s ease-out",
+        "scale-in": "scale-in 0.18s ease-out",
+        "slide-in-right": "slide-in-right 0.25s ease-out",
+        "slide-in-left": "slide-in-left 0.2s ease-out",
+        shimmer: "shimmer 1.6s infinite",
       },
     },
   },

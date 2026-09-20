@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { cn, DELIVERABLE_STATUS_LABELS, DELIVERABLE_STATUS_COLORS, DELIVERABLE_TYPE_LABELS } from "@/lib/utils";
 
 const COLUMNS = [
@@ -8,15 +9,18 @@ const COLUMNS = [
   "CONFIRMED",
   "IN_PROGRESS",
   "COMPLETED",
+  "CANCELLED",
 ] as const;
 
 type Props = {
   deliverables: any[];
   clientId: string;
   target: number;
+  runnerNeededIds?: string[];
 };
 
-export function DeliverableBoard({ deliverables, clientId, target }: Props) {
+export function DeliverableBoard({ deliverables, clientId, target, runnerNeededIds = [] }: Props) {
+  const runnerNeeded = new Set(runnerNeededIds);
   const byStatus = COLUMNS.reduce(
     (acc, status) => {
       acc[status] = deliverables.filter((d: any) => d.status === status);
@@ -54,7 +58,12 @@ export function DeliverableBoard({ deliverables, clientId, target }: Props) {
               {/* Cards */}
               <div className="space-y-2">
                 {items.map((d) => (
-                  <DeliverableCard key={d.id} deliverable={d} clientId={clientId} />
+                  <DeliverableCard
+                    key={d.id}
+                    deliverable={d}
+                    clientId={clientId}
+                    needsRunner={runnerNeeded.has(d.id)}
+                  />
                 ))}
                 {items.length === 0 && (
                   <div className="rounded-lg border border-dashed border-border p-4 text-center">
@@ -86,22 +95,30 @@ export function DeliverableBoard({ deliverables, clientId, target }: Props) {
 function DeliverableCard({
   deliverable,
   clientId,
+  needsRunner,
 }: {
   deliverable: any;
   clientId: string;
+  needsRunner?: boolean;
 }) {
-  const colors = DELIVERABLE_STATUS_COLORS[deliverable.status as keyof typeof DELIVERABLE_STATUS_COLORS];
-
   return (
-    <a
+    <Link
       href={`/clients/${clientId}/deliverables/${deliverable.id}`}
-      className="block rounded-lg border border-border bg-white p-4 hover:border-border-strong hover:shadow-sm transition-all"
+      className={cn(
+        "block rounded-lg border bg-white p-4 hover:border-border-strong hover:shadow-sm transition-all",
+        needsRunner ? "border-amber-300" : "border-border"
+      )}
     >
       {/* Type badge */}
-      <div className="mb-2">
+      <div className="mb-2 flex items-center justify-between gap-2">
         <span className="text-2xs font-semibold uppercase tracking-widest text-ink-muted">
-          {DELIVERABLE_TYPE_LABELS[deliverable.type as keyof typeof DELIVERABLE_TYPE_LABELS]}
+          {DELIVERABLE_TYPE_LABELS[deliverable.type as keyof typeof DELIVERABLE_TYPE_LABELS] ?? deliverable.type}
         </span>
+        {needsRunner && (
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-2xs font-semibold text-amber-800">
+            Runner needed
+          </span>
+        )}
       </div>
 
       {/* Title */}
@@ -122,7 +139,7 @@ function DeliverableCard({
         {deliverable.assignee ? (
           <div className="flex items-center gap-1.5">
             <div className="h-5 w-5 rounded-full bg-surface-3 flex items-center justify-center text-2xs font-semibold text-ink-secondary">
-              {deliverable.assignee.name[0].toUpperCase()}
+              {(deliverable.assignee.name?.[0] ?? "?").toUpperCase()}
             </div>
             <span className="text-xs text-ink-muted">
               {deliverable.assignee.name.split(" ")[0]}
@@ -134,14 +151,14 @@ function DeliverableCard({
 
         {/* Counts */}
         <div className="flex items-center gap-2 text-xs text-ink-muted">
-          {deliverable._count.tasks > 0 && (
+          {deliverable._count?.tasks > 0 && (
             <span>{deliverable._count.tasks} tasks</span>
           )}
-          {deliverable._count.comments > 0 && (
+          {deliverable._count?.comments > 0 && (
             <span>{deliverable._count.comments} notes</span>
           )}
         </div>
       </div>
-    </a>
+    </Link>
   );
 }

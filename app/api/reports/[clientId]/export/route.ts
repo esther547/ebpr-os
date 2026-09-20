@@ -2,18 +2,37 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canViewReports } from "@/lib/permissions";
+import { currentMonthYearInTz, formatInTz } from "@/components/runners/miami-time";
 
-// Generates a printable HTML report that can be saved as PDF via browser print
-export async function GET(req: NextRequest, { params }: { params: Promise<{ clientId: string }> }) {
-  const user = await requireUser();
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+// Generates a printable HTML report that can be saved as PDF via browser print.
+// Next 14: route params are a plain object (not a Promise).
+export async function GET(req: NextRequest, { params }: { params: { clientId: string } }) {
+  let user;
+  try {
+    user = await requireUser();
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   if (!canViewReports(user)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { clientId } = await params;
+  const { clientId } = params;
   const { searchParams } = new URL(req.url);
-  const month = parseInt(searchParams.get("month") ?? String(new Date().getMonth() + 1));
-  const year = parseInt(searchParams.get("year") ?? String(new Date().getFullYear()));
+  const current = currentMonthYearInTz();
+  const month = Number(searchParams.get("month") ?? current.month);
+  const year = Number(searchParams.get("year") ?? current.year);
+  if (
+    !Number.isInteger(month) || month < 1 || month > 12 ||
+    !Number.isInteger(year) || year < 2000 || year > 2100
+  ) {
+    return NextResponse.json({ error: "Invalid month/year" }, { status: 400 });
+  }
 
   const client = await db.client.findUnique({
     where: { id: clientId },
@@ -21,21 +40,28 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ clie
   });
   if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Client-facing document: client-visible, non-internal, non-cancelled only
   const deliverables = await db.deliverable.findMany({
-    where: { clientId, month, year, isClientVisible: true },
+    where: { clientId, month, year, isClientVisible: true, isInternal: false, status: { not: "CANCELLED" } },
     select: {
       id: true, title: true, type: true, status: true, outcome: true,
       completedAt: true, dueDate: true,
-      assignee: { select: { name: true } },
     },
-    orderBy: { completedAt: "desc" },
+    orderBy: [{ completedAt: "desc" }, { createdAt: "asc" }],
   });
 
   const completed = deliverables.filter((d) => d.status === "COMPLETED");
-  const monthName = new Date(year, month - 1).toLocaleString("en-US", { month: "long" });
+  const monthName = MONTHS[month - 1];
   const completionRate = client.monthlyTarget > 0
     ? Math.round((completed.length / client.monthlyTarget) * 100)
     : 0;
+
+  // Media breakdown of completed deliverables by type
+  const mediaBreakdown = new Map<string, number>();
+  for (const d of completed) {
+    mediaBreakdown.set(d.type, (mediaBreakdown.get(d.type) ?? 0) + 1);
+  }
+  const fmtDay = (d: Date) => formatInTz(d, { month: "short", day: "numeric" });
 
   const typeLabels: Record<string, string> = {
     PRESS_PLACEMENT: "Press Placement",
@@ -62,7 +88,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ clie
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>${client.name} — ${monthName} ${year} Report</title>
+  <title>${escapeHtml(client.name)} — ${monthName} ${year} Report</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -104,7 +130,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ clie
 
   <div class="header">
     <div class="logo-text">EB PUBLIC RELATIONS</div>
-    <h1>${client.name}</h1>
+    <h1>${escapeHtml(client.name)}</h1>
     <p>Monthly PR Report — ${monthName} ${year}</p>
   </div>
 
@@ -128,6 +154,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ clie
     </div>
   </div>
 
+  ${mediaBreakdown.size > 0 ? `
+    <div class="section-title">Media Breakdown</div>
+    <table>
+      <thead><tr><th>Type</th><th>Completed</th></tr></thead>
+      <tbody>
+        ${Array.from(mediaBreakdown.entries()).sort((a, b) => b[1] - a[1]).map(([type, count]) => `
+          <tr>
+            <td><span class="type-badge">${typeLabels[type] || type}</span></td>
+            <td><strong>${count}</strong></td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  ` : ""}
+
   <div class="section-title">All Deliverables</div>
   <table>
     <thead>
@@ -144,7 +185,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ clie
           <td><strong>${escapeHtml(d.title)}</strong></td>
           <td><span class="type-badge">${typeLabels[d.type] || d.type}</span></td>
           <td><span class="badge" style="background: ${statusColors[d.status] || "#6b7280"}">${d.status}</span></td>
-          <td>${d.completedAt ? new Date(d.completedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : d.dueDate ? new Date(d.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</td>
+          <td>${d.completedAt ? fmtDay(d.completedAt) : d.dueDate ? fmtDay(d.dueDate) : "—"}</td>
         </tr>
       `).join("")}
       ${deliverables.length === 0 ? '<tr><td colspan="4" style="text-align: center; color: #999; padding: 20px;">No deliverables for this month</td></tr>' : ""}
@@ -164,14 +205,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ clie
   ` : ""}
 
   <div class="footer">
-    <p>Generated by EBPR OS on ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
+    <p>Generated by EBPR OS on ${formatInTz(new Date(), { month: "long", day: "numeric", year: "numeric" })}</p>
     <p>EB Public Relations — Miami, FL</p>
   </div>
 </body>
 </html>`;
 
   return new NextResponse(html, {
-    headers: { "Content-Type": "text/html; charset=utf-8" },
+    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store, max-age=0" },
   });
 }
 

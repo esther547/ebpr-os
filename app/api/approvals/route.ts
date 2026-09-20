@@ -4,6 +4,12 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canRequestApprovals } from "@/lib/permissions";
 
+function zodMessage(err: z.ZodError) {
+  return err.issues
+    .map((i) => (i.path.length ? `${i.path.join(".")}: ` : "") + i.message)
+    .join("; ");
+}
+
 const createApprovalSchema = z.object({
   clientId: z.string().min(1),
   deliverableId: z.string().optional(),
@@ -30,7 +36,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const parsed = createApprovalSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+      return NextResponse.json({ error: zodMessage(parsed.error), details: parsed.error.flatten() }, { status: 400 });
     }
 
     const approval = await db.approval.create({
@@ -51,7 +57,11 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ data: approval }, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (err) {
+    if (err instanceof Error && (err.message === "Unauthorized" || err.message === "Forbidden")) {
+      return NextResponse.json({ error: err.message }, { status: err.message === "Forbidden" ? 403 : 401 });
+    }
+    console.error("POST /api/approvals failed:", err);
+    return NextResponse.json({ error: "Could not create approval request" }, { status: 500 });
   }
 }

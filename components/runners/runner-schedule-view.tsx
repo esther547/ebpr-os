@@ -1,15 +1,30 @@
 "use client";
 
-import { format, addDays, isSameDay } from "date-fns";
 import { cn } from "@/lib/utils";
-import type { RunnerScheduleEntry } from "@/types";
+import { addDaysKey, formatDayKey } from "@/components/runners/miami-time";
 
 type Runner = { id: string; name: string; avatar: string | null };
 
+export type ScheduleAssignment = {
+  id: string;
+  runnerId: string;
+  eventName: string;
+  eventDate: string;
+  /** "yyyy-MM-dd" in Miami time, computed on the server. */
+  dayKey: string;
+  location: string | null;
+  venueName: string | null;
+  status: string;
+  runner: { id: string; name: string; avatar: string | null } | null;
+};
+
 type Props = {
-  assignments: RunnerScheduleEntry[];
+  assignments: ScheduleAssignment[];
   runners: Runner[];
-  weekStart: Date;
+  /** Monday of the current week, "yyyy-MM-dd" (Miami). */
+  weekStartKey: string;
+  /** Today, "yyyy-MM-dd" (Miami). */
+  todayKey: string;
   isReadOnly: boolean;
 };
 
@@ -25,12 +40,12 @@ const STATUS_STYLES: Record<string, string> = {
 export function RunnerScheduleView({
   assignments,
   runners,
-  weekStart,
-  isReadOnly,
+  weekStartKey,
+  todayKey,
 }: Props) {
   const days = WEEK_DAYS.map((label, i) => ({
     label,
-    date: addDays(weekStart, i),
+    key: addDaysKey(weekStartKey, i),
   }));
 
   return (
@@ -39,7 +54,7 @@ export function RunnerScheduleView({
       <p className="mb-4 text-sm text-ink-muted">
         Week of{" "}
         <span className="font-medium text-ink-primary">
-          {format(weekStart, "MMMM d, yyyy")}
+          {formatDayKey(weekStartKey, "MMMM d, yyyy")}
         </span>
       </p>
 
@@ -47,12 +62,12 @@ export function RunnerScheduleView({
       <div className="overflow-hidden rounded-lg border border-border bg-white">
         {/* Header row */}
         <div className="grid grid-cols-7 border-b border-border">
-          {days.map(({ label, date }) => (
+          {days.map(({ label, key }) => (
             <div
               key={label}
               className={cn(
                 "px-3 py-3 text-center border-r border-border last:border-r-0",
-                isSameDay(date, new Date()) && "bg-surface-2"
+                key === todayKey && "bg-surface-2"
               )}
             >
               <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
@@ -61,12 +76,10 @@ export function RunnerScheduleView({
               <p
                 className={cn(
                   "mt-0.5 text-sm font-medium",
-                  isSameDay(date, new Date())
-                    ? "text-ink-primary"
-                    : "text-ink-secondary"
+                  key === todayKey ? "text-ink-primary" : "text-ink-secondary"
                 )}
               >
-                {format(date, "d")}
+                {formatDayKey(key, "d")}
               </p>
             </div>
           ))}
@@ -78,10 +91,9 @@ export function RunnerScheduleView({
             key={runner.id}
             className="grid grid-cols-7 border-b border-border last:border-b-0 min-h-[80px]"
           >
-            {days.map(({ date }, i) => {
+            {days.map(({ key }, i) => {
               const dayAssignments = assignments.filter(
-                (a) =>
-                  a.runnerId === runner.id && isSameDay(new Date(a.eventDate), date)
+                (a) => a.runnerId === runner.id && a.dayKey === key
               );
 
               return (
@@ -89,7 +101,7 @@ export function RunnerScheduleView({
                   key={i}
                   className={cn(
                     "p-2 border-r border-border last:border-r-0 relative",
-                    isSameDay(date, new Date()) && "bg-surface-1"
+                    key === todayKey && "bg-surface-1"
                   )}
                 >
                   {/* Runner name (only first column) */}
@@ -101,14 +113,15 @@ export function RunnerScheduleView({
                   {dayAssignments.map((a) => (
                     <div
                       key={a.id}
+                      title={`${a.eventName}${a.venueName ? ` · ${a.venueName}` : ""}`}
                       className={cn(
                         "rounded border px-2 py-1 text-xs mb-1",
-                        STATUS_STYLES[a.status]
+                        STATUS_STYLES[a.status] ?? "bg-surface-2 text-ink-secondary border-border"
                       )}
                     >
                       <p className="font-medium truncate">{a.eventName}</p>
-                      {a.location && (
-                        <p className="truncate opacity-80">{a.location}</p>
+                      {(a.location || a.venueName) && (
+                        <p className="truncate opacity-80">{a.location || a.venueName}</p>
                       )}
                     </div>
                   ))}

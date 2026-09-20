@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatDate, formatBytes } from "@/lib/utils";
 import { FileText, Image, Table, Video, File as FileIcon } from "lucide-react";
+import { FileUpload } from "@/components/clients/file-upload";
 
 type Props = { params: { clientId: string } };
 
@@ -47,9 +48,12 @@ export default async function ClientFilesPage({ params }: Props) {
 
   return (
     <div>
-      <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-        Files ({files.length})
-      </h2>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-ink-muted">
+          Files ({files.length})
+        </h2>
+        <FileUpload clientId={client.id} />
+      </div>
 
       {files.length > 0 ? (
         <div className="rounded-lg border border-border bg-white overflow-hidden">
@@ -96,7 +100,7 @@ export default async function ClientFilesPage({ params }: Props) {
         <div className="rounded-lg border border-border bg-white p-12 text-center">
           <FileIcon className="mx-auto h-8 w-8 text-ink-muted mb-3" />
           <p className="text-sm font-medium text-ink-primary">No files yet</p>
-          <p className="text-xs text-ink-muted mt-1">Upload files to this client</p>
+          <p className="text-xs text-ink-muted mt-1">Use "Upload File" above to add contracts, assets, or coverage.</p>
         </div>
       )}
     </div>

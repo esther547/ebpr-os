@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 
 type AgendaItem = {
   id: string;
+  eventName?: string | null;
   eventDate: Date | string;
   arrivalTime: Date | string | null;
   eventTime: Date | string | null;
@@ -157,7 +158,7 @@ function AgendaItemRow({
           </p>
         )}
         <p className="text-xs font-medium text-ink-primary">
-          {eventTime ? format(eventTime, "h:mm a") : format(date, "h:mm a")}
+          {eventTime ? format(eventTime, "h:mm a") : "—"}
         </p>
       </td>
 
@@ -194,8 +195,11 @@ function AgendaItemRow({
             </span>
           )}
           <p className="text-xs font-medium text-ink-primary">
-            {item.notes || "—"}
+            {item.eventName || item.notes || "—"}
           </p>
+          {item.eventName && item.notes && (
+            <p className="text-[10px] text-ink-muted">{item.notes}</p>
+          )}
           {(item.accompanistCount ?? 0) > 0 && (
             <p className="text-[10px] text-ink-muted">
               Acompañante +{item.accompanistCount}
@@ -209,7 +213,7 @@ function AgendaItemRow({
         {item.runner ? (
           <div className="flex items-center gap-1.5">
             <div className="h-5 w-5 rounded-full bg-surface-3 flex items-center justify-center text-[10px] font-bold text-ink-secondary flex-shrink-0">
-              {item.runner.name[0].toUpperCase()}
+              {(item.runner.name?.[0] ?? "?").toUpperCase()}
             </div>
             <div>
               <span className="text-xs text-ink-secondary block">

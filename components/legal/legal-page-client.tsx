@@ -8,6 +8,7 @@ import { CreateContractModal } from "@/components/contracts/create-contract-moda
 import { Modal } from "@/components/ui/modal";
 import { Input, FormGroup } from "@/components/ui/form-field";
 import { Send, Upload, FileText, Check, X } from "lucide-react";
+import { apiErrorMessage } from "@/components/finance/invoice-status";
 
 type ContractRow = {
   id: string;
@@ -40,6 +41,7 @@ export function LegalPageClient({ contracts, clients }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [sendContract, setSendContract] = useState<ContractRow | null>(null);
   const [uploadContract, setUploadContract] = useState<ContractRow | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const notSigned = contracts.filter(
@@ -49,12 +51,22 @@ export function LegalPageClient({ contracts, clients }: Props) {
 
   async function toggleStatus(contractId: string, currentStatus: string) {
     const newStatus = currentStatus === "SIGNED" ? "SENT" : "SIGNED";
-    await fetch(`/api/contracts/${contractId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: newStatus }),
-    });
-    router.refresh();
+    setError(null);
+    try {
+      const res = await fetch(`/api/contracts/${contractId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setError(apiErrorMessage(data, "Failed to update contract status"));
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError("Network error — status not updated");
+    }
   }
 
   return (
@@ -62,6 +74,10 @@ export function LegalPageClient({ contracts, clients }: Props) {
       <div className="mb-6">
         <Button onClick={() => setShowCreate(true)}>+ New Contract</Button>
       </div>
+
+      {error && (
+        <div className="mb-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      )}
 
       {/* Not Signed */}
       {notSigned.length > 0 && (
@@ -236,14 +252,22 @@ function UploadContractModal({ open, onOpenChange, contract }: { open: boolean; 
       return;
     }
 
-    const res = await fetch(`/api/contracts/${contract.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fileUrl, fileName: fileName || "Contract.pdf" }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`/api/contracts/${contract.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileUrl, fileName: fileName || "Contract.pdf" }),
+      });
+    } catch {
+      setError("Network error — link not saved");
+      setLoading(false);
+      return;
+    }
 
     if (!res.ok) {
-      setError("Failed to update contract");
+      const data = await res.json().catch(() => null);
+      setError(apiErrorMessage(data, "Failed to update contract"));
       setLoading(false);
       return;
     }
@@ -299,16 +323,23 @@ function SendForSignatureModal({ open, onOpenChange, contract }: { open: boolean
       signerEmail: form.get("signerEmail") as string,
     };
 
-    const res = await fetch(`/api/contracts/${contract.id}/send-for-signature`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`/api/contracts/${contract.id}/send-for-signature`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      setError("Network error — link not generated");
+      setLoading(false);
+      return;
+    }
 
-    const data = await res.json();
+    const data = await res.json().catch(() => null);
 
     if (!res.ok) {
-      setError(data.error || "Failed to send");
+      setError(apiErrorMessage(data, "Failed to send"));
       setLoading(false);
       return;
     }
@@ -326,7 +357,7 @@ function SendForSignatureModal({ open, onOpenChange, contract }: { open: boolean
           <div className="rounded-md bg-surface-1 p-3 text-sm break-all font-mono text-ink-primary border border-border">
             {signingUrl}
           </div>
-          <Button onClick={() => { navigator.clipboard.writeText(signingUrl); }} className="w-full">
+          <Button onClick={() => { navigator.clipboard?.writeText(signingUrl).catch(() => {}); }} className="w-full">
             Copy Link
           </Button>
         </div>

@@ -2,15 +2,16 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, FileText, Check, MessageSquare } from "lucide-react";
+import { AlertTriangle, FileText, Check, MessageSquare, X } from "lucide-react";
+import { apiErrorMessage, daysSince, localDateInputValue } from "@/components/finance/invoice-status";
 
+// Client names only — this component never receives or shows amounts.
 type OverdueInvoice = {
   id: string;
   invoiceNumber: string;
   dueDate: string | Date | null;
   notes: string | null;
   status: string;
-  amount: unknown;
   client: { id: string; name: string };
 };
 
@@ -18,6 +19,7 @@ type UnsignedContract = {
   id: string;
   status: string;
   sentAt: string | Date | null;
+  createdAt: string | Date;
   notes: string | null;
   client: { id: string; name: string };
 };
@@ -26,11 +28,6 @@ interface Props {
   overdueInvoices: OverdueInvoice[];
   unsignedContracts: UnsignedContract[];
   canEdit: boolean;
-}
-
-function daysAgo(d: string | Date | null): number {
-  if (!d) return 0;
-  return Math.floor((Date.now() - new Date(d).getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function priorityLabel(days: number) {
@@ -85,46 +82,48 @@ function EditableNote({ value, onSave, placeholder }: {
 export function FollowUpClient({ overdueInvoices, unsignedContracts, canEdit }: Props) {
   const router = useRouter();
   const [marking, setMarking] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const saveInvoiceNotes = useCallback(async (invoiceId: string, notes: string) => {
-    await fetch(`/api/invoices/${invoiceId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ notes: notes || null }),
-    });
-    router.refresh();
+  // PUT helper: surfaces API errors instead of silently refreshing.
+  const update = useCallback(async (url: string, body: Record<string, unknown>, fallback: string) => {
+    setError(null);
+    try {
+      const res = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setError(apiErrorMessage(data, fallback));
+        return false;
+      }
+      router.refresh();
+      return true;
+    } catch {
+      setError(fallback);
+      return false;
+    }
   }, [router]);
 
-  const saveContractNotes = useCallback(async (contractId: string, notes: string) => {
-    await fetch(`/api/contracts/${contractId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ notes: notes || null }),
-    });
-    router.refresh();
-  }, [router]);
+  const saveInvoiceNotes = useCallback((invoiceId: string, notes: string) =>
+    update(`/api/invoices/${invoiceId}`, { notes: notes || null }, "Failed to save note"), [update]);
+
+  const saveContractNotes = useCallback((contractId: string, notes: string) =>
+    update(`/api/contracts/${contractId}`, { notes: notes || null }, "Failed to save note"), [update]);
 
   const markInvoicePaid = useCallback(async (invoiceId: string) => {
     setMarking(invoiceId);
-    await fetch(`/api/invoices/${invoiceId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "PAID", paidAt: new Date().toISOString() }),
-    });
+    // Send the user's calendar date (YYYY-MM-DD), not a timestamp, so the paid date never shifts.
+    await update(`/api/invoices/${invoiceId}`, { status: "PAID", paidAt: localDateInputValue() }, "Failed to mark paid");
     setMarking(null);
-    router.refresh();
-  }, [router]);
+  }, [update]);
 
   const markContractSigned = useCallback(async (contractId: string) => {
     setMarking(contractId);
-    await fetch(`/api/contracts/${contractId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "SIGNED" }),
-    });
+    await update(`/api/contracts/${contractId}`, { status: "SIGNED" }, "Failed to mark signed");
     setMarking(null);
-    router.refresh();
-  }, [router]);
+  }, [update]);
 
   // Deduplicate overdue by client (group invoices)
   const overdueByClient = new Map<string, { name: string; invoices: OverdueInvoice[] }>();
@@ -152,6 +151,15 @@ export function FollowUpClient({ overdueInvoices, unsignedContracts, canEdit }: 
 
   return (
     <>
+      {error && (
+        <div className="mb-4 flex items-start justify-between gap-3 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700" aria-label="Dismiss">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-4 mb-8">
         <div className="rounded-lg border border-border bg-white p-5">
@@ -194,7 +202,7 @@ export function FollowUpClient({ overdueInvoices, unsignedContracts, canEdit }: 
               <tbody className="divide-y divide-border">
                 {overdueClients.map((group) =>
                   group.invoices.map((inv, i) => {
-                    const days = daysAgo(inv.dueDate);
+                    const days = daysSince(inv.dueDate);
                     return (
                       <tr key={inv.id} className="hover:bg-surface-1 transition-colors border-l-4 border-l-red-500">
                         <td className="px-5 py-3 font-medium text-ink-primary">
@@ -265,7 +273,7 @@ export function FollowUpClient({ overdueInvoices, unsignedContracts, canEdit }: 
               <tbody className="divide-y divide-border">
                 {unsignedClients.map((group) =>
                   group.contracts.map((c, i) => {
-                    const days = daysAgo(c.sentAt);
+                    const days = daysSince(c.sentAt ?? c.createdAt);
                     return (
                       <tr key={c.id} className="hover:bg-surface-1 transition-colors border-l-4 border-l-amber-500">
                         <td className="px-5 py-3 font-medium text-ink-primary">

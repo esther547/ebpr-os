@@ -23,21 +23,31 @@ export default function NewClientPage() {
       monthlyTarget: parseInt(form.get("monthlyTarget") as string) || 6,
     };
 
-    const res = await fetch("/api/clients", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    try {
+      const res = await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const payload = await res.json().catch(() => ({}));
 
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error?.fieldErrors?.name?.[0] || data.error || "Failed to create client");
+      if (!res.ok) {
+        const err = payload.error;
+        setError(
+          typeof err === "string"
+            ? err
+            : err?.fieldErrors?.name?.[0] || err?.fieldErrors?.website?.[0] || "Failed to create client"
+        );
+        setLoading(false);
+        return;
+      }
+
+      router.push(`/clients/${payload.data.id}`);
+      router.refresh();
+    } catch {
+      setError("Network error — could not reach the server");
       setLoading(false);
-      return;
     }
-
-    const { data } = await res.json();
-    router.push(`/clients/${data.id}`);
   }
 
   return (

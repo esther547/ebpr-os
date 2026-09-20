@@ -11,6 +11,8 @@ import { StrategyWorkflowTable } from "@/components/strategy/strategy-workflow-t
 import { StrategyEventsList } from "@/components/strategy/strategy-events-list";
 import Link from "next/link";
 import { StrategyDocLink } from "@/components/strategy/strategy-doc-link";
+import { StrategyAddItemButton } from "@/components/strategy/strategy-actions";
+import { StrategyDocumentEditButton } from "@/components/strategy/strategy-document-modal";
 
 type Props = { params: { clientId: string } };
 
@@ -57,7 +59,7 @@ export default async function StrategyPage({ params }: Props) {
   const positioning = items.filter((i) => i.category === "POSITIONING");
   const other = items.filter((i) => i.category === "OTHER");
 
-  // Group brand deals by brandCategory
+  // Group brand deals by brandCategory (plain array of entries — safe to pass to a client component)
   const brandDealsByCategory = new Map<string, typeof brandDeals>();
   for (const item of brandDeals) {
     const cat = item.brandCategory ?? "Other";
@@ -65,6 +67,10 @@ export default async function StrategyPage({ params }: Props) {
     arr.push(item);
     brandDealsByCategory.set(cat, arr);
   }
+  const brandDealGroups = Array.from(brandDealsByCategory.entries()).map(([category, items]) => ({
+    category,
+    items,
+  }));
 
   const totalItems = items.length;
 
@@ -81,9 +87,7 @@ export default async function StrategyPage({ params }: Props) {
             >
               View Brief
             </Link>
-            <button className="inline-flex h-9 items-center rounded-md bg-ink-primary px-4 text-sm font-medium text-ink-inverted hover:bg-ink-primary/90 transition-colors">
-              + Add Item
-            </button>
+            <StrategyAddItemButton clientId={client.id} />
           </div>
         }
       />
@@ -103,9 +107,13 @@ export default async function StrategyPage({ params }: Props) {
             <p className="mt-1 text-xs text-ink-muted">
               Add the client objective, messaging, and phase structure.
             </p>
-            <button className="mt-3 inline-flex h-8 items-center rounded-md bg-ink-primary px-3 text-xs font-medium text-ink-inverted hover:bg-ink-primary/90 transition-colors">
+            <StrategyDocumentEditButton
+              clientId={client.id}
+              doc={null}
+              className="mt-3 inline-flex h-8 items-center rounded-md bg-ink-primary px-3 text-xs font-medium text-ink-inverted hover:bg-ink-primary/90 transition-colors"
+            >
               Create Strategy Brief
-            </button>
+            </StrategyDocumentEditButton>
           </div>
         )}
 
@@ -121,7 +129,7 @@ export default async function StrategyPage({ params }: Props) {
 
         {/* Brand Deals */}
         {brandDeals.length > 0 && (
-          <StrategyBrandDeals byCategory={brandDealsByCategory} />
+          <StrategyBrandDeals groups={brandDealGroups} />
         )}
 
         {/* Media Targets */}

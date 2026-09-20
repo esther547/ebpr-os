@@ -18,7 +18,7 @@ export default async function DeliverablesPage({ params }: Props) {
 
   const client = await db.client.findUnique({
     where: { id: clientId },
-    select: { id: true, name: true, monthlyTarget: true },
+    select: { id: true, name: true, monthlyTarget: true, status: true },
   });
   if (!client) notFound();
 
@@ -32,6 +32,16 @@ export default async function DeliverablesPage({ params }: Props) {
     },
     orderBy: { createdAt: "desc" },
   });
+
+  // Confirmed-or-later deliverables that still have no runner assignment (yellow prompt on the board)
+  const assignments = await db.runnerAssignment.findMany({
+    where: { deliverableId: { in: deliverables.map((d) => d.id) }, status: { not: "CANCELLED" } },
+    select: { deliverableId: true },
+  });
+  const withRunner = new Set(assignments.map((a) => a.deliverableId));
+  const runnerNeededIds = deliverables
+    .filter((d) => ["CONFIRMED", "IN_PROGRESS"].includes(d.status) && !withRunner.has(d.id))
+    .map((d) => d.id);
 
   const teamMembers = await db.user.findMany({
     where: {
@@ -52,6 +62,8 @@ export default async function DeliverablesPage({ params }: Props) {
         clientId={client.id}
         target={client.monthlyTarget}
         teamMembers={teamMembers}
+        runnerNeededIds={runnerNeededIds}
+        clientStatus={client.status}
       />
     </>
   );

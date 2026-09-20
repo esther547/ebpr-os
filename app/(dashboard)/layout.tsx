@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth";
+import { headers } from "next/headers";
+import { getCurrentUser, canAccessPath, ROLE_HOME } from "@/lib/auth";
 import { Sidebar } from "@/components/layout/sidebar";
 
 export default async function DashboardLayout({
@@ -7,8 +8,13 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await requireUser().catch(() => null);
-  if (!user) redirect("/sign-in");
+  const user = await getCurrentUser().catch(() => null);
+  if (!user) redirect("/access-pending");
+
+  const pathname = headers().get("x-pathname") ?? "";
+  if (pathname && !canAccessPath(user.role, pathname)) {
+    redirect(ROLE_HOME[user.role]);
+  }
 
   return (
     <div className="flex min-h-screen">
@@ -17,8 +23,8 @@ export default async function DashboardLayout({
         userName={user.name}
         userEmail={user.email}
       />
-      <main className="ml-[220px] flex-1 min-w-0">
-        <div className="mx-auto max-w-7xl px-6 pb-16">
+      <main className="min-w-0 flex-1 md:ml-[240px]">
+        <div className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
           {children}
         </div>
       </main>

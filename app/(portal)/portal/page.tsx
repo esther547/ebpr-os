@@ -2,15 +2,30 @@ import { redirect } from "next/navigation";
 import { getCurrentClientUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { DeliverableStatus } from "@prisma/client";
-import { currentMonthYear, monthLabel, DELIVERABLE_TYPE_LABELS, cn } from "@/lib/utils";
-import { EBPRLogo } from "@/components/brand/ebpr-logo";
+import { currentMonthYear, monthLabel, DELIVERABLE_TYPE_LABELS } from "@/lib/utils";
+import { Sparkles } from "lucide-react";
+import { PageHeader, SectionHeader } from "@/components/layout/header";
+import { StatTile } from "@/components/ui/stat-tile";
+import { Card } from "@/components/ui/card";
+import { Badge, statusTone } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
 
+const STATUS_LABELS: Record<DeliverableStatus, string> = {
+  IDEA: "Planned",
+  OUTREACH: "Outreach",
+  CONFIRMED: "Confirmed",
+  IN_PROGRESS: "In Progress",
+  COMPLETED: "Completed",
+  CANCELLED: "Cancelled",
+};
+
 export default async function PortalDashboardPage() {
   const clientUser = await getCurrentClientUser();
   if (!clientUser) redirect("/sign-in");
+  if (!clientUser.isActive) redirect("/access-pending");
 
   const { month, year } = currentMonthYear();
 
@@ -25,6 +40,7 @@ export default async function PortalDashboardPage() {
     where: {
       clientId: clientUser.clientId,
       isClientVisible: true,
+      isInternal: false,
       month,
       year,
     },
@@ -45,66 +61,57 @@ export default async function PortalDashboardPage() {
     where: { clientId: clientUser.clientId, status: "PENDING" },
   });
 
+  const onTarget = completed.length >= client.monthlyTarget;
+
   return (
-    <div className="animate-fade-in">
-      {/* Welcome */}
-      <div className="mb-10">
-        <h1 className="text-2xl font-bold text-ink-primary">
-          Welcome back, {clientUser.name.split(" ")[0]}
-        </h1>
-        <p className="mt-1 text-ink-secondary">
-          {client.name} · {monthLabel(month, year)}
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        className="pt-0 pb-0 sm:pt-0"
+        title={`Welcome back, ${clientUser.name.split(" ")[0]}`}
+        subtitle={`${client.name} · ${monthLabel(month, year)}`}
+      />
 
       {/* Stats row */}
-      <div className="mb-10 grid grid-cols-3 gap-6">
-        <StatCard
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatTile
           label="Completed This Month"
-          value={String(completed.length)}
-          sublabel={`of ${client.monthlyTarget} target`}
-          highlight={completed.length >= client.monthlyTarget}
+          value={completed.length}
+          hint={`of ${client.monthlyTarget} target`}
+          tone={onTarget ? "success" : "neutral"}
         />
-        <StatCard
+        <StatTile
           label="In Progress"
-          value={String(inProgress.length)}
-          sublabel="active deliverables"
+          value={inProgress.length}
+          hint="active deliverables"
         />
-        <StatCard
+        <StatTile
           label="Awaiting Your Approval"
-          value={String(pendingApprovals)}
-          sublabel={pendingApprovals > 0 ? "action required" : "all caught up"}
-          urgent={pendingApprovals > 0}
+          value={pendingApprovals}
+          hint={pendingApprovals > 0 ? "action required" : "all caught up"}
+          tone={pendingApprovals > 0 ? "warning" : "neutral"}
         />
       </div>
 
       {/* Wins section */}
       {completed.length > 0 && (
-        <section className="mb-10">
-          <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-            Wins This Month
-          </h2>
+        <section>
+          <SectionHeader title="Wins This Month" />
           <div className="space-y-3">
             {completed.map((d) => (
-              <div
-                key={d.id}
-                className="rounded-lg border border-border bg-white px-5 py-4"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted mb-1">
-                      {DELIVERABLE_TYPE_LABELS[d.type]}
-                    </p>
+              <Card key={d.id} padding="md">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                  <div className="min-w-0">
+                    <p className="eyebrow mb-1">{DELIVERABLE_TYPE_LABELS[d.type]}</p>
                     <p className="font-medium text-ink-primary">{d.title}</p>
                     {d.outcome && (
-                      <p className="mt-1 text-sm text-ink-secondary">{d.outcome}</p>
+                      <p className="mt-1 max-w-prose text-sm text-ink-secondary">{d.outcome}</p>
                     )}
                   </div>
-                  <span className="flex-shrink-0 rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700">
+                  <Badge tone="success" dot className="shrink-0 self-start">
                     Completed
-                  </span>
+                  </Badge>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         </section>
@@ -113,103 +120,33 @@ export default async function PortalDashboardPage() {
       {/* In Progress */}
       {inProgress.length > 0 && (
         <section>
-          <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-ink-muted">
-            In Progress
-          </h2>
-          <div className="space-y-2">
+          <SectionHeader title="In Progress" />
+          <Card padding="none" className="divide-y divide-border">
             {inProgress.map((d) => (
               <div
                 key={d.id}
-                className="flex items-center justify-between rounded-lg border border-border bg-white px-5 py-4"
+                className="flex items-center justify-between gap-4 px-5 py-4"
               >
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted mb-0.5">
-                    {DELIVERABLE_TYPE_LABELS[d.type]}
-                  </p>
-                  <p className="font-medium text-sm text-ink-primary">{d.title}</p>
+                <div className="min-w-0">
+                  <p className="eyebrow mb-0.5">{DELIVERABLE_TYPE_LABELS[d.type]}</p>
+                  <p className="text-sm font-medium text-ink-primary">{d.title}</p>
                 </div>
-                <DeliverableStatusBadge status={d.status} />
+                <Badge tone={statusTone(d.status)} dot className="shrink-0">
+                  {STATUS_LABELS[d.status]}
+                </Badge>
               </div>
             ))}
-          </div>
+          </Card>
         </section>
       )}
 
       {deliverables.length === 0 && (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-24 text-center">
-          <EBPRLogo variant="mark" size="lg" className="mb-6 opacity-10" />
-          <p className="text-sm text-ink-muted">
-            Your campaign is being prepared. Check back soon.
-          </p>
-        </div>
+        <EmptyState
+          icon={<Sparkles />}
+          title="Your campaign is being prepared"
+          description="Wins and in-progress work for this month will appear here. Check back soon."
+        />
       )}
     </div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  sublabel,
-  highlight,
-  urgent,
-}: {
-  label: string;
-  value: string;
-  sublabel?: string;
-  highlight?: boolean;
-  urgent?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-lg border bg-white p-6",
-        highlight ? "border-green-200" : urgent ? "border-ink-primary" : "border-border"
-      )}
-    >
-      <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
-        {label}
-      </p>
-      <p
-        className={cn(
-          "mt-2 text-4xl font-bold",
-          highlight ? "text-green-700" : urgent ? "text-ink-primary" : "text-ink-primary"
-        )}
-      >
-        {value}
-      </p>
-      {sublabel && (
-        <p className="mt-1 text-sm text-ink-muted">{sublabel}</p>
-      )}
-    </div>
-  );
-}
-
-function DeliverableStatusBadge({ status }: { status: DeliverableStatus }) {
-  const styles: Record<DeliverableStatus, string> = {
-    IDEA: "bg-surface-2 text-ink-secondary",
-    OUTREACH: "bg-blue-50 text-blue-700",
-    CONFIRMED: "bg-amber-50 text-amber-700",
-    IN_PROGRESS: "bg-purple-50 text-purple-700",
-    COMPLETED: "bg-green-50 text-green-700",
-    CANCELLED: "bg-red-50 text-red-600",
-  };
-  const labels: Record<DeliverableStatus, string> = {
-    IDEA: "Planned",
-    OUTREACH: "Outreach",
-    CONFIRMED: "Confirmed",
-    IN_PROGRESS: "In Progress",
-    COMPLETED: "Completed",
-    CANCELLED: "Cancelled",
-  };
-  return (
-    <span
-      className={cn(
-        "rounded-full px-2.5 py-0.5 text-xs font-medium flex-shrink-0",
-        styles[status]
-      )}
-    >
-      {labels[status]}
-    </span>
   );
 }

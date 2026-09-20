@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { canManageTasks } from "@/lib/permissions";
 import { db } from "@/lib/db";
-import { readGoogleDoc, parseStrategyToTasks } from "@/lib/google-docs";
+import { readGoogleDoc, parseStrategyToTasks, isGoogleDocsConfigured, GOOGLE_NOT_CONFIGURED } from "@/lib/google-docs";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ clientId: string }> }) {
-  const user = await requireUser();
+  let user;
+  try {
+    user = await requireUser();
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   if (!canManageTasks(user)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -20,6 +25,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cli
   if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });
   if (!client.strategyDocUrl) {
     return NextResponse.json({ error: "No strategy document linked. Add a Google Doc URL first." }, { status: 400 });
+  }
+  if (!isGoogleDocsConfigured()) {
+    return NextResponse.json({ error: GOOGLE_NOT_CONFIGURED }, { status: 503 });
   }
 
   try {
@@ -86,6 +94,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cli
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("Strategy import error:", err);
 
+    if (message === GOOGLE_NOT_CONFIGURED || /Invalid Google Docs URL/.test(message)) {
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
+    if (/invalid_grant|invalid_client|DECODER|PEM|private key/i.test(message)) {
+      return NextResponse.json({ error: "Google service account credentials are invalid. Check GOOGLE_SERVICE_ACCOUNT_KEY." }, { status: 503 });
+    }
+    if (/ENOTFOUND|ECONNREFUSED|fetch failed|network|ETIMEDOUT/i.test(message)) {
+      return NextResponse.json({ error: "Could not reach Google Docs. Check the network connection and try again." }, { status: 502 });
+    }
     if (message.includes("not found")) {
       return NextResponse.json({
         error: "Could not access the document. Make sure it's shared with ebpr-docs@ebpr-492704.iam.gserviceaccount.com (Viewer access)",

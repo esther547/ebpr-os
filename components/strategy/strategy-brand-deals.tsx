@@ -14,10 +14,10 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 type Props = {
-  byCategory: Map<string, StrategyItem[]>;
+  groups: { category: string; items: StrategyItem[] }[];
 };
 
-export function StrategyBrandDeals({ byCategory }: Props) {
+export function StrategyBrandDeals({ groups }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const toggle = (cat: string) => {
@@ -28,10 +28,7 @@ export function StrategyBrandDeals({ byCategory }: Props) {
     });
   };
 
-  const totalBrands = Array.from(byCategory.values()).reduce(
-    (s, items) => s + items.length,
-    0
-  );
+  const totalBrands = groups.reduce((s, g) => s + g.items.length, 0);
 
   return (
     <section>
@@ -40,12 +37,12 @@ export function StrategyBrandDeals({ byCategory }: Props) {
           Brand Deals
         </span>
         <span className="text-xs text-ink-muted">
-          {byCategory.size} categories · {totalBrands} brands
+          {groups.length} categories · {totalBrands} brands
         </span>
       </div>
 
       <div className="rounded-lg border border-border bg-white divide-y divide-border overflow-hidden">
-        {Array.from(byCategory.entries()).map(([category, items]) => {
+        {groups.map(({ category, items }) => {
           const isOpen = expanded.has(category);
           const confirmedCount = items.filter((i) =>
             ["IN_PROGRESS", "APPROVED", "COMPLETED"].includes(i.status)

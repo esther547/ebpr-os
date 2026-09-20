@@ -9,13 +9,13 @@ const schema = z.object({
   signerName: z.string().min(1),
 });
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await requireUser();
   if (!canManageContracts(user)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await params;
+  const { id } = params;
   const body = await req.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
@@ -25,6 +25,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const contract = await db.contract.findUnique({ where: { id } });
   if (!contract) {
     return NextResponse.json({ error: "Contract not found" }, { status: 404 });
+  }
+  if (contract.status === "SIGNED") {
+    return NextResponse.json({ error: "This contract is already signed" }, { status: 400 });
   }
 
   // Create signature request with unique token
@@ -36,10 +39,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     },
   });
 
-  // Update contract status to SENT
+  // Update contract status to SENT (keep the original send date on re-sends)
   await db.contract.update({
     where: { id },
-    data: { status: "SENT", sentAt: new Date() },
+    data: { status: "SENT", sentAt: contract.sentAt ?? new Date() },
   });
 
   // The signing link

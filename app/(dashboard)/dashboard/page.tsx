@@ -1,14 +1,19 @@
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { currentMonthYear, monthLabel } from "@/lib/utils";
+import { monthLabel } from "@/lib/utils";
 import { AgencyStatsBar } from "@/components/dashboard/agency-stats-bar";
 import { ClientCommandCenter } from "@/components/dashboard/client-command-center";
 import { WeekCalendarStrip } from "@/components/dashboard/week-calendar-strip";
 import { RunnerWeekSummary } from "@/components/dashboard/runner-week-summary";
-import { startOfWeek, endOfWeek } from "date-fns";
-import { EBPRLogoHorizontal } from "@/components/brand/ebpr-logo";
-import { UserButton } from "@clerk/nextjs";
-import Link from "next/link";
+import { DashboardAlerts } from "@/components/dashboard/dashboard-alerts";
+import {
+  addDaysKey,
+  currentMonthYearInTz,
+  dayKeyInTz,
+  tzMidnight,
+  weekStartKey,
+} from "@/components/runners/miami-time";
+import { PageHeader } from "@/components/layout/header";
 
 export const metadata = { title: "Dashboard — EBPR OS" };
 export const dynamic = "force-dynamic";
@@ -16,10 +21,14 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const user = await requireUser();
 
-  const { month, year } = currentMonthYear();
+  // All "what day / what week is it" logic is done in Miami time, not the
+  // server's timezone (UTC on Vercel), so the week strip never shows the wrong week.
   const now = new Date();
-  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+  const { month, year } = currentMonthYearInTz(now);
+  const todayKey = dayKeyInTz(now);
+  const weekStartDay = weekStartKey(todayKey);
+  const weekStart = tzMidnight(weekStartDay);
+  const weekEnd = tzMidnight(addDaysKey(weekStartDay, 7)); // exclusive
 
   // ── All active clients ─────────────────────────────────────────
   const clients = await db.client.findMany({
@@ -38,9 +47,6 @@ export default async function DashboardPage() {
         take: 1,
       },
       onboarding: { select: { status: true } },
-      _count: {
-        select: { approvals: true },
-      },
     },
   });
 
@@ -114,16 +120,28 @@ export default async function DashboardPage() {
   const userMap = new Map(allUsers.map((u) => [u.id, u.name]));
 
   // ── This week's events (all clients) ──────────────────────────
-  const weekEvents = await db.runnerAssignment.findMany({
+  const weekEventRows = await db.runnerAssignment.findMany({
     where: {
-      eventDate: { gte: weekStart, lte: weekEnd },
+      eventDate: { gte: weekStart, lt: weekEnd },
       status: { not: "CANCELLED" },
     },
-    include: {
+    select: {
+      id: true,
+      runnerId: true,
+      eventName: true,
+      eventDate: true,
+      location: true,
+      clientId: true,
+      status: true,
       runner: { select: { id: true, name: true } },
     },
     orderBy: { eventDate: "asc" },
   });
+  // Attach the Miami calendar day so client components group by the same day the server did.
+  const weekEvents = weekEventRows.map((e) => ({
+    ...e,
+    dayKey: dayKeyInTz(e.eventDate),
+  }));
 
   // ── Runner assignments this week ───────────────────────────────
   const runners = await db.user.findMany({
@@ -164,49 +182,14 @@ export default async function DashboardPage() {
   });
 
   return (
-    <div className="min-h-screen bg-surface-1">
-      {/* Top bar */}
-      <header className="sticky top-0 z-40 border-b border-border bg-white">
-        <div className="flex h-14 items-center justify-between px-6">
-          <div className="flex items-center gap-4">
-            <EBPRLogoHorizontal size="sm" />
-            <span className="text-xs font-semibold uppercase tracking-widest text-ink-muted">
-              OS
-            </span>
-            <span className="h-4 w-px bg-border" />
-            <span className="text-sm font-medium text-ink-secondary">
-              {monthLabel(month, year)}
-            </span>
-          </div>
-          <div className="flex items-center gap-4">
-            <nav className="flex items-center gap-1">
-              {[
-                { href: "/clients", label: "Clients", roles: ["SUPER_ADMIN", "STRATEGIST"] },
-                { href: "/legal", label: "Legal", roles: ["SUPER_ADMIN", "LEGAL"] },
-                { href: "/finance", label: "Finance", roles: ["SUPER_ADMIN", "FINANCE", "LEGAL"] },
-                { href: "/runners/schedule", label: "Runners", roles: ["SUPER_ADMIN", "STRATEGIST"] },
-                { href: "/reports", label: "Reports", roles: ["SUPER_ADMIN", "STRATEGIST"] },
-                { href: "/settings", label: "Settings", roles: ["SUPER_ADMIN"] },
-              ]
-                .filter((item) => item.roles.includes(user.role))
-                .map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="px-3 py-1 rounded-md text-xs font-medium text-ink-muted hover:text-ink-primary hover:bg-surface-2 transition-colors"
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-            <div className="h-4 w-px bg-border" />
-            <span className="text-sm text-ink-muted">{user.name.split(" ")[0]}</span>
-            <UserButton afterSignOutUrl="/sign-in" />
-          </div>
-        </div>
-      </header>
+    <>
+      <PageHeader
+        eyebrow={monthLabel(month, year)}
+        title="Dashboard"
+        subtitle={`Welcome back, ${user.name.split(" ")[0]}. Here is where every client stands this month.`}
+      />
 
-      <div className="px-6 pb-16 pt-6 max-w-[1600px] mx-auto">
+      <div className="space-y-6">
         {/* Agency stats */}
         <AgencyStatsBar
           activeClients={clients.filter((c) => c.status === "ACTIVE").length}
@@ -219,8 +202,14 @@ export default async function DashboardPage() {
           year={year}
         />
 
+        {/* Alerts: missing signatures, overdue payments, deliverables due this week */}
+        <DashboardAlerts
+          todayKey={todayKey}
+          canOpenLegalFinance={user.role === "SUPER_ADMIN"}
+        />
+
         {/* Two-column layout: main grid + right panel */}
-        <div className="mt-8 grid grid-cols-[1fr_320px] gap-6 items-start">
+        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
           {/* Left: client command center */}
           <ClientCommandCenter clients={clientRows} month={month} year={year} />
 
@@ -228,16 +217,18 @@ export default async function DashboardPage() {
           <div className="space-y-6">
             <WeekCalendarStrip
               events={weekEvents}
-              weekStart={weekStart}
+              weekStartKey={weekStartDay}
+              todayKey={todayKey}
             />
             <RunnerWeekSummary
               runners={runners}
               assignments={weekEvents}
-              weekStart={weekStart}
+              weekStartKey={weekStartDay}
+              todayKey={todayKey}
             />
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

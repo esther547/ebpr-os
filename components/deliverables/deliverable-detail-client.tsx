@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn, formatDate, DELIVERABLE_STATUS_LABELS, DELIVERABLE_STATUS_COLORS, DELIVERABLE_TYPE_LABELS } from "@/lib/utils";
 import { Button, Input, Select, Textarea, FormGroup } from "@/components/ui/form-field";
-import { Modal } from "@/components/ui/modal";
-import { ArrowLeft, UserPlus, MapPin, Clock, Check, MessageSquare } from "lucide-react";
+import { Modal, ConfirmModal } from "@/components/ui/modal";
+import { ArrowLeft, UserPlus, MapPin, Clock, MessageSquare, Trash2 } from "lucide-react";
 
 type RunnerAssignment = {
   id: string;
@@ -57,6 +57,10 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
   const [success, setSuccess] = useState(false);
   const [showAssignRunner, setShowAssignRunner] = useState(false);
   const [showAddNote, setShowAddNote] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [statusBusy, setStatusBusy] = useState<string | null>(null);
+  const [noteError, setNoteError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -76,30 +80,57 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
       isClientVisible: form.get("isClientVisible") === "true",
     };
 
-    const res = await fetch(`/api/deliverables/${deliverable.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    try {
+      const res = await fetch(`/api/deliverables/${deliverable.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
 
-    if (!res.ok) {
-      setError("Failed to update");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(typeof data.error === "string" ? data.error : "Failed to update");
+        setSaving(false);
+        return;
+      }
+
+      setSuccess(true);
       setSaving(false);
-      return;
+      router.refresh();
+      // Confirmed without a runner: open the assignment prompt right away.
+      if (body.status === "CONFIRMED" && deliverable.status !== "CONFIRMED" && !deliverable.runnerAssignment) {
+        setShowAssignRunner(true);
+      }
+    } catch {
+      setError("Network error — could not reach the server");
+      setSaving(false);
     }
-
-    setSuccess(true);
-    setSaving(false);
-    router.refresh();
   }
 
   async function quickStatus(status: string) {
-    await fetch(`/api/deliverables/${deliverable.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    router.refresh();
+    setStatusBusy(status);
+    setError(null);
+    try {
+      // Dedicated status endpoint: logs the transition and notifies the team.
+      const res = await fetch(`/api/deliverables/${deliverable.id}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(typeof data.error === "string" ? data.error : "Could not change status");
+        return;
+      }
+      router.refresh();
+      if (status === "CONFIRMED" && !deliverable.runnerAssignment) {
+        setShowAssignRunner(true);
+      }
+    } catch {
+      setError("Network error — could not reach the server");
+    } finally {
+      setStatusBusy(null);
+    }
   }
 
   async function addComment(e: React.FormEvent<HTMLFormElement>) {
@@ -107,15 +138,44 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
     const form = new FormData(e.currentTarget);
     const content = form.get("content") as string;
     if (!content.trim()) return;
+    setNoteError(null);
 
-    await fetch(`/api/deliverables/${deliverable.id}/comments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
-    });
+    try {
+      const res = await fetch(`/api/deliverables/${deliverable.id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setNoteError(typeof data.error === "string" ? data.error : "Could not add note");
+        return;
+      }
+      setShowAddNote(false);
+      router.refresh();
+    } catch {
+      setNoteError("Network error — could not reach the server");
+    }
+  }
 
-    setShowAddNote(false);
-    router.refresh();
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/deliverables/${deliverable.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(typeof data.error === "string" ? data.error : "Could not delete deliverable");
+        setShowDelete(false);
+        return;
+      }
+      router.push(`/clients/${deliverable.clientId}/deliverables`);
+      router.refresh();
+    } catch {
+      setError("Network error — could not reach the server");
+      setShowDelete(false);
+    } finally {
+      setDeleting(false);
+    }
   }
 
   const colors = DELIVERABLE_STATUS_COLORS[deliverable.status as keyof typeof DELIVERABLE_STATUS_COLORS];
@@ -148,15 +208,20 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
             </span>
           </div>
         </div>
+        <Button variant="ghost" size="sm" onClick={() => setShowDelete(true)} leftIcon={<Trash2 className="h-3.5 w-3.5" />}>
+          Delete
+        </Button>
       </div>
 
+      {error && <div className="mb-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{error}</div>}
+
       {/* Quick status buttons */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex flex-wrap gap-2 mb-6">
         {STATUSES.map((s) => (
           <button
             key={s}
             onClick={() => quickStatus(s)}
-            disabled={s === deliverable.status}
+            disabled={s === deliverable.status || statusBusy !== null}
             className={cn(
               "rounded-full px-3 py-1 text-xs font-medium transition-colors",
               s === deliverable.status
@@ -230,7 +295,6 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
 
       {/* Edit Form */}
       <form onSubmit={handleSubmit} className="rounded-lg border border-border bg-white p-6 space-y-4">
-        {error && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
         {success && <div className="rounded-md bg-green-50 px-4 py-3 text-sm text-green-700">Saved!</div>}
 
         <div className="grid grid-cols-2 gap-4">
@@ -339,10 +403,22 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
         runners={runners}
       />
 
+      <ConfirmModal
+        open={showDelete}
+        onOpenChange={setShowDelete}
+        title="Delete deliverable?"
+        description={`"${deliverable.title}" will be removed. Linked tasks, files and runner assignments are kept but unlinked.`}
+        confirmLabel="Delete"
+        destructive
+        loading={deleting}
+        onConfirm={handleDelete}
+      />
+
       {/* Add Note Modal */}
       {showAddNote && (
         <Modal open={showAddNote} onOpenChange={setShowAddNote} title="Add Note" description="Post-event feedback or notes">
           <form onSubmit={addComment} className="space-y-4">
+            {noteError && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{noteError}</div>}
             <FormGroup label="Note" htmlFor="note-content" required>
               <Textarea id="note-content" name="content" rows={4} placeholder="Any feedback, issues, or wins..." required autoFocus />
             </FormGroup>
@@ -371,11 +447,21 @@ function AssignRunnerModal({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+
+  // Combine the date + "HH:mm" in the browser's timezone and send an absolute instant,
+  // so the time shown later is the one that was typed regardless of server timezone.
+  function toInstant(date: string, time: FormDataEntryValue | null): string | undefined {
+    if (!time || typeof time !== "string") return undefined;
+    const d = new Date(`${date}T${time}`);
+    return isNaN(d.getTime()) ? undefined : d.toISOString();
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setWarning(null);
 
     const form = new FormData(e.currentTarget);
     const eventDate = form.get("eventDate") as string;
@@ -386,8 +472,8 @@ function AssignRunnerModal({
       eventDate,
       clientId: deliverable.clientId,
       deliverableId: deliverable.id,
-      arrivalTime: (form.get("arrivalTime") as string) ? `${eventDate}T${form.get("arrivalTime")}:00` : undefined,
-      eventTime: (form.get("eventTime") as string) ? `${eventDate}T${form.get("eventTime")}:00` : undefined,
+      arrivalTime: toInstant(eventDate, form.get("arrivalTime")),
+      eventTime: toInstant(eventDate, form.get("eventTime")),
       venueName: (form.get("venueName") as string) || undefined,
       venueAddress: (form.get("venueAddress") as string) || undefined,
       location: (form.get("location") as string) || undefined,
@@ -395,27 +481,52 @@ function AssignRunnerModal({
       notes: (form.get("notes") as string) || undefined,
     };
 
-    const res = await fetch(`/api/clients/${deliverable.clientId}/agenda`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    try {
+      const res = await fetch(`/api/clients/${deliverable.clientId}/agenda`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
 
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error || "Failed to assign runner");
+      if (!res.ok) {
+        setError(typeof data.error === "string" ? data.error : "Failed to assign runner");
+        setLoading(false);
+        return;
+      }
+
       setLoading(false);
-      return;
+      if (data.conflictWarning) {
+        // Keep the modal open so the warning is seen; the assignment is already saved.
+        setWarning(`${data.conflictWarning}. The assignment was saved.`);
+        router.refresh();
+        return;
+      }
+      onOpenChange(false);
+      router.refresh();
+    } catch {
+      setError("Network error — could not reach the server");
+      setLoading(false);
     }
-
-    onOpenChange(false);
-    router.refresh();
   }
 
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Assign Runner" description={`${deliverable.title} — ${deliverable.client.name}`}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {warning && (
+          <div className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {warning}{" "}
+            <button type="button" className="underline font-medium" onClick={() => onOpenChange(false)}>
+              Close
+            </button>
+          </div>
+        )}
+        {runners.length === 0 && (
+          <div className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            No active runners found. Add a runner in Settings first.
+          </div>
+        )}
 
         <FormGroup label="Runner" htmlFor="ar-runner" required>
           <Select id="ar-runner" name="runnerId" required>

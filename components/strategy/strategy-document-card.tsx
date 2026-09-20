@@ -2,6 +2,7 @@
 
 import { formatDate } from "@/lib/utils";
 import type { StrategyDocument } from "@prisma/client";
+import { StrategyDocumentEditButton } from "./strategy-document-modal";
 
 type Props = {
   doc: StrategyDocument;
@@ -47,9 +48,13 @@ export function StrategyDocumentCard({ doc, clientId }: Props) {
               </span>
             </span>
           )}
-          <button className="font-medium text-ink-primary hover:underline">
+          <StrategyDocumentEditButton
+            clientId={clientId}
+            doc={doc}
+            className="font-medium text-ink-primary hover:underline"
+          >
             Edit
-          </button>
+          </StrategyDocumentEditButton>
         </div>
       </div>
 

@@ -1,196 +1,214 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { authorizeCron, NO_STORE } from "@/lib/cron-auth";
 import { db } from "@/lib/db";
-import { addDays, startOfDay, endOfDay, isWithinInterval } from "date-fns";
+import {
+  addDaysKey,
+  dayBounds,
+  dayKeyInTz,
+  formatDayKey,
+  formatInTz,
+  tzMidnight,
+} from "@/components/runners/miami-time";
 
 /**
- * Cron endpoint — called periodically to generate notifications:
+ * Cron endpoint — called daily (8am Miami) to generate notifications:
  * 1. Runner reminders (24h before + same day)
- * 2. Overdue invoice alerts
- * 3. Unsigned contract alerts
- * 4. Scheduling conflict detection
+ * 2. Strategist reminders (deliverable due tomorrow)
+ * 3. Scheduling conflict detection (same runner, same day)
+ *
+ * Idempotent: every notification carries a stable link that embeds the
+ * record id(s) it is about, and we dedupe on (userId, type, link), so running
+ * the job twice never creates duplicates.
+ *
+ * All "today / tomorrow" windows are computed in Miami time, not the server's
+ * timezone (UTC on Vercel), so a 10pm event is not treated as the next day.
  */
-export async function GET() {
+export const dynamic = "force-dynamic";
+
+const TIME: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
+
+async function notifyOnce(data: {
+  userId: string;
+  title: string;
+  message: string;
+  type: string;
+  link: string;
+}): Promise<boolean> {
+  const existing = await db.notification.findFirst({
+    where: { userId: data.userId, type: data.type, link: data.link },
+    select: { id: true },
+  });
+  if (existing) return false;
+  await db.notification.create({ data });
+  return true;
+}
+
+export async function GET(req: NextRequest) {
+  const denied = await authorizeCron(req);
+  if (denied) return denied;
+
   const now = new Date();
-  const tomorrow = addDays(now, 1);
+  const todayKey = dayKeyInTz(now);
+  const tomorrowKey = addDaysKey(todayKey, 1);
+  const today = dayBounds(todayKey);
+  const tomorrow = dayBounds(tomorrowKey);
   const results: Record<string, number> = {};
+
+  const assignmentSelect = {
+    id: true,
+    runnerId: true,
+    eventName: true,
+    eventDate: true,
+    eventTime: true,
+    arrivalTime: true,
+    venueName: true,
+    location: true,
+    runner: { select: { id: true, name: true } },
+  } as const;
+
+  const describe = (a: {
+    eventDate: Date;
+    eventTime: Date | null;
+    arrivalTime: Date | null;
+    venueName: string | null;
+    location: string | null;
+  }) => {
+    const parts: string[] = [];
+    if (a.arrivalTime) parts.push(`arrive ${formatInTz(a.arrivalTime, TIME)}`);
+    const start = a.eventTime ?? a.eventDate;
+    parts.push(`${a.arrivalTime ? "on air " : "at "}${formatInTz(start, TIME)}`);
+    const place = a.venueName || a.location;
+    if (place) parts.push(place);
+    return parts.join(" · ");
+  };
 
   // ── 1. Runner Reminders (24h before) ──────────────────────
   const tomorrowAssignments = await db.runnerAssignment.findMany({
     where: {
-      eventDate: {
-        gte: startOfDay(tomorrow),
-        lte: endOfDay(tomorrow),
-      },
+      eventDate: { gte: tomorrow.gte, lt: tomorrow.lt },
       status: { in: ["SCHEDULED", "CONFIRMED"] },
     },
-    include: { runner: { select: { id: true, name: true } } },
+    select: assignmentSelect,
   });
 
   let runnerReminders = 0;
   for (const a of tomorrowAssignments) {
-    // Check if we already sent a reminder for this assignment
-    const existing = await db.notification.findFirst({
-      where: {
-        userId: a.runnerId,
-        type: "runner_reminder_24h",
-        message: { contains: a.id },
-      },
+    const created = await notifyOnce({
+      userId: a.runnerId,
+      title: "Assignment Tomorrow",
+      message: `${a.eventName} — tomorrow, ${describe(a)}`,
+      type: "runner_reminder_24h",
+      link: `/runner-portal?assignment=${a.id}`,
     });
-    if (!existing) {
-      await db.notification.create({
-        data: {
-          userId: a.runnerId,
-          title: "Assignment Tomorrow",
-          message: `${a.eventName} — tomorrow. ${a.venueName ? `At ${a.venueName}` : ""}`.trim(),
-          type: "runner_reminder_24h",
-          link: "/runner-portal",
-        },
-      });
-      runnerReminders++;
-    }
+    if (created) runnerReminders++;
   }
   results.runnerReminders24h = runnerReminders;
 
   // ── 2. Same-day Runner Reminders ──────────────────────────
   const todayAssignments = await db.runnerAssignment.findMany({
     where: {
-      eventDate: {
-        gte: startOfDay(now),
-        lte: endOfDay(now),
-      },
+      eventDate: { gte: today.gte, lt: today.lt },
       status: { in: ["SCHEDULED", "CONFIRMED"] },
     },
-    include: { runner: { select: { id: true, name: true } } },
+    select: assignmentSelect,
   });
 
   let sameDayReminders = 0;
   for (const a of todayAssignments) {
-    const existing = await db.notification.findFirst({
-      where: {
-        userId: a.runnerId,
-        type: "runner_reminder_today",
-        message: { contains: a.id },
-      },
+    const created = await notifyOnce({
+      userId: a.runnerId,
+      title: "Assignment Today",
+      message: `${a.eventName} — today, ${describe(a)}`,
+      type: "runner_reminder_today",
+      link: `/runner-portal?assignment=${a.id}`,
     });
-    if (!existing) {
-      await db.notification.create({
-        data: {
-          userId: a.runnerId,
-          title: "Assignment Today",
-          message: `${a.eventName} — today! ${a.venueName ? `At ${a.venueName}` : ""}`.trim(),
-          type: "runner_reminder_today",
-          link: "/runner-portal",
-        },
-      });
-      sameDayReminders++;
-    }
+    if (created) sameDayReminders++;
   }
   results.runnerRemindersToday = sameDayReminders;
 
-  // ── 3. Notify strategist of upcoming deliverables ─────────
+  // ── 3. Notify strategist of deliverables due tomorrow ─────
   const upcomingDeliverables = await db.deliverable.findMany({
     where: {
-      dueDate: {
-        gte: startOfDay(tomorrow),
-        lte: endOfDay(tomorrow),
-      },
-      status: { not: "COMPLETED" },
+      dueDate: { gte: tomorrow.gte, lt: tomorrow.lt },
+      status: { notIn: ["COMPLETED", "CANCELLED"] },
       assigneeId: { not: null },
     },
-    select: { id: true, title: true, assigneeId: true, client: { select: { name: true } } },
+    select: {
+      id: true,
+      title: true,
+      assigneeId: true,
+      clientId: true,
+      client: { select: { name: true } },
+    },
   });
 
   let strategistReminders = 0;
   for (const d of upcomingDeliverables) {
     if (!d.assigneeId) continue;
-    const existing = await db.notification.findFirst({
-      where: {
-        userId: d.assigneeId,
-        type: "deliverable_due_tomorrow",
-        message: { contains: d.id },
-      },
+    const created = await notifyOnce({
+      userId: d.assigneeId,
+      title: "Deliverable Due Tomorrow",
+      message: `${d.title} for ${d.client.name} is due tomorrow`,
+      type: "deliverable_due_tomorrow",
+      link: `/clients/${d.clientId}/deliverables?deliverable=${d.id}`,
     });
-    if (!existing) {
-      await db.notification.create({
-        data: {
-          userId: d.assigneeId,
-          title: "Deliverable Due Tomorrow",
-          message: `${d.title} for ${d.client.name} is due tomorrow`,
-          type: "deliverable_due_tomorrow",
-        },
-      });
-      strategistReminders++;
-    }
+    if (created) strategistReminders++;
   }
   results.strategistReminders = strategistReminders;
 
-  // ── 4. Scheduling Conflict Detection ──────────────────────
-  const next7Days = addDays(now, 7);
+  // ── 4. Scheduling Conflict Detection (next 7 days) ───────
+  const horizon = tzMidnight(addDaysKey(todayKey, 8)); // exclusive
   const upcoming = await db.runnerAssignment.findMany({
     where: {
-      eventDate: { gte: startOfDay(now), lte: endOfDay(next7Days) },
+      eventDate: { gte: today.gte, lt: horizon },
       status: { in: ["SCHEDULED", "CONFIRMED"] },
     },
     orderBy: [{ runnerId: "asc" }, { eventDate: "asc" }],
-    include: { runner: { select: { id: true, name: true } } },
+    select: assignmentSelect,
   });
 
-  // Group by runner, check for same-day overlaps
-  const byRunner = new Map<string, typeof upcoming>();
+  // Group by runner + Miami calendar day
+  const byRunnerDay = new Map<string, typeof upcoming>();
   for (const a of upcoming) {
-    const arr = byRunner.get(a.runnerId) ?? [];
+    const key = `${a.runnerId}|${dayKeyInTz(a.eventDate)}`;
+    const arr = byRunnerDay.get(key) ?? [];
     arr.push(a);
-    byRunner.set(a.runnerId, arr);
+    byRunnerDay.set(key, arr);
   }
 
+  const admins = await db.user.findMany({
+    where: { role: { in: ["SUPER_ADMIN", "STRATEGIST"] }, isActive: true },
+    select: { id: true },
+  });
+
   let conflicts = 0;
-  for (const [runnerId, assignments] of byRunner.entries()) {
+  for (const [key, assignments] of byRunnerDay.entries()) {
+    if (assignments.length < 2) continue;
+    const dayKey = key.split("|")[1];
     for (let i = 0; i < assignments.length; i++) {
       for (let j = i + 1; j < assignments.length; j++) {
         const a = assignments[i];
         const b = assignments[j];
-        // Same day = conflict
-        const sameDay =
-          startOfDay(new Date(a.eventDate)).getTime() === startOfDay(new Date(b.eventDate)).getTime();
-
-        if (sameDay) {
-          // Notify the strategists/admins about the conflict
-          const admins = await db.user.findMany({
-            where: { role: { in: ["SUPER_ADMIN", "STRATEGIST"] }, isActive: true },
-            select: { id: true },
+        // Stable pair id regardless of ordering
+        const pair = [a.id, b.id].sort().join(",");
+        const message = `${a.runner.name} has overlapping assignments on ${formatDayKey(dayKey, "EEE, MMM d")}: "${a.eventName}" (${formatInTz(a.eventTime ?? a.eventDate, TIME)}) and "${b.eventName}" (${formatInTz(b.eventTime ?? b.eventDate, TIME)})`;
+        for (const admin of admins) {
+          const created = await notifyOnce({
+            userId: admin.id,
+            title: "Scheduling Conflict",
+            message,
+            type: "scheduling_conflict",
+            link: `/runners/schedule?conflict=${pair}`,
           });
-
-          for (const admin of admins) {
-            const existing = await db.notification.findFirst({
-              where: {
-                userId: admin.id,
-                type: "scheduling_conflict",
-                message: { contains: `${a.id}` },
-                createdAt: { gte: startOfDay(now) },
-              },
-            });
-            if (!existing) {
-              await db.notification.create({
-                data: {
-                  userId: admin.id,
-                  title: "Scheduling Conflict",
-                  message: `${a.runner.name} has overlapping assignments on ${new Date(a.eventDate).toLocaleDateString()}: "${a.eventName}" and "${b.eventName}"`,
-                  type: "scheduling_conflict",
-                  link: "/runners/schedule",
-                },
-              });
-              conflicts++;
-            }
-          }
+          if (created) conflicts++;
         }
       }
     }
   }
   results.conflictsDetected = conflicts;
 
-  return NextResponse.json({
-    message: "Cron completed",
-    timestamp: now.toISOString(),
-    results,
-  });
+  return NextResponse.json(
+    { message: "Cron completed", timestamp: now.toISOString(), today: todayKey, results },
+    { headers: NO_STORE }
+  );
 }

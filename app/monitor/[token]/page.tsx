@@ -1,20 +1,25 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { EBPRLogoHorizontal } from "@/components/brand/ebpr-logo";
-import { currentMonthYear, monthLabel, DELIVERABLE_TYPE_LABELS, DELIVERABLE_STATUS_LABELS, formatDate } from "@/lib/utils";
-import { Trophy, Target, TrendingUp, Calendar, MapPin, Clock } from "lucide-react";
-import { format } from "date-fns";
+import { monthLabel, DELIVERABLE_TYPE_LABELS, DELIVERABLE_STATUS_LABELS } from "@/lib/utils";
+import { Trophy, Target, TrendingUp, Calendar, MapPin } from "lucide-react";
+import { currentMonthYearInTz, formatInTz } from "@/components/runners/miami-time";
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({ params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params;
+// Next 14: route params are a plain object (not a Promise)
+type Params = { params: { token: string } };
+
+export async function generateMetadata({ params }: Params) {
+  const { token } = params;
+  if (!token) return { title: "Campaign Monitor" };
   const client = await db.client.findUnique({ where: { shareToken: token }, select: { name: true } });
   return { title: client ? `${client.name} — Campaign Monitor` : "Campaign Monitor" };
 }
 
-export default async function CampaignMonitorPage({ params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params;
+export default async function CampaignMonitorPage({ params }: Params) {
+  const { token } = params;
+  if (!token) return notFound();
 
   const client = await db.client.findUnique({
     where: { shareToken: token },
@@ -23,17 +28,21 @@ export default async function CampaignMonitorPage({ params }: { params: Promise<
 
   if (!client) return notFound();
 
-  const { month, year } = currentMonthYear();
+  const { month, year } = currentMonthYearInTz();
 
-  // Get deliverables for current month
+  // Public page: only client-visible, non-internal deliverables, and only the
+  // fields that are shown (never notes or anything financial).
   const deliverables = await db.deliverable.findMany({
     where: {
       clientId: client.id,
       isClientVisible: true,
+      isInternal: false,
+      status: { not: "CANCELLED" },
       month,
       year,
     },
-    orderBy: { completedAt: "desc" },
+    select: { id: true, title: true, type: true, status: true, outcome: true, completedAt: true },
+    orderBy: [{ completedAt: "desc" }, { createdAt: "asc" }],
   });
 
   const completed = deliverables.filter((d) => d.status === "COMPLETED");
@@ -53,11 +62,12 @@ export default async function CampaignMonitorPage({ params }: { params: Promise<
     where: {
       clientId: client.id,
       eventDate: { gte: new Date() },
-      status: { not: "CANCELLED" },
+      status: { in: ["SCHEDULED", "CONFIRMED"] },
     },
     orderBy: { eventDate: "asc" },
     take: 10,
-    include: { runner: { select: { name: true } } },
+    // Display fields only — no runner identity or internal logistics notes
+    select: { id: true, eventName: true, eventDate: true, eventTime: true, venueName: true, location: true, status: true },
   });
 
   return (
@@ -198,12 +208,18 @@ export default async function CampaignMonitorPage({ params }: { params: Promise<
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-ink-secondary">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {format(new Date(a.eventDate), "EEE, MMM d 'at' h:mm a")}
+                          {formatInTz(a.eventTime ?? a.eventDate, {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
                         </span>
-                        {a.venueName && (
+                        {(a.venueName || a.location) && (
                           <span className="flex items-center gap-1">
                             <MapPin className="h-3 w-3" />
-                            {a.venueName}
+                            {a.venueName || a.location}
                           </span>
                         )}
                       </div>

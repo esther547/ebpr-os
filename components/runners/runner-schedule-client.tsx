@@ -2,19 +2,29 @@
 
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/header";
-import { RunnerScheduleView } from "./runner-schedule-view";
+import { RunnerScheduleView, type ScheduleAssignment } from "./runner-schedule-view";
 import { CreateAssignmentModal } from "./create-assignment-modal";
 import { Button } from "@/components/ui/form-field";
 
 interface Props {
-  assignments: any[];
+  assignments: ScheduleAssignment[];
   runners: { id: string; name: string; avatar: string | null }[];
   clients: { id: string; name: string }[];
-  weekStart: string;
+  /** Monday of the current week, "yyyy-MM-dd" (Miami). */
+  weekStartKey: string;
+  /** Today, "yyyy-MM-dd" (Miami). */
+  todayKey: string;
   isRunner: boolean;
 }
 
-export function RunnerScheduleClient({ assignments, runners, clients, weekStart, isRunner }: Props) {
+export function RunnerScheduleClient({
+  assignments,
+  runners,
+  clients,
+  weekStartKey,
+  todayKey,
+  isRunner,
+}: Props) {
   const [showAssign, setShowAssign] = useState(false);
 
   return (
@@ -31,7 +41,8 @@ export function RunnerScheduleClient({ assignments, runners, clients, weekStart,
       <RunnerScheduleView
         assignments={assignments}
         runners={runners}
-        weekStart={new Date(weekStart)}
+        weekStartKey={weekStartKey}
+        todayKey={todayKey}
         isReadOnly={isRunner}
       />
       {!isRunner && clients.length > 0 && (
@@ -39,7 +50,7 @@ export function RunnerScheduleClient({ assignments, runners, clients, weekStart,
           open={showAssign}
           onOpenChange={setShowAssign}
           runners={runners}
-          clientId={clients[0].id}
+          clients={clients}
         />
       )}
     </>

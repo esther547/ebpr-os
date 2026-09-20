@@ -23,34 +23,46 @@ export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembe
     setError(null);
 
     const form = new FormData(e.currentTarget);
+    const dueDate = (form.get("dueDate") as string) || undefined;
+
+    // The deliverable counts toward the month it is due in; otherwise the current month.
     const now = new Date();
+    const dueMatch = dueDate ? /^(\d{4})-(\d{2})-\d{2}$/.exec(dueDate) : null;
+    const month = dueMatch ? parseInt(dueMatch[2], 10) : now.getMonth() + 1;
+    const year = dueMatch ? parseInt(dueMatch[1], 10) : now.getFullYear();
 
     const body = {
       clientId,
-      title: form.get("title") as string,
+      title: (form.get("title") as string).trim(),
       type: form.get("type") as string,
       assigneeId: (form.get("assigneeId") as string) || undefined,
-      dueDate: (form.get("dueDate") as string) || undefined,
+      dueDate,
       notes: (form.get("notes") as string) || undefined,
-      month: now.getMonth() + 1,
-      year: now.getFullYear(),
+      month,
+      year,
     };
 
-    const res = await fetch("/api/deliverables", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    try {
+      const res = await fetch("/api/deliverables", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
 
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error || "Failed to create deliverable");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(typeof data.error === "string" ? data.error : "Failed to create deliverable");
+        setLoading(false);
+        return;
+      }
+
+      onOpenChange(false);
       setLoading(false);
-      return;
+      router.refresh();
+    } catch {
+      setError("Network error — could not reach the server");
+      setLoading(false);
     }
-
-    onOpenChange(false);
-    router.refresh();
   }
 
   return (
@@ -90,6 +102,7 @@ export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembe
 
         <FormGroup label="Due Date" htmlFor="del-due">
           <Input id="del-due" name="dueDate" type="date" />
+          <p className="mt-1 text-xs text-ink-muted">Counts toward the month it is due in (this month if left blank).</p>
         </FormGroup>
 
         <FormGroup label="Notes" htmlFor="del-notes">
