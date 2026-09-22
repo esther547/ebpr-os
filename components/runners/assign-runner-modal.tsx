@@ -70,11 +70,22 @@ export function AssignRunnerModal({
         <FormGroup label="Runner" htmlFor="assign-runner">
           <Select id="assign-runner" name="runnerId" defaultValue={assignment?.runnerId ?? ""}>
             <option value="">— Leave unassigned —</option>
-            {runners.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
+            {(() => {
+              const onlyRunners = runners.filter((r) => !r.role || r.role === "RUNNER");
+              const team = runners.filter((r) => r.role && r.role !== "RUNNER");
+              return (
+                <>
+                  <optgroup label="Runners">
+                    {onlyRunners.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}
+                  </optgroup>
+                  {team.length > 0 && (
+                    <optgroup label="Equipo (acompaña a veces)">
+                      {team.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}
+                    </optgroup>
+                  )}
+                </>
+              );
+            })()}
           </Select>
         </FormGroup>
         <p className="text-xs text-ink-muted">

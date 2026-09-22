@@ -118,9 +118,22 @@ export function CreateAssignmentModal({ open, onOpenChange, clientId, clients = 
           <FormGroup label="Runner" htmlFor="ra-runner" hint="optional">
             <Select id="ra-runner" name="runnerId">
               <option value="">Leave unassigned (needs a runner)</option>
-              {runners.map((r) => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
+              {(() => {
+              const onlyRunners = runners.filter((r) => !r.role || r.role === "RUNNER");
+              const team = runners.filter((r) => r.role && r.role !== "RUNNER");
+              return (
+                <>
+                  <optgroup label="Runners">
+                    {onlyRunners.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}
+                  </optgroup>
+                  {team.length > 0 && (
+                    <optgroup label="Equipo (acompaña a veces)">
+                      {team.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}
+                    </optgroup>
+                  )}
+                </>
+              );
+            })()}
             </Select>
           </FormGroup>
 

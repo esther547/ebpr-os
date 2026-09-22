@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { companionWhere } from "@/lib/companions";
 import { ClientHeader } from "@/components/clients/client-header";
 import { AgendaMonthSection } from "@/components/agenda/agenda-month-section";
 import { AgendaAddItemButton } from "@/components/agenda/create-agenda-item-modal";
@@ -32,7 +33,7 @@ export default async function AgendaPage({ params }: Props) {
   });
 
   const runners = await db.user.findMany({
-    where: { role: "RUNNER", isActive: true },
+    where: companionWhere,
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });

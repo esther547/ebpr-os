@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { canManageRunners } from "@/lib/permissions";
 import { db } from "@/lib/db";
+import { COMPANION_ROLES } from "@/lib/companions";
 import { reassignAfterTimeChange } from "@/lib/runner-assign";
 import { dayKeyInTz, tzMidnight, weekStartKey } from "@/components/runners/miami-time";
 
@@ -73,7 +74,7 @@ async function handleUpdate(req: NextRequest, { params }: Params) {
         where: { id: d.runnerId },
         select: { id: true, name: true, role: true, isActive: true },
       });
-      if (!runner || runner.role !== "RUNNER" || !runner.isActive) {
+      if (!runner || !COMPANION_ROLES.includes(runner.role) || !runner.isActive) {
         return NextResponse.json({ error: "Selected runner was not found" }, { status: 400 });
       }
     }

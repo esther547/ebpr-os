@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { companionWhere } from "@/lib/companions";
 import {
   addDaysKey,
   dayKeyInTz,
@@ -175,7 +176,7 @@ async function loadContext(fromKey: string, toKey: string): Promise<Context> {
 
   const [runners, weeklyRows, overrideRows, assignmentRows] = await Promise.all([
     db.user.findMany({
-      where: { role: "RUNNER", isActive: true },
+      where: companionWhere,
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

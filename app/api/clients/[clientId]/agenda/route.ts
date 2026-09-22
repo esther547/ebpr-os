@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { canManageRunners } from "@/lib/permissions";
 import { db } from "@/lib/db";
+import { COMPANION_ROLES } from "@/lib/companions";
 import { z } from "zod";
 import { startOfWeek, startOfDay, endOfDay } from "date-fns";
 
@@ -134,7 +135,7 @@ export async function POST(
       where: { id: data.runnerId },
       select: { id: true, name: true, role: true, isActive: true },
     });
-    if (!found || found.role !== "RUNNER" || !found.isActive) {
+    if (!found || !COMPANION_ROLES.includes(found.role) || !found.isActive) {
       return NextResponse.json({ error: "Selected runner was not found" }, { status: 400 });
     }
     runner = { id: found.id, name: found.name };

@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth";
 import { canViewRunnerSchedule } from "@/lib/permissions";
 import { db } from "@/lib/db";
+import { companionWhere } from "@/lib/companions";
 import { RunnerScheduleClient } from "@/components/runners/runner-schedule-client";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Lock } from "lucide-react";
@@ -72,8 +73,8 @@ export default async function RunnerSchedulePage({
   }));
 
   const runners = await db.user.findMany({
-    where: { role: "RUNNER", isActive: true },
-    select: { id: true, name: true, avatar: true },
+    where: companionWhere,
+    select: { id: true, name: true, role: true, avatar: true },
     orderBy: { name: "asc" },
   });
 

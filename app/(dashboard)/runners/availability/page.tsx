@@ -3,6 +3,7 @@ import { CalendarX2, Lock } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { canManageRunners } from "@/lib/permissions";
 import { db } from "@/lib/db";
+import { companionWhere } from "@/lib/companions";
 import { PageHeader } from "@/components/layout/header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/form-field";
@@ -31,8 +32,8 @@ export default async function RunnerAvailabilityPage() {
   }
 
   const runners = await db.user.findMany({
-    where: { role: "RUNNER", isActive: true },
-    select: { id: true, name: true, email: true },
+    where: companionWhere,
+    select: { id: true, name: true, role: true, email: true },
     orderBy: { name: "asc" },
   });
 

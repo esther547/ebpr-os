@@ -141,9 +141,22 @@ export function AgendaAddItemButton({ clientId, clientStatus = "ACTIVE", runners
             <FormGroup label="PR Runner" htmlFor="ag-runner" hint="optional">
               <Select id="ag-runner" name="runnerId">
                 <option value="">Leave unassigned (needs a runner)</option>
-                {runners.map((r) => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
-                ))}
+                {(() => {
+              const onlyRunners = runners.filter((r) => !r.role || r.role === "RUNNER");
+              const team = runners.filter((r) => r.role && r.role !== "RUNNER");
+              return (
+                <>
+                  <optgroup label="Runners">
+                    {onlyRunners.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}
+                  </optgroup>
+                  {team.length > 0 && (
+                    <optgroup label="Equipo (acompaña a veces)">
+                      {team.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}
+                    </optgroup>
+                  )}
+                </>
+              );
+            })()}
               </Select>
             </FormGroup>
             <FormGroup label="Linked Deliverable" htmlFor="ag-deliverable">
