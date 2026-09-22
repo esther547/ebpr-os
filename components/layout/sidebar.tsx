@@ -103,14 +103,14 @@ export function Sidebar({ userRole, userName, userEmail }: SidebarProps) {
 
   const nav = (
     <>
-      <div className="flex h-16 items-center justify-between border-b border-border px-5">
+      <div className="flex h-16 items-center justify-between border-b border-white/10 px-5">
         <Link href="/" className="flex items-center" aria-label="EBPR OS home">
-          <EBPRLogoHorizontal size="sm" />
+          <EBPRLogoHorizontal size="sm" inverted />
         </Link>
         <button
           type="button"
           onClick={() => setMobileOpen(false)}
-          className="rounded-lg p-1.5 text-ink-muted hover:bg-surface-2 hover:text-ink-primary md:hidden"
+          className="rounded-lg p-1.5 text-white/60 hover:bg-white/10 hover:text-white md:hidden"
           aria-label="Close menu"
         >
           <X className="h-4 w-4" />
@@ -120,7 +120,7 @@ export function Sidebar({ userRole, userName, userEmail }: SidebarProps) {
       <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Main">
         {groups.map((group) => (
           <div key={group.label} className="mb-5 last:mb-0">
-            <p className="eyebrow mb-1.5 px-3">{group.label}</p>
+            <p className="mb-1.5 px-3 text-2xs font-semibold uppercase tracking-[0.14em] text-white/35">{group.label}</p>
             <ul className="space-y-0.5">
               {group.items.map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
@@ -132,14 +132,14 @@ export function Sidebar({ userRole, userName, userEmail }: SidebarProps) {
                       className={cn(
                         "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                         isActive
-                          ? "bg-ink-primary text-ink-inverted shadow-sm"
-                          : "text-ink-secondary hover:bg-surface-2 hover:text-ink-primary"
+                          ? "bg-white text-ink-primary shadow-sm"
+                          : "text-white/70 hover:bg-white/10 hover:text-white"
                       )}
                     >
                       <span
                         className={cn(
                           "flex-shrink-0 [&>svg]:h-4 [&>svg]:w-4",
-                          isActive ? "text-ink-inverted" : "text-ink-muted group-hover:text-ink-primary"
+                          isActive ? "text-accent2" : "text-white/40 group-hover:text-white"
                         )}
                       >
                         {item.icon}
@@ -154,10 +154,10 @@ export function Sidebar({ userRole, userName, userEmail }: SidebarProps) {
         ))}
       </nav>
 
-      <div className="border-t border-border p-3">
+      <div className="border-t border-white/10 p-3">
         <div className="flex items-center gap-3 rounded-xl px-2 py-2">
           <div className="relative">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-ink-primary text-xs font-semibold text-white">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent2 text-xs font-semibold text-white">
               {initials(userName) || "?"}
             </div>
             <div className="absolute -bottom-1 -right-1 [&_.cl-userButtonTrigger]:h-5 [&_.cl-userButtonTrigger]:w-5 [&_.cl-avatarBox]:h-5 [&_.cl-avatarBox]:w-5 [&_.cl-avatarBox]:ring-2 [&_.cl-avatarBox]:ring-white">
@@ -165,12 +165,12 @@ export function Sidebar({ userRole, userName, userEmail }: SidebarProps) {
             </div>
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-ink-primary">{userName}</p>
-            <p className="truncate text-2xs text-ink-muted">
+            <p className="truncate text-sm font-medium text-white">{userName}</p>
+            <p className="truncate text-2xs text-white/50">
               {ROLE_LABELS[userRole]} · {userEmail}
             </p>
           </div>
-          <NotificationBell />
+          <span className="[&_button]:text-white/60 [&_button:hover]:bg-white/10 [&_button:hover]:text-white"><NotificationBell /></span>
         </div>
       </div>
     </>
@@ -179,29 +179,29 @@ export function Sidebar({ userRole, userName, userEmail }: SidebarProps) {
   return (
     <>
       {/* Mobile top bar */}
-      <div className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-white/90 px-4 backdrop-blur md:hidden">
+      <div className="sticky top-0 z-40 flex h-14 items-center justify-between bg-ink-primary px-4 text-white md:hidden">
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
-          className="rounded-lg p-2 text-ink-secondary hover:bg-surface-2 hover:text-ink-primary"
+          className="rounded-lg p-2 text-white/70 hover:bg-white/10 hover:text-white"
           aria-label="Open menu"
         >
           <Menu className="h-5 w-5" />
         </button>
-        <EBPRLogoHorizontal size="sm" />
-        <NotificationBell />
+        <EBPRLogoHorizontal size="sm" inverted />
+        <span className="[&_button]:text-white/70 [&_button:hover]:bg-white/10 [&_button:hover]:text-white"><NotificationBell /></span>
       </div>
 
       {/* Mobile drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-ink-primary/30 backdrop-blur-[2px]" onClick={() => setMobileOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 flex w-[280px] flex-col bg-white shadow-pop animate-slide-in-left">{nav}</aside>
+          <aside className="absolute inset-y-0 left-0 flex w-[280px] flex-col bg-ink-primary shadow-pop animate-slide-in-left">{nav}</aside>
         </div>
       )}
 
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-sidebar flex-col border-r border-border bg-white md:flex">{nav}</aside>
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-sidebar flex-col bg-ink-primary text-white md:flex">{nav}</aside>
     </>
   );
 }

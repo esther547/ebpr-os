@@ -15,7 +15,7 @@ export function Card({
   return (
     <Comp
       className={cn(
-        "rounded-xl border border-border bg-white shadow-card",
+        "rounded-2xl border border-border bg-white shadow-card",
         interactive && "transition-all duration-150 hover:-translate-y-px hover:border-border-strong hover:shadow-card-hover",
         { none: "", sm: "p-4", md: "p-5", lg: "p-6" }[padding],
         className

@@ -48,7 +48,7 @@
 
   /* Accessible, brand-consistent focus ring */
   :focus-visible {
-    @apply outline-none ring-2 ring-ink-primary/25 ring-offset-2 ring-offset-surface-1;
+    @apply outline-none ring-2 ring-accent2/40 ring-offset-2 ring-offset-surface-1;
   }
   input:focus-visible, select:focus-visible, textarea:focus-visible {
     @apply ring-0 ring-offset-0;
@@ -87,7 +87,7 @@
   }
 
   ::selection {
-    @apply bg-ink-primary text-white;
+    @apply bg-accent2 text-white;
   }
 }
 
@@ -114,6 +114,13 @@
   /* Thin divider label */
   .eyebrow {
     @apply text-2xs font-semibold uppercase tracking-[0.14em] text-ink-muted;
+  }
+  .eyebrow-accent {
+    @apply text-2xs font-semibold uppercase tracking-[0.14em] text-accent2-ink;
+  }
+  /* Soft accent glow used behind hero numbers */
+  .glow-accent {
+    background: radial-gradient(60% 80% at 20% 0%, rgba(255, 90, 54, 0.10), transparent 70%);
   }
 }
 

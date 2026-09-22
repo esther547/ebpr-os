@@ -18,7 +18,7 @@ export const buttonVariants = ({
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-primary/25 focus-visible:ring-offset-2",
     "disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
     {
-      primary: "bg-ink-primary text-ink-inverted shadow-sm hover:bg-ink-primary/90",
+      primary: "bg-ink-primary text-ink-inverted shadow-sm hover:bg-accent2 hover:shadow-card-hover",
       secondary: "border border-border bg-white text-ink-primary shadow-sm hover:bg-surface-2 hover:border-border-strong",
       outline: "border border-border bg-transparent text-ink-primary hover:bg-surface-2",
       ghost: "text-ink-secondary hover:bg-surface-2 hover:text-ink-primary",

@@ -21,6 +21,12 @@ const config: Config = {
           black: "#0A0A0A",
           white: "#FFFFFF",
         },
+        // Accent (single brand accent; swap this one value to re-theme)
+        accent2: {
+          DEFAULT: "#FF5A36",
+          soft: "#FFF1EC",
+          ink: "#B93A1F",
+        },
         // Surface hierarchy
         surface: {
           1: "#FAFAF9", // page background
@@ -82,6 +88,8 @@ const config: Config = {
       },
       fontSize: {
         "2xs": ["0.625rem", { lineHeight: "0.875rem" }],
+        display: ["2.25rem", { lineHeight: "1.05", letterSpacing: "-0.03em", fontWeight: "600" }],
+        "display-lg": ["3rem", { lineHeight: "1", letterSpacing: "-0.035em", fontWeight: "600" }],
       },
       keyframes: {
         "accordion-down": {

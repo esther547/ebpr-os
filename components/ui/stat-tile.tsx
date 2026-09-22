@@ -22,12 +22,12 @@ export function StatTile({
     danger: "text-red-600",
   }[tone];
   return (
-    <div className={cn("rounded-xl border border-border bg-white p-5 shadow-card", className)}>
+    <div className={cn("glow-accent relative overflow-hidden rounded-2xl border border-border bg-white p-5 shadow-card", className)}>
       <div className="flex items-start justify-between gap-3">
         <p className="eyebrow">{label}</p>
         {icon && <span className="text-ink-muted [&>svg]:h-4 [&>svg]:w-4">{icon}</span>}
       </div>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-ink-primary tabular">{value}</p>
+      <p className="mt-3 text-display-lg text-ink-primary tabular">{value}</p>
       {hint && <p className={cn("mt-1 text-xs", hintColor)}>{hint}</p>}
     </div>
   );
