@@ -9,6 +9,7 @@ import {
   formatInTz,
   tzMidnight,
 } from "@/components/runners/miami-time";
+import { syncAllAgendaDocs, type AgendaDocSyncReport } from "@/lib/google-docs-writer";
 
 /**
  * Cron endpoint — called daily (8am Miami) to generate notifications:
@@ -212,8 +213,22 @@ export async function GET(req: NextRequest) {
   }
   results.conflictsDetected = conflicts;
 
+  // ── 5. Mirror every active client's agenda into its Google Doc ────
+  // The portal is the source of truth: each "Agenda 2026" doc is regenerated
+  // from the RunnerAssignment rows every night. This rides along with the daily
+  // cron because Vercel Hobby allows only two cron entries and both are taken.
+  // Docs that have not been shared with the service account as Editor come back
+  // as a clean per-client error — they never fail the rest of the job.
+  let agendaDocs: AgendaDocSyncReport | { error: string };
+  try {
+    agendaDocs = await syncAllAgendaDocs();
+  } catch (err) {
+    console.error("Cron: agenda doc sync failed:", err);
+    agendaDocs = { error: err instanceof Error ? err.message : String(err) };
+  }
+
   return NextResponse.json(
-    { message: "Cron completed", timestamp: now.toISOString(), today: todayKey, results },
+    { message: "Cron completed", timestamp: now.toISOString(), today: todayKey, results, agendaDocs },
     { headers: NO_STORE }
   );
 }

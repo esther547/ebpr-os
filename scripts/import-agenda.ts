@@ -45,6 +45,7 @@ async function main() {
     const clientId = byName.get(r.client);
     if (!clientId) { missingClient++; continue; }
     if (existing.has(r.id)) { skipped++; continue; }
+    existing.add(r.id); // identical rows in the doc share a hash: import once
     const [h, m] = (r.time ?? "12:00").split(":").map(Number);
     const eventDate = new Date(tzMidnight(r.date).getTime() + (h * 60 + m) * 60_000);
     const isFuture = r.date >= todayKey;
@@ -71,8 +72,16 @@ async function main() {
   for (const [c, s] of Object.entries(summary)) console.log(`  ${c.padEnd(36)} past ${s.past}  future ${s.future}  cancelled ${s.cancelled}`);
   console.log(`\nto create: ${created}, already imported: ${skipped}, unknown client: ${missingClient}`);
   if (!APPLY) { console.log("Dry run. Re-run with --apply.\n"); return; }
-  for (const data of plan) await db.runnerAssignment.create({ data });
-  console.log("Applied.\n");
+  let failed = 0;
+  for (const data of plan) {
+    try {
+      await db.runnerAssignment.create({ data });
+    } catch (err) {
+      failed++;
+      console.log(`  !! ${String((data as { eventName?: string }).eventName).slice(0, 50)}: ${(err as Error).message.split("\n")[0]}`);
+    }
+  }
+  console.log(`Applied (${failed} failed).\n`);
 }
 
 main().finally(() => db.$disconnect());

@@ -6,7 +6,7 @@ import { cycleForDate } from "@/lib/cycles";
 import { requireUser } from "@/lib/auth";
 import { canManageDeliverables } from "@/lib/permissions";
 import { parseDateInput, recordStatusTransition } from "../_lib/status-transition";
-import { syncAgendaItemDate } from "../_lib/agenda-sync";
+import { syncAgendaItemDetails, activityInstant } from "../_lib/agenda-sync";
 
 const updateDeliverableSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -20,6 +20,10 @@ const updateDeliverableSchema = z.object({
   notes: z.string().nullable().optional(),
   outcome: z.string().nullable().optional(),
   isClientVisible: z.boolean().optional(),
+  eventTime: z.string().regex(/^\d{1,2}:\d{2}$/).nullable().optional(),
+  venueName: z.string().max(200).nullable().optional(),
+  venueAddress: z.string().max(300).nullable().optional(),
+  needsRunner: z.boolean().optional(),
 });
 
 function zodMessage(err: z.ZodError) {
@@ -96,7 +100,7 @@ export async function PUT(
 
     const existing = await db.deliverable.findUnique({
       where: { id },
-      select: { id: true, clientId: true, title: true, status: true },
+      select: { id: true, clientId: true, title: true, status: true, dueDate: true, eventTime: true },
     });
     if (!existing) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -121,6 +125,21 @@ export async function PUT(
         data.year = cycle.year;
       }
     }
+    if (d.venueName !== undefined) data.venueName = d.venueName?.trim() || null;
+    if (d.venueAddress !== undefined) data.venueAddress = d.venueAddress?.trim() || null;
+    if (d.needsRunner !== undefined) data.needsRunner = d.needsRunner;
+    // Activity time is tied to the (possibly new) due date's calendar day.
+    if (d.eventTime !== undefined || d.dueDate !== undefined) {
+      const effectiveDue = d.dueDate !== undefined ? (data.dueDate as Date | null) : existing.dueDate;
+      const dayKey = effectiveDue ? new Date(effectiveDue).toISOString().slice(0, 10) : null;
+      const hhmm =
+        d.eventTime !== undefined
+          ? d.eventTime
+          : existing.eventTime
+            ? new Date(existing.eventTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" })
+            : null;
+      data.eventTime = dayKey ? activityInstant(dayKey, hhmm) : null;
+    }
     if (d.notes !== undefined) data.notes = d.notes;
     if (d.outcome !== undefined) data.outcome = d.outcome;
     if (d.isClientVisible !== undefined) data.isClientVisible = d.isClientVisible;
@@ -133,13 +152,13 @@ export async function PUT(
       },
     });
 
-    // The due date moved: keep the linked (still unassigned) agenda item in step
-    // so the client agenda and the runner schedule show the new date.
-    if (d.dueDate !== undefined) {
+    // Keep the linked agenda item (client agenda + runner schedule) in step with
+    // the goal's date, time, place and title; re-check the runner if the time moved.
+    if (d.dueDate !== undefined || d.eventTime !== undefined || d.venueName !== undefined || d.venueAddress !== undefined || d.title !== undefined) {
       try {
-        await syncAgendaItemDate(deliverable.id, deliverable.dueDate);
+        await syncAgendaItemDetails(deliverable.id, user.id);
       } catch (err) {
-        console.error("Agenda date sync failed:", err);
+        console.error("Agenda sync failed:", err);
       }
     }
 

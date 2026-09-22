@@ -40,6 +40,10 @@ type Deliverable = {
   notes: string | null;
   outcome: string | null;
   dueDate: string | Date | null;
+  eventTime?: string | Date | null;
+  venueName?: string | null;
+  venueAddress?: string | null;
+  needsRunner?: boolean;
   completedAt: string | Date | null;
   month: number;
   year: number;
@@ -85,6 +89,10 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
       outcome: (form.get("outcome") as string) || null,
       dueDate: (form.get("dueDate") as string) || null,
       isClientVisible: form.get("isClientVisible") === "true",
+      eventTime: (form.get("eventTime") as string) || null,
+      venueName: (form.get("venueName") as string) || null,
+      venueAddress: (form.get("venueAddress") as string) || null,
+      needsRunner: form.get("needsRunner") === "on",
     };
 
     try {
@@ -301,6 +309,31 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
                   />
                 </FormGroup>
               </div>
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <FormGroup label="Hora" htmlFor="d-time" hint="pauta">
+                  <Input
+                    id="d-time"
+                    name="eventTime"
+                    type="time"
+                    defaultValue={
+                      deliverable.eventTime
+                        ? new Date(deliverable.eventTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" })
+                        : ""
+                    }
+                  />
+                </FormGroup>
+                <FormGroup label="Lugar" htmlFor="d-venue" className="sm:col-span-2">
+                  <Input id="d-venue" name="venueName" defaultValue={deliverable.venueName ?? ""} placeholder="Telemundo Center, Zoom, Casa D…" />
+                </FormGroup>
+              </div>
+              <FormGroup label="Dirección" htmlFor="d-address">
+                <Input id="d-address" name="venueAddress" defaultValue={deliverable.venueAddress ?? ""} />
+              </FormGroup>
+              <label className="flex items-center gap-2 text-sm text-ink-primary">
+                <input type="checkbox" name="needsRunner" defaultChecked={deliverable.needsRunner ?? true} className="h-4 w-4 rounded border-border accent-accent2" />
+                Requiere runner (al confirmar se crea la pauta y se asigna un runner)
+              </label>
 
               <FormGroup label="Notes" htmlFor="d-notes">
                 <Textarea id="d-notes" name="notes" rows={3} defaultValue={deliverable.notes || ""} placeholder="Internal notes..." />

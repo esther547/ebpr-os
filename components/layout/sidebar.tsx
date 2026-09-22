@@ -14,6 +14,7 @@ import {
   Newspaper,
   BookOpen,
   ClipboardList,
+  ListChecks,
   Menu,
   X,
 } from "lucide-react";
@@ -37,6 +38,7 @@ const navGroups: NavGroup[] = [
     label: "Workspace",
     items: [
       { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
+      { href: "/priorities", label: "Prioridades", icon: <ListChecks />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
       { href: "/clients", label: "Clients", icon: <Users />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
       { href: "/runners", label: "Runners", icon: <CalendarDays />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
     ],

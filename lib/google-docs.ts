@@ -5,10 +5,15 @@ export const GOOGLE_NOT_CONFIGURED =
 
 /** True when a usable service-account key is present in the environment. */
 export function isGoogleDocsConfigured(): boolean {
-  return getCredentials() !== null;
+  return getGoogleCredentials() !== null;
 }
 
-function getCredentials(): { client_email: string; private_key: string } | null {
+/**
+ * Parsed service-account credentials, or null when the key is missing/invalid.
+ * Shared with lib/google-docs-writer.ts so both the read and the write client
+ * resolve credentials exactly the same way.
+ */
+export function getGoogleCredentials(): { client_email: string; private_key: string } | null {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
   if (!raw) return null;
   try {
@@ -23,7 +28,7 @@ function getCredentials(): { client_email: string; private_key: string } | null 
 }
 
 function getAuth() {
-  const credentials = getCredentials();
+  const credentials = getGoogleCredentials();
   if (!credentials) throw new Error(GOOGLE_NOT_CONFIGURED);
   return new google.auth.GoogleAuth({
     credentials,

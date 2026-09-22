@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { canManageDeliverables } from "@/lib/permissions";
 import { cycleForDate, currentCycle } from "@/lib/cycles";
 import { parseDateInput } from "./_lib/status-transition";
+import { activityInstant, ensureAgendaItemForDeliverable } from "./_lib/agenda-sync";
 
 const createDeliverableSchema = z.object({
   clientId: z.string().min(1),
@@ -27,6 +28,11 @@ const createDeliverableSchema = z.object({
   year: z.number().int().min(2020).optional(),
   notes: z.string().optional(),
   isClientVisible: z.boolean().default(true),
+  status: z.enum(["IDEA", "OUTREACH", "CONFIRMED", "IN_PROGRESS"]).optional(),
+  eventTime: z.string().regex(/^\d{1,2}:\d{2}$/).nullable().optional(),
+  venueName: z.string().max(200).nullable().optional(),
+  venueAddress: z.string().max(300).nullable().optional(),
+  needsRunner: z.boolean().optional(),
 });
 
 function zodMessage(err: z.ZodError) {
@@ -56,7 +62,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { month: bodyMonth, year: bodyYear, dueDate: dueDateStr, ...rest } = parsed.data;
+    const { month: bodyMonth, year: bodyYear, dueDate: dueDateStr, eventTime: eventTimeStr, ...rest } = parsed.data;
 
     const client = await db.client.findUnique({
       where: { id: rest.clientId },
@@ -87,11 +93,24 @@ export async function POST(req: NextRequest) {
         month: bodyMonth ?? fallback.month,
         year: bodyYear ?? fallback.year,
         dueDate,
+        eventTime: dueDateStr ? activityInstant(dueDateStr.slice(0, 10), eventTimeStr) : null,
+        venueName: rest.venueName?.trim() || null,
+        venueAddress: rest.venueAddress?.trim() || null,
+        needsRunner: rest.needsRunner ?? true,
       },
       include: {
         assignee: { select: { id: true, name: true, avatar: true } },
       },
     });
+
+    // A goal created already confirmed goes straight onto the agenda with a runner.
+    if (deliverable.status === "CONFIRMED" || deliverable.status === "IN_PROGRESS") {
+      try {
+        await ensureAgendaItemForDeliverable(deliverable.id, user.id);
+      } catch (err) {
+        console.error("Agenda item creation failed:", err);
+      }
+    }
 
     await db.activityLog.create({
       data: {

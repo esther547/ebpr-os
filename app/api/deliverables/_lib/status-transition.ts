@@ -36,7 +36,7 @@ export async function recordStatusTransition(opts: {
   // runner; the auto-scheduler decides who accompanies it.
   if (to === "CONFIRMED" || to === "IN_PROGRESS") {
     try {
-      await ensureAgendaItemForDeliverable(deliverable.id);
+      await ensureAgendaItemForDeliverable(deliverable.id, userId);
     } catch (err) {
       console.error("Agenda sync failed:", err);
     }

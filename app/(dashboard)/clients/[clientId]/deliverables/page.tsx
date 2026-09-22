@@ -5,6 +5,7 @@ import { ClientHeader } from "@/components/clients/client-header";
 import { DeliverablesPageClient } from "@/components/deliverables/deliverables-page-client";
 import { currentCycle, cycleLabel } from "@/lib/cycles";
 import { StrategyContextCard } from "@/components/strategy/strategy-context-card";
+import { ClientWeekPriorities } from "@/components/priorities/client-week-priorities";
 
 type Props = { params: Promise<{ clientId: string }> };
 
@@ -58,6 +59,9 @@ export default async function DeliverablesPage({ params }: Props) {
       <ClientHeader client={client} counts={{ deliverables: deliverables.length }} />
       <div className="mb-6">
         <StrategyContextCard clientId={client.id} strategyDocUrl={client.strategyDocUrl} />
+      </div>
+      <div className="mb-6">
+        <ClientWeekPriorities clientId={client.id} />
       </div>
       <DeliverablesPageClient
         deliverables={JSON.parse(JSON.stringify(deliverables))}

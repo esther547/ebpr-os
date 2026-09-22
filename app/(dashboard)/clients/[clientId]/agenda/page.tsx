@@ -5,6 +5,7 @@ import { companionWhere } from "@/lib/companions";
 import { ClientHeader } from "@/components/clients/client-header";
 import { AgendaMonthSection } from "@/components/agenda/agenda-month-section";
 import { AgendaAddItemButton } from "@/components/agenda/create-agenda-item-modal";
+import { SyncDocButton } from "@/components/agenda/sync-doc-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays } from "lucide-react";
@@ -85,12 +86,15 @@ export default async function AgendaPage({ params }: Props) {
         client={client}
         counts={{ agenda: items.length }}
         actions={
-          <AgendaAddItemButton
-            clientId={client.id}
-            clientStatus={client.status}
-            runners={runners}
-            deliverables={linkableDeliverables}
-          />
+          <>
+            <SyncDocButton clientId={client.id} hasDoc={!!client.agendaDocUrl} />
+            <AgendaAddItemButton
+              clientId={client.id}
+              clientStatus={client.status}
+              runners={runners}
+              deliverables={linkableDeliverables}
+            />
+          </>
         }
       />
 
@@ -106,6 +110,10 @@ export default async function AgendaPage({ params }: Props) {
           </p>
         </div>
       )}
+
+      <p className="mb-6 text-xs text-ink-muted">
+        El Google Doc de la agenda se regenera cada noche desde el portal.
+      </p>
 
       {items.length === 0 ? (
         <EmptyState
@@ -125,6 +133,7 @@ export default async function AgendaPage({ params }: Props) {
                 monthLabel={label}
                 items={monthItems}
                 runners={runners}
+                clientId={client.id}
               />
             );
           })}

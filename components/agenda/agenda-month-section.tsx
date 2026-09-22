@@ -4,6 +4,14 @@ import { format } from "date-fns";
 import { TableWrap, Table, Th, Td } from "@/components/ui/table";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { SectionHeader } from "@/components/layout/header";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Pencil, UserPlus, Check, XCircle } from "lucide-react";
+import { DropdownMenu, DropdownMenuDots, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { ConfirmModal } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
+import { apiErrorMessage } from "@/lib/form-helpers";
+import { EditAgendaItemModal } from "./edit-agenda-item-modal";
 
 type AgendaItem = {
   id: string;
@@ -25,7 +33,9 @@ type Props = {
   monthNumber: number;
   monthLabel?: string;
   items: AgendaItem[];
-  runners?: { id: string; name: string }[];
+  runners?: { id: string; name: string; role?: string }[];
+  clientId?: string;
+  canEdit?: boolean;
 };
 
 const STATUS_TONES: Record<string, BadgeTone> = {
@@ -44,7 +54,7 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelled",
 };
 
-export function AgendaMonthSection({ monthNumber, monthLabel, items, runners: _runners }: Props) {
+export function AgendaMonthSection({ monthNumber, monthLabel, items, runners = [], clientId, canEdit = true }: Props) {
   const sorted = [...items].sort((a, b) => {
     if (a.agendaSequence !== null && b.agendaSequence !== null) {
       return a.agendaSequence - b.agendaSequence;
@@ -71,11 +81,12 @@ export function AgendaMonthSection({ monthNumber, monthLabel, items, runners: _r
               <Th>Item</Th>
               <Th>PR Runner</Th>
               <Th>Status</Th>
+              {canEdit && clientId && <Th className="w-12" />}
             </tr>
           </thead>
           <tbody>
             {sorted.map((item, i) => (
-              <AgendaItemRow key={item.id} item={item} seq={item.agendaSequence ?? i + 1} />
+              <AgendaItemRow key={item.id} item={item} seq={item.agendaSequence ?? i + 1} clientId={canEdit ? clientId : undefined} runners={runners} />
             ))}
           </tbody>
         </Table>
@@ -84,7 +95,27 @@ export function AgendaMonthSection({ monthNumber, monthLabel, items, runners: _r
   );
 }
 
-function AgendaItemRow({ item, seq }: { item: AgendaItem; seq: number }) {
+function AgendaItemRow({ item, seq, clientId, runners }: { item: AgendaItem; seq: number; clientId?: string; runners: { id: string; name: string; role?: string }[] }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [confirm, setConfirm] = useState<"COMPLETED" | "CANCELLED" | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function setStatus(status: "COMPLETED" | "CANCELLED") {
+    if (!clientId) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/agenda/${item.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) { toast({ title: apiErrorMessage(data, "No se pudo actualizar"), variant: "error" }); return; }
+      toast({ title: status === "COMPLETED" ? "Pauta completada" : "Pauta cancelada", variant: "success" });
+      router.refresh();
+    } finally { setBusy(false); setConfirm(null); }
+  }
+
   const needsRunner =
     !item.runner && (item.status === "SCHEDULED" || item.status === "CONFIRMED");
   const date = new Date(item.eventDate);
@@ -163,6 +194,38 @@ function AgendaItemRow({ item, seq }: { item: AgendaItem; seq: number }) {
           {STATUS_LABELS[item.status] ?? item.status}
         </Badge>
       </Td>
+
+      {clientId && (
+        <Td align="right">
+          <DropdownMenu>
+            <DropdownMenuDots label="Acciones de la pauta" />
+            <DropdownMenuContent>
+              <DropdownMenuItem icon={<Pencil />} onSelect={() => setEditing(true)}>Editar pauta</DropdownMenuItem>
+              <DropdownMenuItem icon={<UserPlus />} onSelect={() => setEditing(true)}>{item.runner ? "Cambiar runner" : "Asignar runner"}</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {item.status !== "COMPLETED" && (
+                <DropdownMenuItem icon={<Check />} onSelect={() => setConfirm("COMPLETED")}>Marcar completada</DropdownMenuItem>
+              )}
+              {item.status !== "CANCELLED" && (
+                <DropdownMenuItem icon={<XCircle />} destructive onSelect={() => setConfirm("CANCELLED")}>Cancelar pauta</DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {editing && (
+            <EditAgendaItemModal open={editing} onOpenChange={setEditing} clientId={clientId} item={item} runners={runners} />
+          )}
+          <ConfirmModal
+            open={!!confirm}
+            onOpenChange={(o) => { if (!o) setConfirm(null); }}
+            title={confirm === "COMPLETED" ? "¿Marcar la pauta como completada?" : "¿Cancelar esta pauta?"}
+            description={item.eventName ?? undefined}
+            confirmLabel={confirm === "COMPLETED" ? "Completar" : "Cancelar pauta"}
+            destructive={confirm === "CANCELLED"}
+            loading={busy}
+            onConfirm={async () => { if (confirm) await setStatus(confirm); }}
+          />
+        </Td>
+      )}
     </tr>
   );
 }

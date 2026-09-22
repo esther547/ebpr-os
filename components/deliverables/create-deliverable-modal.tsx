@@ -32,6 +32,11 @@ export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembe
       assigneeId: (form.get("assigneeId") as string) || undefined,
       dueDate,
       notes: (form.get("notes") as string) || undefined,
+      eventTime: (form.get("eventTime") as string) || null,
+      venueName: (form.get("venueName") as string) || null,
+      venueAddress: (form.get("venueAddress") as string) || null,
+      needsRunner: form.get("needsRunner") === "on",
+      status: form.get("confirmed") === "on" ? "CONFIRMED" : undefined,
     };
 
     try {
@@ -100,6 +105,28 @@ export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembe
         >
           <Input id="del-due" name="dueDate" type="date" />
         </FormGroup>
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <FormGroup label="Hora" htmlFor="del-time" hint="pauta">
+            <Input id="del-time" name="eventTime" type="time" />
+          </FormGroup>
+          <FormGroup label="Lugar" htmlFor="del-venue" className="sm:col-span-2">
+            <Input id="del-venue" name="venueName" placeholder="Telemundo Center, Zoom, Casa D…" />
+          </FormGroup>
+        </div>
+        <FormGroup label="Dirección" htmlFor="del-address">
+          <Input id="del-address" name="venueAddress" placeholder="Opcional" />
+        </FormGroup>
+        <div className="flex flex-wrap gap-6 rounded-xl bg-surface-2 px-4 py-3">
+          <label className="flex items-center gap-2 text-sm text-ink-primary">
+            <input type="checkbox" name="needsRunner" defaultChecked className="h-4 w-4 rounded border-border accent-accent2" />
+            Requiere runner
+          </label>
+          <label className="flex items-center gap-2 text-sm text-ink-primary">
+            <input type="checkbox" name="confirmed" className="h-4 w-4 rounded border-border accent-accent2" />
+            Ya está confirmada (crear pauta y asignar runner ahora)
+          </label>
+        </div>
 
         <FormGroup label="Notes" htmlFor="del-notes">
           <Textarea id="del-notes" name="notes" rows={3} placeholder="Additional context..." />

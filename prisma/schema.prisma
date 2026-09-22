@@ -160,6 +160,8 @@ model User {
   pressReleases        PressRelease[]     @relation("PressReleaseCreator")
   reminders            Reminder[]         @relation("ReminderCreator")
   notifications        Notification[]     @relation("UserNotifications")
+  assignedPriorities   WeeklyPriority[]   @relation("PriorityAssignee")
+  createdPriorities    WeeklyPriority[]   @relation("PriorityCreator")
 
   @@map("users")
 }
@@ -224,6 +226,7 @@ model Client {
   reports          Report[]
   pressReleases    PressRelease[]
   reminders        Reminder[]
+  weeklyPriorities WeeklyPriority[]
 
   @@map("clients")
 }
@@ -431,6 +434,11 @@ model Deliverable {
   type            DeliverableType
   status          DeliverableStatus @default(IDEA)
   dueDate         DateTime?
+  // Activity details ("pauta"): when a goal is confirmed these seed the agenda item
+  eventTime       DateTime?         // instant of the appearance (Miami)
+  venueName       String?
+  venueAddress    String?
+  needsRunner     Boolean           @default(true)
   completedAt     DateTime?
   month           Int               // 1–12
   year            Int
@@ -811,4 +819,31 @@ model ContractSignature {
   updatedAt DateTime @updatedAt
 
   @@map("contract_signatures")
+}
+
+
+// ─── WEEKLY PRIORITIES ───────────────────────────────────
+// The list the team writes every Monday: a handful of free-form lines per
+// client (plus agency-wide "general" ones). `weekOf` is Miami Monday 00:00,
+// computed with tzMidnight(weekStartKey(dayKey)) so it is timezone-stable.
+
+model WeeklyPriority {
+  id          String   @id @default(cuid())
+  weekOf      DateTime
+  clientId    String?
+  client      Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title       String
+  notes       String?
+  assigneeId  String?
+  assignee    User?    @relation("PriorityAssignee", fields: [assigneeId], references: [id])
+  isDone      Boolean  @default(false)
+  doneAt      DateTime?
+  order       Int      @default(0)
+  createdById String
+  createdBy   User     @relation("PriorityCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([weekOf, clientId])
+  @@map("weekly_priorities")
 }
