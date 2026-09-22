@@ -13,10 +13,13 @@ interface Props {
   industry?: string | null;
   monthlyTarget: number;
   cycleDay: number | null;
+  goalsOwed?: number;
+  focusNote?: string | null;
+  agendaDocUrl?: string | null;
   status: string;
 }
 
-export function ClientActions({ clientId, clientName, industry, monthlyTarget, cycleDay, status }: Props) {
+export function ClientActions({ clientId, clientName, industry, monthlyTarget, cycleDay, goalsOwed, focusNote, agendaDocUrl, status }: Props) {
   const [showEdit, setShowEdit] = useState(false);
   const [toggling, setToggling] = useState(false);
   const router = useRouter();
@@ -96,6 +99,9 @@ export function ClientActions({ clientId, clientName, industry, monthlyTarget, c
         industry={industry ?? ""}
         monthlyTarget={monthlyTarget}
         cycleDay={cycleDay ?? null}
+        goalsOwed={goalsOwed ?? 0}
+        focusNote={focusNote ?? ""}
+        agendaDocUrl={agendaDocUrl ?? ""}
         status={status}
       />
     </>
@@ -110,6 +116,9 @@ function EditClientModal({
   industry,
   monthlyTarget,
   cycleDay,
+  goalsOwed,
+  focusNote,
+  agendaDocUrl,
   status,
 }: {
   open: boolean;
@@ -119,6 +128,9 @@ function EditClientModal({
   industry: string;
   monthlyTarget: number;
   cycleDay: number | null;
+  goalsOwed: number;
+  focusNote: string;
+  agendaDocUrl: string;
   status: string;
 }) {
   const router = useRouter();
@@ -135,6 +147,9 @@ function EditClientModal({
       industry: ((form.get("industry") as string) || "").trim() || null,
       monthlyTarget: parseInt(form.get("monthlyTarget") as string),
       cycleDay: (form.get("cycleDay") as string) ? parseInt(form.get("cycleDay") as string) : null,
+      goalsOwed: parseInt((form.get("goalsOwed") as string) || "0") || 0,
+      focusNote: ((form.get("focusNote") as string) || "").trim() || null,
+      agendaDocUrl: ((form.get("agendaDocUrl") as string) || "").trim() || null,
       status: form.get("status") as string,
     };
 
@@ -194,6 +209,18 @@ function EditClientModal({
 
         <FormGroup label="Cycle reset day" htmlFor="ec-cycle" hint="fecha de corte" description="Day of the month the client's deliverable count restarts (1-31). Leave blank if unknown.">
           <Input id="ec-cycle" name="cycleDay" type="number" min={1} max={31} defaultValue={cycleDay ?? ""} placeholder="e.g. 15" />
+        </FormGroup>
+
+        <FormGroup label="Goals owed" htmlFor="ec-owed" hint="metas atrasadas" description="Goals still owed from previous cycles.">
+          <Input id="ec-owed" name="goalsOwed" type="number" min={0} defaultValue={goalsOwed} />
+        </FormGroup>
+
+        <FormGroup label="Focus this cycle" htmlFor="ec-focus" description="What the team should close next, e.g. 'Septiembre: 3 metas'.">
+          <Input id="ec-focus" name="focusNote" defaultValue={focusNote} placeholder="e.g. Septiembre: 3 metas" />
+        </FormGroup>
+
+        <FormGroup label="Agenda Google Doc" htmlFor="ec-agenda">
+          <Input id="ec-agenda" name="agendaDocUrl" type="url" defaultValue={agendaDocUrl} placeholder="https://docs.google.com/document/d/..." />
         </FormGroup>
 
         <FormGroup label="Status" htmlFor="ec-status" required>

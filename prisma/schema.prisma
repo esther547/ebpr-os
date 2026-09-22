@@ -199,6 +199,12 @@ model Client {
   monthlyTarget Int @default(6)
   // Day of month the client's cycle resets ("fecha de corte"), 1-31
   cycleDay      Int?
+  // Goals owed from previous cycles ("metas atrasadas")
+  goalsOwed     Int     @default(0)
+  // What the team should close next for this client ("metas de septiembre" note)
+  focusNote     String?
+  // Google Doc with the client's agenda (events/appearances)
+  agendaDocUrl  String?
 
 
   createdAt DateTime @default(now())

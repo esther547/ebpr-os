@@ -19,6 +19,8 @@ type ClientRow = {
   slug: string;
   status: ClientStatus;
   monthlyTarget: number;
+  goalsOwed?: number;
+  focusNote?: string | null;
   industry: string | null;
   pacing: { completed: number; inProgress: number; total: number };
   pendingApprovalCount: number;
@@ -294,6 +296,7 @@ function ClientCommandRow({ client }: { client: ClientRow }) {
           </div>
           <span className="w-10 shrink-0 text-right text-xs font-semibold tabular text-ink-secondary">
             {pacing.completed}/{isPrep ? "—" : monthlyTarget}
+            {client.goalsOwed ? <span className="ml-1.5 rounded-full bg-red-50 px-1.5 text-2xs font-semibold text-red-700 ring-1 ring-inset ring-red-600/15">debe {client.goalsOwed}</span> : null}
           </span>
         </div>
         <p

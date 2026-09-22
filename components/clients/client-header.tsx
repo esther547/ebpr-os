@@ -15,6 +15,9 @@ export type ClientHeaderClient = {
   monthlyTarget: number;
   cycleDay?: number | null;
   industry?: string | null;
+  goalsOwed?: number;
+  focusNote?: string | null;
+  agendaDocUrl?: string | null;
 };
 
 export type ClientTabCounts = Partial<
@@ -70,6 +73,13 @@ export function ClientHeader({
             {humanize(client.status)}
           </Badge>
           {client.industry && <span>{client.industry}</span>}
+          {client.goalsOwed ? (
+            <Badge tone="danger" dot>Debe {client.goalsOwed} meta{client.goalsOwed !== 1 ? "s" : ""}</Badge>
+          ) : null}
+          {client.focusNote && <Badge tone="warning">{client.focusNote}</Badge>}
+          {client.agendaDocUrl && (
+            <a href={client.agendaDocUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-ink-primary underline-offset-2 hover:underline">Agenda doc</a>
+          )}
           <span className="text-ink-muted">
             {client.monthlyTarget > 0 ? (
               <>Target <span className="tabular">{client.monthlyTarget}</span> deliverables/month</>
@@ -88,6 +98,9 @@ export function ClientHeader({
             industry={client.industry}
             monthlyTarget={client.monthlyTarget}
             cycleDay={client.cycleDay ?? null}
+            goalsOwed={client.goalsOwed ?? 0}
+            focusNote={client.focusNote ?? null}
+            agendaDocUrl={client.agendaDocUrl ?? null}
             status={client.status}
           />
           <ShareMonitorButton clientId={client.id} />

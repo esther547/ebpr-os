@@ -16,7 +16,7 @@ export default async function DeliverablesPage({ params }: Props) {
 
   const client = await db.client.findUnique({
     where: { id: clientId },
-    select: { id: true, name: true, monthlyTarget: true, status: true, industry: true, cycleDay: true },
+    select: { id: true, name: true, monthlyTarget: true, status: true, industry: true, cycleDay: true, goalsOwed: true, focusNote: true, agendaDocUrl: true },
   });
   if (!client) notFound();
 

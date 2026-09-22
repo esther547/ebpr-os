@@ -42,6 +42,8 @@ export default async function DashboardPage() {
       status: true,
       monthlyTarget: true,
       cycleDay: true,
+      goalsOwed: true,
+      focusNote: true,
       industry: true,
       campaigns: {
         where: { status: { in: ["PREPARATION", "ACTIVE"] } },

@@ -19,7 +19,7 @@ export default async function ClientApprovalsPage({ params }: Props) {
 
   const client = await db.client.findUnique({
     where: { id: params.clientId },
-    select: { id: true, name: true, status: true, monthlyTarget: true, industry: true },
+    select: { id: true, name: true, status: true, monthlyTarget: true, industry: true, cycleDay: true, goalsOwed: true, focusNote: true, agendaDocUrl: true },
   });
 
   if (!client) notFound();
