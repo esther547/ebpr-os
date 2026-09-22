@@ -55,6 +55,7 @@ export default async function RunnerSchedulePage({
     select: {
       id: true,
       runnerId: true,
+      clientId: true,
       eventName: true,
       eventDate: true,
       location: true,
@@ -66,8 +67,17 @@ export default async function RunnerSchedulePage({
     orderBy: { eventDate: "asc" },
   });
 
-  const assignments = rows.map((a) => ({
+  const clientIds = Array.from(new Set(rows.map((r) => r.clientId).filter((id): id is string => !!id)));
+  const clientNames = new Map(
+    (clientIds.length
+      ? await db.client.findMany({ where: { id: { in: clientIds } }, select: { id: true, name: true } })
+      : []
+    ).map((c) => [c.id, c.name])
+  );
+
+  const assignments = rows.map(({ clientId, ...a }) => ({
     ...a,
+    clientName: clientId ? clientNames.get(clientId) ?? null : null,
     eventDate: a.eventDate.toISOString(),
     dayKey: dayKeyInTz(a.eventDate),
   }));

@@ -150,8 +150,16 @@ export default async function DashboardPage() {
     orderBy: { eventDate: "asc" },
   });
   // Attach the Miami calendar day so client components group by the same day the server did.
+  const weekClientIds = Array.from(new Set(weekEventRows.map((e) => e.clientId).filter((id): id is string => !!id)));
+  const weekClientNames = new Map(
+    (weekClientIds.length
+      ? await db.client.findMany({ where: { id: { in: weekClientIds } }, select: { id: true, name: true } })
+      : []
+    ).map((c) => [c.id, c.name])
+  );
   const weekEvents = weekEventRows.map((e) => ({
     ...e,
+    clientName: e.clientId ? weekClientNames.get(e.clientId) ?? null : null,
     dayKey: dayKeyInTz(e.eventDate),
   }));
 

@@ -16,6 +16,8 @@ export type ScheduleAssignment = {
   id: string;
   /** Null while the activity still needs a runner. */
   runnerId: string | null;
+  /** Client the activity belongs to (shown before the activity name). */
+  clientName?: string | null;
   eventName: string;
   eventDate: string;
   /** "yyyy-MM-dd" in Miami time, computed on the server. */
@@ -228,6 +230,11 @@ export function RunnerScheduleView({
                             )}
                           </div>
 
+                          {a.clientName && (
+                            <p className="truncate text-2xs font-semibold uppercase tracking-wide text-accent2-ink" title={a.clientName}>
+                              {a.clientName}
+                            </p>
+                          )}
                           <p
                             className="truncate text-xs font-medium text-ink-primary"
                             title={a.eventName}

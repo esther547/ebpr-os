@@ -11,6 +11,7 @@ type Event = {
   dayKey: string;
   location: string | null;
   clientId: string | null;
+  clientName?: string | null;
   status: string;
   runner: { id: string; name: string } | null;
 };
@@ -81,7 +82,7 @@ export function WeekCalendarStrip({ events, weekStartKey, todayKey }: Props) {
                 {dayEvents.map((e) => (
                   <div
                     key={e.id}
-                    title={`${e.eventName}${e.location ? ` · ${e.location}` : ""}`}
+                    title={`${e.clientName ? e.clientName + " · " : ""}${e.eventName}${e.location ? ` · ${e.location}` : ""}`}
                     className="rounded-md bg-surface-2 px-1 py-1 transition-colors hover:bg-surface-3"
                   >
                     <span
@@ -90,6 +91,11 @@ export function WeekCalendarStrip({ events, weekStartKey, todayKey }: Props) {
                         STATUS_DOT[e.status] ?? "bg-ink-muted"
                       )}
                     />
+                    {e.clientName && (
+                      <p className="mt-0.5 truncate text-center text-[9px] font-semibold uppercase tracking-wide leading-tight text-accent2-ink">
+                        {e.clientName}
+                      </p>
+                    )}
                     <p className="mt-0.5 truncate text-center text-2xs font-medium leading-tight text-ink-primary">
                       {e.eventName}
                     </p>
