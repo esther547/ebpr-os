@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { ClientHeader } from "@/components/clients/client-header";
 import { DeliverablesPageClient } from "@/components/deliverables/deliverables-page-client";
 import { currentCycle, cycleLabel } from "@/lib/cycles";
+import { StrategyContextCard } from "@/components/strategy/strategy-context-card";
 
 type Props = { params: Promise<{ clientId: string }> };
 
@@ -16,7 +17,7 @@ export default async function DeliverablesPage({ params }: Props) {
 
   const client = await db.client.findUnique({
     where: { id: clientId },
-    select: { id: true, name: true, monthlyTarget: true, status: true, industry: true, cycleDay: true, goalsOwed: true, focusNote: true, agendaDocUrl: true },
+    select: { id: true, name: true, monthlyTarget: true, status: true, industry: true, cycleDay: true, goalsOwed: true, focusNote: true, agendaDocUrl: true, strategyDocUrl: true },
   });
   if (!client) notFound();
 
@@ -55,6 +56,9 @@ export default async function DeliverablesPage({ params }: Props) {
   return (
     <>
       <ClientHeader client={client} counts={{ deliverables: deliverables.length }} />
+      <div className="mb-6">
+        <StrategyContextCard clientId={client.id} strategyDocUrl={client.strategyDocUrl} />
+      </div>
       <DeliverablesPageClient
         deliverables={JSON.parse(JSON.stringify(deliverables))}
         clientId={client.id}
