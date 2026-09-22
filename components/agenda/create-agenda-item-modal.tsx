@@ -13,7 +13,7 @@ const ITEM_TYPES = ["TV", "Podcast", "Red Carpet", "Event", "Interview", "Photos
 interface Props {
   clientId: string;
   clientStatus?: string;
-  runners: { id: string; name: string }[];
+  runners: { id: string; name: string; role?: string }[];
   deliverables: { id: string; title: string }[];
 }
 

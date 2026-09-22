@@ -18,7 +18,7 @@ export function AssignRunnerModal({
   onClose,
 }: {
   assignment: Target;
-  runners: { id: string; name: string }[];
+  runners: { id: string; name: string; role?: string }[];
   onClose: () => void;
 }) {
   const router = useRouter();
