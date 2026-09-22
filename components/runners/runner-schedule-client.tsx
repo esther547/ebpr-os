@@ -13,7 +13,7 @@ import { CalendarClock, Plus } from "lucide-react";
 
 interface Props {
   assignments: ScheduleAssignment[];
-  runners: { id: string; name: string; avatar: string | null }[];
+  runners: { id: string; name: string; avatar: string | null; role?: string }[];
   clients: { id: string; name: string }[];
   /** Monday of the displayed week, "yyyy-MM-dd" (Miami). */
   weekStartKey: string;

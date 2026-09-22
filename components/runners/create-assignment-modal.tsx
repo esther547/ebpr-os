@@ -13,7 +13,7 @@ interface Props {
   clientId?: string;
   /** Selectable clients (e.g. when opened from the runner schedule). */
   clients?: { id: string; name: string }[];
-  runners: { id: string; name: string }[];
+  runners: { id: string; name: string; role?: string }[];
 }
 
 /**
