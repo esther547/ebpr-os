@@ -25,6 +25,7 @@ import { syncAllAgendaDocs, type AgendaDocSyncReport } from "@/lib/google-docs-w
  * timezone (UTC on Vercel), so a 10pm event is not treated as the next day.
  */
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const TIME: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
 

@@ -4,6 +4,8 @@ import { canManageClients } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { writeAgendaDoc } from "@/lib/google-docs-writer";
 
+export const maxDuration = 60;
+
 export const dynamic = "force-dynamic";
 
 /**

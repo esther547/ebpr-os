@@ -234,14 +234,15 @@ function bodyEndIndex(body: docs_v1.Schema$Body | undefined): number {
   return content.length ? content[content.length - 1].endIndex ?? 1 : 1;
 }
 
-/** Cell start indexes of the last table in the body, row by row. */
-function lastTableCellStarts(body: docs_v1.Schema$Body | undefined): number[][] | null {
-  const tables = (body?.content ?? []).filter((el) => el.table);
-  const last = tables[tables.length - 1];
-  if (!last?.table?.tableRows) return null;
-  return last.table.tableRows.map((row) =>
-    (row.tableCells ?? []).map((cell) => cell.content?.[0]?.startIndex ?? 0)
-  );
+/** Cell start indexes (row by row) of every table that starts at or after `fromIndex`, in order. */
+function tablesFrom(body: docs_v1.Schema$Body | undefined, fromIndex: number): number[][][] {
+  return (body?.content ?? [])
+    .filter((el) => el.table && (el.startIndex ?? 0) >= fromIndex)
+    .map((el) =>
+      (el.table?.tableRows ?? []).map((row) =>
+        (row.tableCells ?? []).map((cell) => cell.content?.[0]?.startIndex ?? 0)
+      )
+    );
 }
 
 // ─── Result types ────────────────────────────────────────
@@ -320,110 +321,87 @@ export async function writeAgendaDoc(clientId: string): Promise<WriteAgendaDocRe
   }
 
   try {
-    // ── 1. Clear everything from the first "MES ..." paragraph down ──
+    // ── 1. One write: clear from the first "MES ..." down and append every heading + empty table ──
     const initial = await docs.documents.get({ documentId });
     const body = initial.data.body;
     const cutIndex = findFirstMesIndex(body) ?? bodyEndIndex(body) - 1;
     const end = bodyEndIndex(body) - 1; // the document's final newline cannot be deleted
 
+    const build: docs_v1.Schema$Request[] = [];
     if (end > cutIndex) {
-      await docs.documents.batchUpdate({
-        documentId,
-        requestBody: {
-          requests: [{ deleteContentRange: { range: { startIndex: cutIndex, endIndex: end } } }],
+      build.push({ deleteContentRange: { range: { startIndex: cutIndex, endIndex: end } } });
+    }
+    for (const section of sections) {
+      build.push({ insertText: { endOfSegmentLocation: {}, text: `${section.heading}\n` } });
+      build.push({
+        insertTable: {
+          endOfSegmentLocation: {},
+          rows: section.rows.length + 1,
+          columns: AGENDA_TABLE_HEADER.length,
         },
       });
     }
+    await docs.documents.batchUpdate({ documentId, requestBody: { requests: build } });
 
-    // ── 2. Append the sections, one month at a time ──
+    // ── 2. One read: exact cell indexes of the tables we just appended ──
+    const after = await docs.documents.get({ documentId });
+    const tables = tablesFrom(after.data.body, cutIndex);
+    if (tables.length !== sections.length) {
+      return { ok: false, kind: "other", error: `El documento quedó con ${tables.length} tablas y se esperaban ${sections.length}; revísalo manualmente.` };
+    }
+
+    // ── 3. One write: fill every cell (descending index order) and bold headings + header rows ──
+    const inserts: { index: number; text: string; bold?: boolean }[] = [];
     let totalRows = 0;
-    for (const section of sections) {
-      const heading = `${section.heading}\n`;
-      await docs.documents.batchUpdate({
-        documentId,
-        requestBody: {
-          requests: [
-            { insertText: { endOfSegmentLocation: {}, text: heading } },
-            {
-              insertTable: {
-                endOfSegmentLocation: {},
-                rows: section.rows.length + 1,
-                columns: AGENDA_TABLE_HEADER.length,
-              },
-            },
-          ],
-        },
-      });
-
-      // Re-read so the cell indexes are exact rather than computed.
-      const afterInsert = await docs.documents.get({ documentId });
-      const cellStarts = lastTableCellStarts(afterInsert.data.body);
-      if (!cellStarts) continue;
-
+    sections.forEach((section, t) => {
       const cellTexts: string[][] = [
         [...AGENDA_TABLE_HEADER],
-        ...section.rows.map((r) => [
-          String(r.number),
-          r.fecha,
-          r.hora,
-          r.lugar,
-          r.item,
-          r.estado,
-        ]),
+        ...section.rows.map((r) => [String(r.number), r.fecha, r.hora, r.lugar, r.item, r.estado]),
       ];
-
-      // Flatten to (index, text) pairs, ascending by index.
-      const inserts: { index: number; text: string }[] = [];
-      cellStarts.forEach((row, rowIdx) => {
+      tables[t].forEach((row, rowIdx) => {
         row.forEach((index, colIdx) => {
           const text = cellTexts[rowIdx]?.[colIdx] ?? "";
-          if (text) inserts.push({ index, text });
+          if (text) inserts.push({ index, text, bold: rowIdx === 0 });
         });
       });
-      inserts.sort((a, b) => a.index - b.index);
-
-      const requests: docs_v1.Schema$Request[] = [];
-      // Insert in DESCENDING index order so earlier indexes stay valid.
-      for (let i = inserts.length - 1; i >= 0; i--) {
-        requests.push({
-          insertText: { location: { index: inserts[i].index }, text: inserts[i].text },
-        });
-      }
-
-      // Bold the heading paragraph we just inserted (unaffected by the table
-      // inserts above, which all live after it).
-      const headingStart = findHeadingStart(afterInsert.data.body, section.heading);
-      if (headingStart !== null) {
-        requests.push({
-          updateTextStyle: {
-            range: { startIndex: headingStart, endIndex: headingStart + section.heading.length },
-            textStyle: { bold: true },
-            fields: "bold",
-          },
-        });
-      }
-
-      // Bold the header row. Its final indexes shift by the length of the text
-      // inserted into the cells *before* it — i.e. only its own earlier cells.
-      const headerCount = cellStarts[0]?.length ?? 0;
-      let shift = 0;
-      for (let col = 0; col < headerCount; col++) {
-        const text = cellTexts[0][col];
-        const start = cellStarts[0][col] + shift;
-        requests.push({
-          updateTextStyle: {
-            range: { startIndex: start, endIndex: start + text.length },
-            textStyle: { bold: true },
-            fields: "bold",
-          },
-        });
-        shift += text.length;
-      }
-
-      await docs.documents.batchUpdate({ documentId, requestBody: { requests } });
       totalRows += section.rows.length;
-    }
+    });
+    inserts.sort((a, b) => a.index - b.index);
 
+    const requests: docs_v1.Schema$Request[] = [];
+    for (let i = inserts.length - 1; i >= 0; i--) {
+      requests.push({ insertText: { location: { index: inserts[i].index }, text: inserts[i].text } });
+    }
+    // Final positions: each cell shifts by the length of everything inserted before it.
+    let shift = 0;
+    for (const ins of inserts) {
+      if (ins.bold) {
+        requests.push({
+          updateTextStyle: {
+            range: { startIndex: ins.index + shift, endIndex: ins.index + shift + ins.text.length },
+            textStyle: { bold: true },
+            fields: "bold",
+          },
+        });
+      }
+      shift += ins.text.length;
+    }
+    // Headings sit before the tables, so their indexes are unaffected by the cell inserts.
+    for (const section of sections) {
+      const hs = findHeadingStart(after.data.body, section.heading);
+      if (hs !== null) {
+        requests.push({
+          updateTextStyle: {
+            range: { startIndex: hs, endIndex: hs + section.heading.length },
+            textStyle: { bold: true },
+            fields: "bold",
+          },
+        });
+      }
+    }
+    await docs.documents.batchUpdate({ documentId, requestBody: { requests } });
+
+    await db.client.update({ where: { id: clientId }, data: { agendaDocSyncedAt: new Date() } }).catch(() => undefined);
     return { ok: true, months: sections.length, rows: totalRows };
   } catch (err) {
     return { ok: false, ...classifyError(err) };
@@ -465,7 +443,9 @@ export type AgendaDocSyncReport = {
  * with a small pause between clients so we stay well inside the Docs API quota.
  * Never throws: a failing client is recorded and the run continues.
  */
-export async function syncAllAgendaDocs(): Promise<AgendaDocSyncReport> {
+export async function syncAllAgendaDocs(opts: { budgetMs?: number } = {}): Promise<AgendaDocSyncReport> {
+  const budgetMs = opts.budgetMs ?? 40_000;
+  const startedAt = Date.now();
   const report: AgendaDocSyncReport = {
     attempted: 0,
     updated: 0,
@@ -479,7 +459,8 @@ export async function syncAllAgendaDocs(): Promise<AgendaDocSyncReport> {
     clients = await db.client.findMany({
       where: { status: "ACTIVE", agendaDocUrl: { not: null } },
       select: { id: true, name: true },
-      orderBy: { name: "asc" },
+      // Least recently synced first, so every doc gets its turn across nights.
+      orderBy: [{ agendaDocSyncedAt: { sort: "asc", nulls: "first" } }, { name: "asc" }],
     });
   } catch (err) {
     console.error("syncAllAgendaDocs: could not list clients:", err);
@@ -487,6 +468,7 @@ export async function syncAllAgendaDocs(): Promise<AgendaDocSyncReport> {
   }
 
   for (const client of clients) {
+    if (Date.now() - startedAt > budgetMs) break; // the rest runs tomorrow night
     report.attempted++;
     let result: WriteAgendaDocResult;
     try {
@@ -517,7 +499,8 @@ export async function syncAllAgendaDocs(): Promise<AgendaDocSyncReport> {
       });
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    if (!result.ok && /quota/i.test(result.error)) break; // Google write quota hit: stop for tonight
+    await new Promise((resolve) => setTimeout(resolve, 1500));
   }
 
   return report;

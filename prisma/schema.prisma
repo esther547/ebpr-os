@@ -207,6 +207,8 @@ model Client {
   focusNote     String?
   // Google Doc with the client's agenda (events/appearances)
   agendaDocUrl  String?
+  // Last successful regeneration of that Doc from the portal
+  agendaDocSyncedAt DateTime?
 
 
   createdAt DateTime @default(now())
