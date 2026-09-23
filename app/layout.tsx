@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     template: "%s — EBPR OS",
   },
   description: "EB Public Relations — Internal Operating System",
-  icons: { icon: "/favicon.svg" },
+  icons: { icon: "/brand/ebpr-mark.png" },
 };
 
 export const viewport: Viewport = {
