@@ -4,9 +4,11 @@ import { Target } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ClientHeader } from "@/components/clients/client-header";
+import { availabilityNowFor } from "@/lib/client-availability";
 import { StrategyDocumentCard } from "@/components/strategy/strategy-document-card";
 import { StrategyPhaseBanner } from "@/components/strategy/strategy-phase-banner";
 import { StrategyBigWins } from "@/components/strategy/strategy-big-wins";
+import { ClientWishlist } from "@/components/strategy/client-wishlist";
 import { StrategyBrandDeals } from "@/components/strategy/strategy-brand-deals";
 import { StrategyOutletList } from "@/components/strategy/strategy-outlet-list";
 import { StrategyWorkflowTable } from "@/components/strategy/strategy-workflow-table";
@@ -37,6 +39,7 @@ export default async function StrategyPage({ params }: Props) {
     },
   });
   if (!client) notFound();
+  const availabilityNow = await availabilityNowFor(client.id);
 
   // Strategy document
   const doc = await db.strategyDocument.findUnique({
@@ -59,6 +62,7 @@ export default async function StrategyPage({ params }: Props) {
   });
 
   // Categorize items
+  const clientWishlist = [...items.filter((i) => i.source === "CLIENT")].sort((a, b) => new Date(b.requestedAt ?? b.createdAt).getTime() - new Date(a.requestedAt ?? a.createdAt).getTime());
   const bigWins = items.filter((i) => i.isBigWin);
   const brandDeals = items.filter((i) => i.category === "BRAND_OPPORTUNITY");
   const mediaTargets = items.filter((i) => i.category === "MEDIA_TARGET" && !i.isBigWin);
@@ -83,7 +87,7 @@ export default async function StrategyPage({ params }: Props) {
 
   return (
     <>
-      <ClientHeader
+      <ClientHeader availabilityNow={availabilityNow}
         client={client}
         counts={{ strategy: totalItems }}
         actions={
@@ -119,6 +123,8 @@ export default async function StrategyPage({ params }: Props) {
 
         {/* Phase banners */}
         {doc && (doc.phase1Name || doc.phase2Name) && <StrategyPhaseBanner doc={doc} />}
+
+        <ClientWishlist clientId={client.id} items={clientWishlist} />
 
         {bigWins.length > 0 && <StrategyBigWins items={bigWins} />}
 

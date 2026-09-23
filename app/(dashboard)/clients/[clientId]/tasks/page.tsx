@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ClientHeader } from "@/components/clients/client-header";
+import { availabilityNowFor } from "@/lib/client-availability";
 import { TaskList } from "@/components/tasks/task-list";
 
 type Props = { params: Promise<{ clientId: string }> };
@@ -18,6 +19,7 @@ export default async function TasksPage({ params }: Props) {
     select: { id: true, name: true, status: true, monthlyTarget: true, industry: true, cycleDay: true, goalsOwed: true, focusNote: true, agendaDocUrl: true },
   });
   if (!client) notFound();
+  const availabilityNow = await availabilityNowFor(client.id);
 
   const tasks = await db.task.findMany({
     where: { clientId },
@@ -41,7 +43,7 @@ export default async function TasksPage({ params }: Props) {
 
   return (
     <>
-      <ClientHeader client={client} counts={{ tasks: open }} />
+      <ClientHeader availabilityNow={availabilityNow} client={client} counts={{ tasks: open }} />
       <TaskList tasks={tasks} clientId={clientId} teamMembers={teamMembers} />
     </>
   );

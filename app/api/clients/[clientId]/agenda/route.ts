@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { COMPANION_ROLES } from "@/lib/companions";
 import { z } from "zod";
 import { startOfWeek, startOfDay, endOfDay } from "date-fns";
+import { checkClientDate } from "@/lib/client-availability";
 
 const agendaItemSchema = z.object({
   // Optional: an activity with no runner yet is a valid agenda item — it simply
@@ -126,6 +127,13 @@ export async function POST(
   if (isNaN(eventDate.getTime())) {
     return NextResponse.json({ error: "Event date is invalid" }, { status: 400 });
   }
+
+  // Client availability: never book on a day the client is OFF; warn on TRAVEL.
+  const availability = await checkClientDate(clientId, eventDate);
+  if (availability.blocked) {
+    return NextResponse.json({ error: availability.warning }, { status: 409 });
+  }
+
   const weekOf = startOfWeek(eventDate, { weekStartsOn: 1 });
   const eventName = data.eventName || data.itemType || "Appearance";
 
@@ -208,7 +216,7 @@ export async function POST(
       },
     });
 
-    return NextResponse.json({ data: item, conflictWarning }, { status: 201 });
+    return NextResponse.json({ data: item, conflictWarning, warning: availability.warning }, { status: 201 });
   } catch (err) {
     console.error("POST /api/clients/[clientId]/agenda failed:", err);
     return NextResponse.json({ error: "Could not create agenda item" }, { status: 500 });

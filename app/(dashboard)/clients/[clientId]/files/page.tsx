@@ -5,6 +5,7 @@ import { formatDate, formatBytes } from "@/lib/utils";
 import { FileText, Image, Table as TableIcon, Video, File as FileIcon } from "lucide-react";
 import { FileUpload } from "@/components/clients/file-upload";
 import { ClientHeader } from "@/components/clients/client-header";
+import { availabilityNowFor } from "@/lib/client-availability";
 import { TableWrap, Table, Th, Td, TableEmpty } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { SectionHeader } from "@/components/layout/header";
@@ -41,6 +42,7 @@ export default async function ClientFilesPage({ params }: Props) {
   });
 
   if (!client) notFound();
+  const availabilityNow = await availabilityNowFor(client.id);
 
   const files = await db.file.findMany({
     where: { clientId: params.clientId },
@@ -52,7 +54,7 @@ export default async function ClientFilesPage({ params }: Props) {
 
   return (
     <>
-      <ClientHeader client={client} counts={{ files: files.length }} />
+      <ClientHeader availabilityNow={availabilityNow} client={client} counts={{ files: files.length }} />
 
       <div className="space-y-6">
         <FileUpload clientId={client.id} />

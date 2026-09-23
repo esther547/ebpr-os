@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import type { DeliverableType } from "@prisma/client";
 import { dayKeyInTz, tzMidnight, weekStartKey } from "@/components/runners/miami-time";
 import { autoAssignRunners, reassignAfterTimeChange } from "@/lib/runner-assign";
+import { checkClientDate } from "@/lib/client-availability";
 
 /**
  * "No double entry": a confirmed goal (Deliverable) becomes one RunnerAssignment,
@@ -41,7 +42,7 @@ export function activityInstant(dayKey: string, hhmm: string | null | undefined)
 export async function ensureAgendaItemForDeliverable(
   deliverableId: string,
   actorId?: string
-): Promise<{ created: boolean; assignmentId: string | null; runnerName?: string | null }> {
+): Promise<{ created: boolean; assignmentId: string | null; runnerName?: string | null; reason?: string }> {
   const d = await db.deliverable.findUnique({
     where: { id: deliverableId },
     select: {
@@ -58,6 +59,15 @@ export async function ensureAgendaItemForDeliverable(
   if (existing) return { created: false, assignmentId: existing.id };
 
   const eventDate = d.eventTime ?? d.dueDate;
+
+  // Never book the agenda on a day the client is OFF.
+  const availability = await checkClientDate(d.clientId, eventDate);
+  if (availability.blocked) {
+    const reason = availability.warning ?? "El cliente no está disponible en esa fecha";
+    console.warn(`[agenda-sync] Not adding "${d.title}" (${d.id}) to the agenda: ${reason}`);
+    return { created: false, assignmentId: null, reason };
+  }
+
   const created = await db.runnerAssignment.create({
     data: {
       runnerId: null,

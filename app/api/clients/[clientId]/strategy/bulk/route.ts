@@ -28,6 +28,8 @@ const itemSchema = z.object({
   isBigWin: z.boolean().optional().default(false),
   notes: z.string().optional(),
   priority: z.number().int().min(0).max(3).optional().default(0),
+  source: z.enum(["CLIENT", "TEAM"]).optional(),
+  requestedAt: z.string().datetime().optional().nullable(),
 });
 
 const bulkSchema = z.object({
@@ -103,6 +105,8 @@ export async function POST(
           isBigWin: item.isBigWin,
           notes: item.notes,
           priority: item.priority,
+          source: item.source ?? null,
+          requestedAt: item.requestedAt ? new Date(item.requestedAt) : null,
         },
       })
     )

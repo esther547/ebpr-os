@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { canManageDeliverables } from "@/lib/permissions";
 import { parseDateInput, recordStatusTransition } from "../_lib/status-transition";
 import { syncAgendaItemDetails, activityInstant } from "../_lib/agenda-sync";
+import { checkClientDate, dayKeyOf } from "@/lib/client-availability";
 
 const updateDeliverableSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -125,6 +126,19 @@ export async function PUT(
         data.year = cycle.year;
       }
     }
+
+    // Client availability. Moving the due date into an OFF window is refused; a date
+    // inside a TRAVEL window (or an unchanged date that is now inside OFF) saves with a warning.
+    const effectiveDueDate = d.dueDate !== undefined ? (data.dueDate as Date | null) : existing.dueDate;
+    const availability = await checkClientDate(existing.clientId, effectiveDueDate);
+    const dueDayMoved =
+      d.dueDate !== undefined &&
+      (effectiveDueDate ? dayKeyOf(effectiveDueDate) : null) !==
+        (existing.dueDate ? dayKeyOf(existing.dueDate) : null);
+    if (availability.blocked && dueDayMoved) {
+      return NextResponse.json({ error: availability.warning }, { status: 409 });
+    }
+
     if (d.venueName !== undefined) data.venueName = d.venueName?.trim() || null;
     if (d.venueAddress !== undefined) data.venueAddress = d.venueAddress?.trim() || null;
     if (d.needsRunner !== undefined) data.needsRunner = d.needsRunner;
@@ -182,7 +196,7 @@ export async function PUT(
       });
     }
 
-    return NextResponse.json({ data: deliverable });
+    return NextResponse.json({ data: deliverable, warning: availability.warning });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") {
       return NextResponse.json({ error: "Not found" }, { status: 404 });

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { formatDate, cn } from "@/lib/utils";
 import { OnboardingActions } from "@/components/clients/onboarding-actions";
 import { ClientHeader } from "@/components/clients/client-header";
+import { availabilityNowFor } from "@/lib/client-availability";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -31,6 +32,7 @@ export default async function OnboardingPage({ params }: Props) {
     select: { id: true, name: true, status: true, monthlyTarget: true, industry: true, cycleDay: true, goalsOwed: true, focusNote: true, agendaDocUrl: true },
   });
   if (!client) notFound();
+  const availabilityNow = await availabilityNowFor(client.id);
 
   const onboarding = await db.onboarding.findUnique({
     where: { clientId: params.clientId },
@@ -43,7 +45,7 @@ export default async function OnboardingPage({ params }: Props) {
 
   return (
     <>
-      <ClientHeader
+      <ClientHeader availabilityNow={availabilityNow}
         client={client}
         actions={
           <OnboardingActions

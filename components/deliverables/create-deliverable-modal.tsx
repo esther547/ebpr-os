@@ -57,9 +57,11 @@ export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembe
         return;
       }
 
+      const created = await res.json().catch(() => ({}));
       onOpenChange(false);
       setLoading(false);
       toast({ title: "Deliverable created", variant: "success" });
+      if (typeof created.warning === "string") toast({ title: `Ojo: ${created.warning}`, variant: "default", duration: 10000 });
       router.refresh();
     } catch {
       toast({ title: "Network error", description: "Could not reach the server", variant: "error" });

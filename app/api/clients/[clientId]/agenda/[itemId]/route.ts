@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { miamiWeekOf } from "@/app/api/deliverables/_lib/agenda-sync";
 import { z } from "zod";
 import { reassignAfterTimeChange } from "@/lib/runner-assign";
+import { checkClientDate, dayKeyOf } from "@/lib/client-availability";
 
 /** "YYYY-MM-DD" -> noon UTC so the calendar day is stable in every timezone. */
 function parseDateInput(value: string): Date {
@@ -80,6 +81,16 @@ export async function PATCH(
     updateData.eventDate = eventDate;
     updateData.weekOf = miamiWeekOf(eventDate);
   }
+
+  // Client availability. Moving the item onto an OFF day is refused; a TRAVEL day
+  // (or an unchanged day that is now OFF) saves with a warning.
+  const effectiveEventDate = (updateData.eventDate as Date | undefined) ?? existing.eventDate;
+  const availability = await checkClientDate(clientId, effectiveEventDate);
+  const dayMoved =
+    d.eventDate !== undefined && dayKeyOf(effectiveEventDate) !== dayKeyOf(existing.eventDate);
+  if (availability.blocked && dayMoved) {
+    return NextResponse.json({ error: availability.warning }, { status: 409 });
+  }
   if (d.arrivalTime !== undefined) updateData.arrivalTime = d.arrivalTime ? new Date(d.arrivalTime) : null;
   if (d.eventTime !== undefined) updateData.eventTime = d.eventTime ? new Date(d.eventTime) : null;
   if (d.venueName !== undefined) updateData.venueName = d.venueName;
@@ -111,7 +122,7 @@ export async function PATCH(
     include: { runner: { select: { id: true, name: true } } },
   });
 
-  return NextResponse.json({ data: updated });
+  return NextResponse.json({ data: updated, warning: availability.warning });
 }
 
 // DELETE — remove a single agenda item

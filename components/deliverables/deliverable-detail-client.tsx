@@ -113,8 +113,10 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
         return;
       }
 
+      const saved = await res.json().catch(() => ({}));
       setSaving(false);
       toast({ title: "Changes saved", variant: "success" });
+      if (typeof saved.warning === "string") toast({ title: `Ojo: ${saved.warning}`, variant: "default", duration: 10000 });
       router.refresh();
       // Confirmed without a runner: open the assignment prompt right away.
       if (body.status === "CONFIRMED" && deliverable.status !== "CONFIRMED" && !deliverable.runnerAssignment) {

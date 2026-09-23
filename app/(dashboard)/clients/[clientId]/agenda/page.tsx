@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { companionWhere } from "@/lib/companions";
 import { ClientHeader } from "@/components/clients/client-header";
+import { availabilityNowFor } from "@/lib/client-availability";
 import { AgendaMonthSection } from "@/components/agenda/agenda-month-section";
 import { AgendaAddItemButton } from "@/components/agenda/create-agenda-item-modal";
 import { SyncDocButton } from "@/components/agenda/sync-doc-button";
@@ -24,6 +25,7 @@ export default async function AgendaPage({ params }: Props) {
     select: { id: true, name: true, status: true, monthlyTarget: true, industry: true, cycleDay: true, goalsOwed: true, focusNote: true, agendaDocUrl: true },
   });
   if (!client) notFound();
+  const availabilityNow = await availabilityNowFor(client.id);
 
   const rawItems = await db.runnerAssignment.findMany({
     where: { clientId: params.clientId },
@@ -82,7 +84,7 @@ export default async function AgendaPage({ params }: Props) {
 
   return (
     <>
-      <ClientHeader
+      <ClientHeader availabilityNow={availabilityNow}
         client={client}
         counts={{ agenda: items.length }}
         actions={

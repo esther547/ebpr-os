@@ -162,6 +162,7 @@ model User {
   notifications        Notification[]     @relation("UserNotifications")
   assignedPriorities   WeeklyPriority[]   @relation("PriorityAssignee")
   createdPriorities    WeeklyPriority[]   @relation("PriorityCreator")
+  createdAvailability  ClientAvailability[] @relation("AvailabilityCreator")
 
   @@map("users")
 }
@@ -229,6 +230,7 @@ model Client {
   pressReleases    PressRelease[]
   reminders        Reminder[]
   weeklyPriorities WeeklyPriority[]
+  availability     ClientAvailability[]
 
   @@map("clients")
 }
@@ -385,6 +387,8 @@ model StrategyItem {
   eventLocation  String?    // city/country for events
   phase          Int?       // 1 or 2
   isBigWin       Boolean    @default(false)
+  source         String?    // "CLIENT" = idea the client called in with; "TEAM" / null = ours
+  requestedAt    DateTime?  // when the client asked for it
 
   deliverable Deliverable?
 
@@ -848,4 +852,33 @@ model WeeklyPriority {
 
   @@index([weekOf, clientId])
   @@map("weekly_priorities")
+}
+
+
+// ─── CLIENT AVAILABILITY / TRAVEL ────────────────────────
+// Dates the client is off (OFF: do not book anything) or travelling (TRAVEL:
+// available, but look for opportunities in `location`). startDate/endDate are
+// date-only, stored at 12:00 UTC, and both ends are inclusive.
+
+enum AvailabilityKind {
+  OFF
+  TRAVEL
+}
+
+model ClientAvailability {
+  id          String           @id @default(cuid())
+  clientId    String
+  client      Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  kind        AvailabilityKind
+  startDate   DateTime
+  endDate     DateTime
+  location    String?
+  notes       String?
+  createdById String
+  createdBy   User             @relation("AvailabilityCreator", fields: [createdById], references: [id])
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([clientId, startDate, endDate])
+  @@map("client_availability")
 }

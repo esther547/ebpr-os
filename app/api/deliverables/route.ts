@@ -6,6 +6,7 @@ import { canManageDeliverables } from "@/lib/permissions";
 import { cycleForDate, currentCycle } from "@/lib/cycles";
 import { parseDateInput } from "./_lib/status-transition";
 import { activityInstant, ensureAgendaItemForDeliverable } from "./_lib/agenda-sync";
+import { checkClientDate } from "@/lib/client-availability";
 
 const createDeliverableSchema = z.object({
   clientId: z.string().min(1),
@@ -85,6 +86,12 @@ export async function POST(req: NextRequest) {
     const cycle = dueDate ? cycleForDate(client.cycleDay, dueDate) : currentCycle(client.cycleDay);
     const fallback = { month: cycle.month, year: cycle.year };
 
+    // Client availability: never book on a day the client is OFF; warn on TRAVEL.
+    const availability = await checkClientDate(client.id, dueDate);
+    if (availability.blocked) {
+      return NextResponse.json({ error: availability.warning }, { status: 409 });
+    }
+
     const deliverable = await db.deliverable.create({
       data: {
         ...rest,
@@ -122,7 +129,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ data: deliverable }, { status: 201 });
+    return NextResponse.json({ data: deliverable, warning: availability.warning }, { status: 201 });
   } catch (err) {
     console.error("POST /api/deliverables failed:", err);
     return NextResponse.json({ error: "Could not create deliverable" }, { status: 500 });

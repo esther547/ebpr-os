@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ClientHeader } from "@/components/clients/client-header";
+import { availabilityNowFor, currentAndUpcoming, windowShortLabel } from "@/lib/client-availability";
+import { addDaysKey, dayKeyInTz } from "@/components/runners/miami-time";
 import { DeliverablesPageClient } from "@/components/deliverables/deliverables-page-client";
 import { currentCycle, cycleLabel } from "@/lib/cycles";
 import { StrategyContextCard } from "@/components/strategy/strategy-context-card";
@@ -21,6 +23,10 @@ export default async function DeliverablesPage({ params }: Props) {
     select: { id: true, name: true, monthlyTarget: true, status: true, industry: true, cycleDay: true, goalsOwed: true, focusNote: true, agendaDocUrl: true, strategyDocUrl: true },
   });
   if (!client) notFound();
+  const availabilityNow = await availabilityNowFor(client.id);
+  // OFF / TRAVEL windows in the next 60 days (banner above the board).
+  const horizonKey = addDaysKey(dayKeyInTz(new Date()), 60);
+  const upcomingWindows = (await currentAndUpcoming(client.id)).filter((w) => w.startKey <= horizonKey);
 
   const cycle = currentCycle(client.cycleDay);
   const { month, year } = cycle;
@@ -56,13 +62,31 @@ export default async function DeliverablesPage({ params }: Props) {
 
   return (
     <>
-      <ClientHeader client={client} counts={{ deliverables: deliverables.length }} />
+      <ClientHeader availabilityNow={availabilityNow} client={client} counts={{ deliverables: deliverables.length }} />
       <div className="mb-6">
         <StrategyContextCard clientId={client.id} strategyDocUrl={client.strategyDocUrl} />
       </div>
       <div className="mb-6">
         <ClientWeekPriorities clientId={client.id} />
       </div>
+      {upcomingWindows.length > 0 && (
+        <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-accent2/20 bg-accent2-soft px-4 py-2.5 text-sm">
+          <span className="font-semibold text-accent2-ink">Próximos:</span>
+          <span className="min-w-0 flex-1 text-ink-secondary">
+            {upcomingWindows.map((w, i) => (
+              <span key={w.id}>
+                {i > 0 && <span className="text-ink-muted"> · </span>}
+                <span className={w.kind === "OFF" ? "font-medium text-red-700" : "font-medium text-blue-700"}>
+                  {windowShortLabel(w)}
+                </span>
+              </span>
+            ))}
+          </span>
+          <a href={`/clients/${client.id}#disponibilidad`} className="text-xs font-medium text-ink-primary underline-offset-2 hover:underline">
+            Disponibilidad y viajes
+          </a>
+        </div>
+      )}
       <DeliverablesPageClient
         deliverables={JSON.parse(JSON.stringify(deliverables))}
         clientId={client.id}

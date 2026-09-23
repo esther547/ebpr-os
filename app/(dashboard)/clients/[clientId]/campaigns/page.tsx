@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ClientHeader } from "@/components/clients/client-header";
+import { availabilityNowFor } from "@/lib/client-availability";
 import { CampaignList } from "@/components/campaigns/campaign-list";
 
 type Props = { params: Promise<{ clientId: string }> };
@@ -18,6 +19,7 @@ export default async function CampaignsPage({ params }: Props) {
     select: { id: true, name: true, status: true, monthlyTarget: true, industry: true, cycleDay: true, goalsOwed: true, focusNote: true, agendaDocUrl: true },
   });
   if (!client) notFound();
+  const availabilityNow = await availabilityNowFor(client.id);
 
   const campaigns = await db.campaign.findMany({
     where: { clientId },
@@ -37,7 +39,7 @@ export default async function CampaignsPage({ params }: Props) {
 
   return (
     <>
-      <ClientHeader client={client} counts={{ campaigns: campaigns.length }} />
+      <ClientHeader availabilityNow={availabilityNow} client={client} counts={{ campaigns: campaigns.length }} />
       <CampaignList campaigns={campaigns} clientId={clientId} teamMembers={teamMembers} />
     </>
   );

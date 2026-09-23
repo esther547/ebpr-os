@@ -92,6 +92,7 @@ export function EditAgendaItemModal({
         return;
       }
       toast({ title: "Pauta actualizada", variant: "success" });
+      if (typeof data?.warning === "string") toast({ title: `Ojo: ${data.warning}`, variant: "default", duration: 10000 });
       onOpenChange(false);
       router.refresh();
     } catch {

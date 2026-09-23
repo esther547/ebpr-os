@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { formatDate } from "@/lib/utils";
 import { CheckCircle } from "lucide-react";
 import { ClientHeader } from "@/components/clients/client-header";
+import { availabilityNowFor } from "@/lib/client-availability";
 import { Card } from "@/components/ui/card";
 import { Badge, humanize, statusTone } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -23,6 +24,7 @@ export default async function ClientApprovalsPage({ params }: Props) {
   });
 
   if (!client) notFound();
+  const availabilityNow = await availabilityNowFor(client.id);
 
   const approvals = await db.approval.findMany({
     where: { clientId: params.clientId },
@@ -43,7 +45,7 @@ export default async function ClientApprovalsPage({ params }: Props) {
 
   return (
     <>
-      <ClientHeader client={client} counts={{ approvals: pending.length }} />
+      <ClientHeader availabilityNow={availabilityNow} client={client} counts={{ approvals: pending.length }} />
 
       {approvals.length === 0 ? (
         <EmptyState

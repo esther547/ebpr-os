@@ -8,6 +8,9 @@ import { DeliverablePacingBar } from "@/components/deliverables/pacing-bar";
 import { formatDate } from "@/lib/utils";
 import { currentCycle, cycleLabel } from "@/lib/cycles";
 import { ClientHeader } from "@/components/clients/client-header";
+import { availabilityNowFor, toWindow } from "@/lib/client-availability";
+import { ClientAvailability } from "@/components/clients/client-availability";
+import { dayKeyInTz } from "@/components/runners/miami-time";
 import { ClientReminders } from "@/components/clients/client-reminders";
 import { ActivityTimeline } from "@/components/activity/activity-timeline";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -48,6 +51,7 @@ export default async function ClientPage({ params }: Props) {
   });
 
   if (!client) notFound();
+  const availabilityNow = await availabilityNowFor(client.id);
 
   const cycle = currentCycle(client.cycleDay);
   const { month, year } = cycle;
@@ -70,6 +74,12 @@ export default async function ClientPage({ params }: Props) {
     include: { createdBy: { select: { name: true } } },
   });
 
+  // Availability / travel windows (all; the card splits current+upcoming vs past)
+  const availabilityRows = await db.clientAvailability.findMany({
+    where: { clientId: params.clientId },
+    orderBy: { startDate: "asc" },
+  });
+
   // Recent activity
   const activity = await db.activityLog.findMany({
     where: { clientId: params.clientId },
@@ -80,7 +90,7 @@ export default async function ClientPage({ params }: Props) {
 
   return (
     <>
-      <ClientHeader
+      <ClientHeader availabilityNow={availabilityNow}
         client={client}
         counts={{ deliverables: client._count.deliverables, strategy: client._count.strategyItems, files: client._count.files }}
         actions={
@@ -120,6 +130,12 @@ export default async function ClientPage({ params }: Props) {
               </span>
             </div>
           </Card>
+
+          <ClientAvailability
+            clientId={client.id}
+            windows={availabilityRows.map(toWindow)}
+            todayKey={dayKeyInTz(new Date())}
+          />
 
           {/* Active Campaigns */}
           {client.campaigns.length > 0 && (

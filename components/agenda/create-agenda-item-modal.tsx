@@ -75,6 +75,7 @@ export function AgendaAddItemButton({ clientId, clientStatus = "ACTIVE", runners
       }
       setLoading(false);
       router.refresh();
+      if (typeof data.warning === "string") toast({ title: `Ojo: ${data.warning}`, variant: "default", duration: 10000 });
       if (data.conflictWarning) {
         toast({
           title: "Scheduling conflict",

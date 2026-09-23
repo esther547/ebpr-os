@@ -16,7 +16,7 @@ export async function StrategyContextCard({ clientId, strategyDocUrl }: { client
     }),
     db.strategyItem.findMany({
       where: { clientId, status: { notIn: ["COMPLETED", "REJECTED"] } },
-      select: { category: true, title: true, isBigWin: true },
+      select: { category: true, title: true, isBigWin: true, source: true },
       orderBy: [{ isBigWin: "desc" }, { priority: "desc" }, { createdAt: "asc" }],
     }),
   ]);
@@ -25,6 +25,7 @@ export async function StrategyContextCard({ clientId, strategyDocUrl }: { client
 
   const pick = (cat: string, n: number) => items.filter((i) => i.category === cat).slice(0, n).map((i) => i.title);
   const groups = [
+    { label: "Wish list cliente", tone: "danger" as const, names: items.filter((i) => i.source === "CLIENT").slice(0, 6).map((i) => i.title), total: items.filter((i) => i.source === "CLIENT").length },
     { label: "Medios", tone: "info" as const, names: pick("MEDIA_TARGET", 6), total: items.filter((i) => i.category === "MEDIA_TARGET").length },
     { label: "Creadores", tone: "purple" as const, names: pick("INFLUENCER", 6), total: items.filter((i) => i.category === "INFLUENCER").length },
     { label: "Marcas", tone: "warning" as const, names: pick("BRAND_OPPORTUNITY", 5), total: items.filter((i) => i.category === "BRAND_OPPORTUNITY").length },

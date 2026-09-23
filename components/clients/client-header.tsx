@@ -5,8 +5,10 @@ import { PageHeader } from "@/components/layout/header";
 import { NavTabs } from "@/components/ui/tabs";
 import { Badge, humanize, statusTone } from "@/components/ui/badge";
 import { currentCycle, cycleLabel } from "@/lib/cycles";
+import { availabilityBadgeLabel, type AvailabilityNow } from "@/lib/client-availability-format";
 import { ClientActions } from "./client-actions";
 import { ShareMonitorButton } from "./share-monitor-button";
+import { ClientWishlistButton } from "@/components/strategy/client-wishlist-button";
 
 export type ClientHeaderClient = {
   id: string;
@@ -35,10 +37,13 @@ export function ClientHeader({
   client,
   counts = {},
   actions,
+  availabilityNow,
 }: {
   client: ClientHeaderClient;
   counts?: ClientTabCounts;
   actions?: React.ReactNode;
+  /** The OFF/TRAVEL window the client is in today (Miami), computed server-side. */
+  availabilityNow?: AvailabilityNow;
 }) {
   const pathname = usePathname() ?? "";
   const base = `/clients/${client.id}`;
@@ -72,6 +77,13 @@ export function ClientHeader({
           <Badge tone={statusTone(client.status)} dot>
             {humanize(client.status)}
           </Badge>
+          {availabilityNow && (
+            <a href={`${base}#disponibilidad`} title="Disponibilidad y viajes">
+              <Badge tone={availabilityNow.kind === "OFF" ? "danger" : "info"} dot>
+                {availabilityBadgeLabel(availabilityNow)}
+              </Badge>
+            </a>
+          )}
           {client.industry && <span>{client.industry}</span>}
           {client.goalsOwed ? (
             <Badge tone="danger" dot>Debe {client.goalsOwed} meta{client.goalsOwed !== 1 ? "s" : ""}</Badge>
@@ -103,6 +115,7 @@ export function ClientHeader({
             agendaDocUrl={client.agendaDocUrl ?? null}
             status={client.status}
           />
+          <ClientWishlistButton clientId={client.id} />
           <ShareMonitorButton clientId={client.id} />
           {actions}
         </>
