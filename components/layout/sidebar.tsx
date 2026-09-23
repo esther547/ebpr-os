@@ -15,6 +15,7 @@ import {
   BookOpen,
   ClipboardList,
   ListChecks,
+  Trophy,
   Menu,
   X,
 } from "lucide-react";
@@ -56,6 +57,7 @@ const navGroups: NavGroup[] = [
       { href: "/legal", label: "Legal & Contracts", icon: <Shield />, roles: ["SUPER_ADMIN", "LEGAL"] },
       { href: "/follow-up", label: "Follow-Up", icon: <ClipboardList />, roles: ["SUPER_ADMIN", "ASSISTANT", "FINANCE", "LEGAL"] },
       { href: "/reports", label: "Reports", icon: <BarChart3 />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
+      { href: "/reports/strategists", label: "Metas por estratega", icon: <Trophy />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
     ],
   },
   {
@@ -103,6 +105,12 @@ export function Sidebar({ userRole, userName, userEmail }: SidebarProps) {
     .map((g) => ({ ...g, items: g.items.filter((i) => i.roles.includes(userRole) && (FEATURES.legal || !["/legal", "/follow-up"].includes(i.href))) }))
     .filter((g) => g.items.length > 0);
 
+  // Most specific match wins, so /reports/strategists does not also light up /reports.
+  const matches = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  const allHrefs = groups.flatMap((g) => g.items.map((i) => i.href));
+  const isActiveHref = (href: string) =>
+    matches(href) && !allHrefs.some((h) => h !== href && h.startsWith(href + "/") && matches(h));
+
   const nav = (
     <>
       <div className="flex h-16 items-center justify-between border-b border-white/10 px-5">
@@ -125,7 +133,7 @@ export function Sidebar({ userRole, userName, userEmail }: SidebarProps) {
             <p className="mb-1.5 px-3 text-2xs font-semibold uppercase tracking-[0.14em] text-white/35">{group.label}</p>
             <ul className="space-y-0.5">
               {group.items.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                const isActive = isActiveHref(item.href);
                 return (
                   <li key={item.href}>
                     <Link

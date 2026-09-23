@@ -17,6 +17,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/ui/toast";
 import { UserPlus, MapPin, Clock, MessageSquare, Trash2 } from "lucide-react";
+import { CloseGoalModal, type CloseGoalValues } from "./close-goal-modal";
+
+/** "23 sept 2026" in Miami time (same output on server and browser). */
+const closedDateFormatter = new Intl.DateTimeFormat("es", {
+  timeZone: "America/New_York",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
 
 type RunnerAssignment = {
   id: string;
@@ -50,7 +59,9 @@ type Deliverable = {
   isClientVisible: boolean;
   clientId: string;
   client: { id: string; name: string };
+  assigneeId?: string | null;
   assignee: { id: string; name: string; avatar: string | null } | null;
+  closedBy?: { id: string; name: string } | null;
   campaign: { id: string; name: string } | null;
   comments: { id: string; content: string; createdAt: string | Date; user: { name: string } }[];
   runnerAssignment: RunnerAssignment | null;
@@ -58,13 +69,23 @@ type Deliverable = {
 
 const STATUSES = ["IDEA", "OUTREACH", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
 
+type FormBody = Record<string, string | boolean | null>;
+
+/** Why the "who closed this goal" modal is open. */
+type ClosePrompt =
+  | { mode: "quick" }
+  | { mode: "form"; body: FormBody }
+  | { mode: "change" };
+
 interface Props {
   deliverable: Deliverable;
+  /** Active SUPER_ADMIN + STRATEGIST users (assignee options and possible closers). */
   teamMembers: { id: string; name: string }[];
   runners: { id: string; name: string }[];
+  currentUserId: string;
 }
 
-export function DeliverableDetailClient({ deliverable, teamMembers, runners }: Props) {
+export function DeliverableDetailClient({ deliverable, teamMembers, runners, currentUserId }: Props) {
   const router = useRouter();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
@@ -74,13 +95,13 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
   const [deleting, setDeleting] = useState(false);
   const [statusBusy, setStatusBusy] = useState<string | null>(null);
   const [notePosting, setNotePosting] = useState(false);
+  const [closePrompt, setClosePrompt] = useState<ClosePrompt | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setSaving(true);
 
     const form = new FormData(e.currentTarget);
-    const body = {
+    const body: FormBody = {
       title: form.get("title") as string,
       type: form.get("type") as string,
       status: form.get("status") as string,
@@ -95,6 +116,17 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
       needsRunner: form.get("needsRunner") === "on",
     };
 
+    // Closing the goal from the form: ask which strategist closed it first.
+    if (body.status === "COMPLETED" && deliverable.status !== "COMPLETED") {
+      setClosePrompt({ mode: "form", body });
+      return;
+    }
+    await saveForm(body);
+  }
+
+  /** PUT the edit form. Returns true when saved. */
+  async function saveForm(body: FormBody): Promise<boolean> {
+    setSaving(true);
     try {
       const res = await fetch(`/api/deliverables/${deliverable.id}`, {
         method: "PUT",
@@ -110,7 +142,7 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
           variant: "error",
         });
         setSaving(false);
-        return;
+        return false;
       }
 
       const saved = await res.json().catch(() => ({}));
@@ -122,13 +154,26 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
       if (body.status === "CONFIRMED" && deliverable.status !== "CONFIRMED" && !deliverable.runnerAssignment) {
         setShowAssignRunner(true);
       }
+      return true;
     } catch {
       toast({ title: "Network error", description: "Could not reach the server", variant: "error" });
       setSaving(false);
+      return false;
     }
   }
 
+  /** Close-goal modal confirmed from the form: save every field plus the closer. */
+  async function confirmFormClose(values: CloseGoalValues): Promise<boolean> {
+    if (closePrompt?.mode !== "form") return false;
+    return saveForm({ ...closePrompt.body, closedById: values.closedById, outcome: values.outcome || null });
+  }
+
   async function quickStatus(status: string) {
+    // Closing the goal: ask which strategist closed it (the modal saves it).
+    if (status === "COMPLETED" && deliverable.status !== "COMPLETED") {
+      setClosePrompt({ mode: "quick" });
+      return;
+    }
     setStatusBusy(status);
     try {
       // Dedicated status endpoint: logs the transition and notifies the team.
@@ -509,12 +554,59 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners }: P
               </div>
               <div>
                 <dt className="eyebrow">Completed</dt>
-                <dd className="mt-0.5 text-ink-secondary">{formatDate(deliverable.completedAt)}</dd>
+                {deliverable.status === "COMPLETED" ? (
+                  <dd className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-ink-secondary">
+                    <span>
+                      {deliverable.closedBy ? (
+                        <>
+                          Cerrada por <span className="font-medium text-ink-primary">{deliverable.closedBy.name}</span>
+                        </>
+                      ) : (
+                        <span className="text-ink-muted">Sin estratega</span>
+                      )}
+                      {deliverable.completedAt && (
+                        <> · {closedDateFormatter.format(new Date(deliverable.completedAt))}</>
+                      )}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setClosePrompt({ mode: "change" })}
+                      className="text-xs font-medium text-accent2-ink underline-offset-2 hover:underline"
+                    >
+                      {deliverable.closedBy ? "Cambiar" : "Asignar estratega"}
+                    </button>
+                  </dd>
+                ) : (
+                  <dd className="mt-0.5 text-ink-secondary">{formatDate(deliverable.completedAt)}</dd>
+                )}
               </div>
             </dl>
           </Card>
         </div>
       </div>
+
+      {/* Who closed the goal */}
+      <CloseGoalModal
+        open={closePrompt !== null}
+        onOpenChange={(o) => !o && setClosePrompt(null)}
+        deliverable={{
+          id: deliverable.id,
+          title: deliverable.title,
+          outcome: deliverable.outcome,
+          assigneeId:
+            closePrompt?.mode === "form"
+              ? ((closePrompt.body.assigneeId as string | null) ?? null)
+              : deliverable.assignee?.id ?? deliverable.assigneeId ?? null,
+        }}
+        strategists={teamMembers}
+        currentUserId={currentUserId}
+        initialCloserId={closePrompt?.mode === "change" ? deliverable.closedBy?.id : undefined}
+        initialOutcome={
+          closePrompt?.mode === "form" ? ((closePrompt.body.outcome as string | null) ?? "") : undefined
+        }
+        confirmLabel={closePrompt?.mode === "change" ? "Guardar" : "Confirmar cierre"}
+        onConfirm={closePrompt?.mode === "form" ? confirmFormClose : undefined}
+      />
 
       {/* Assign Runner Modal */}
       <AssignRunnerModal

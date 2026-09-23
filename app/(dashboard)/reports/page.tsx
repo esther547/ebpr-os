@@ -95,7 +95,14 @@ export default async function ReportsPage({
         title="Reports"
         subtitle={`Client pacing for ${monthLabel(month, year)}`}
         actions={
-          /* Month navigation — segmented control */
+          <>
+          <Link
+            href="/reports/strategists"
+            className="inline-flex h-9 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-white px-3 text-xs font-medium text-ink-primary shadow-sm transition-all duration-150 hover:border-border-strong hover:bg-surface-2"
+          >
+            Por estratega →
+          </Link>
+          {/* Month navigation — segmented control */}
           <div className="inline-flex items-center overflow-hidden rounded-lg border border-border bg-white shadow-sm">
             <Link
               href={monthHref(prev)}
@@ -117,6 +124,7 @@ export default async function ReportsPage({
               <ChevronRight className="h-3.5 w-3.5" />
             </Link>
           </div>
+          </>
         }
       />
 

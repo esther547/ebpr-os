@@ -35,6 +35,7 @@ export default async function DeliverablesPage({ params }: Props) {
     where: { clientId, month, year },
     include: {
       assignee: { select: { id: true, name: true, avatar: true } },
+      closedBy: { select: { id: true, name: true } },
       campaign: { select: { id: true, name: true } },
       strategyItem: { select: { id: true, title: true } },
       _count: { select: { tasks: true, comments: true, files: true } },

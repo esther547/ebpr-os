@@ -82,6 +82,16 @@ export function DeliverableBoard({ deliverables, clientId, target, runnerNeededI
   );
 }
 
+/** Up to two initials ("Paola Precilla" -> "PP"). */
+function initials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase())
+    .join("");
+}
+
 function DeliverableCard({
   deliverable,
   clientId,
@@ -92,6 +102,8 @@ function DeliverableCard({
   needsRunner?: boolean;
 }) {
   const assigneeName: string | undefined = deliverable.assignee?.name;
+  const closedByName: string | undefined =
+    deliverable.status === "COMPLETED" ? deliverable.closedBy?.name : undefined;
 
   return (
     <Link href={`/clients/${clientId}/deliverables/${deliverable.id}`} className="block rounded-xl">
@@ -131,6 +143,15 @@ function DeliverableCard({
           )}
 
           <div className="flex shrink-0 items-center gap-2 text-xs text-ink-muted">
+            {closedByName && (
+              <span
+                title={`Cerrada por ${closedByName}`}
+                aria-label={`Cerrada por ${closedByName}`}
+                className="inline-flex h-5 items-center rounded-full bg-accent2-soft px-1.5 text-2xs font-semibold text-accent2-ink ring-1 ring-inset ring-accent2/20"
+              >
+                {initials(closedByName)}
+              </span>
+            )}
             {deliverable._count?.tasks > 0 && <span className="tabular">{deliverable._count.tasks} tasks</span>}
             {deliverable._count?.comments > 0 && (
               <span className="tabular">{deliverable._count.comments} notes</span>

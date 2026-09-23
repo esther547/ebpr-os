@@ -12,7 +12,7 @@ export default async function DeliverableDetailPage({
 }: {
   params: Promise<{ clientId: string; id: string }>;
 }) {
-  await requireUser();
+  const user = await requireUser();
   const { clientId, id } = await params;
 
   const deliverable = await db.deliverable.findUnique({
@@ -20,6 +20,7 @@ export default async function DeliverableDetailPage({
     include: {
       client: { select: { id: true, name: true } },
       assignee: { select: { id: true, name: true, avatar: true } },
+      closedBy: { select: { id: true, name: true } },
       campaign: { select: { id: true, name: true } },
       comments: {
         orderBy: { createdAt: "desc" },
@@ -39,6 +40,7 @@ export default async function DeliverableDetailPage({
   const teamMembers = await db.user.findMany({
     where: { role: { in: ["SUPER_ADMIN", "STRATEGIST"] }, isActive: true },
     select: { id: true, name: true },
+    orderBy: { name: "asc" },
   });
 
   const runners = await db.user.findMany({
@@ -56,6 +58,7 @@ export default async function DeliverableDetailPage({
       deliverable={JSON.parse(JSON.stringify(deliverableWithRunner))}
       teamMembers={teamMembers}
       runners={runners}
+      currentUserId={user.id}
     />
   );
 }

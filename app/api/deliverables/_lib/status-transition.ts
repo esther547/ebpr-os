@@ -14,9 +14,12 @@ export async function recordStatusTransition(opts: {
   to: DeliverableStatus;
   userId: string;
   outcome?: string | null;
+  /** Strategist who closed the goal (only meaningful when `to` is COMPLETED). */
+  closedBy?: { id: string; name: string } | null;
 }) {
   const { deliverable, from, to, userId, outcome } = opts;
   if (from === to) return;
+  const closedBy = to === "COMPLETED" ? opts.closedBy ?? null : null;
 
   await db.activityLog.create({
     data: {
@@ -24,8 +27,10 @@ export async function recordStatusTransition(opts: {
       deliverableId: deliverable.id,
       userId,
       action: "status_changed",
-      description: `"${deliverable.title}" moved to ${to.replace(/_/g, " ").toLowerCase()}`,
-      metadata: { from, to },
+      description:
+        `"${deliverable.title}" moved to ${to.replace(/_/g, " ").toLowerCase()}` +
+        (closedBy ? ` — cerrada por ${closedBy.name}` : ""),
+      metadata: { from, to, ...(closedBy && { closedById: closedBy.id }) },
     },
   });
 
@@ -63,7 +68,7 @@ export async function recordStatusTransition(opts: {
         data: teamUsers.map((u) => ({
           userId: u.id,
           title: "Deliverable Completed",
-          message: `"${deliverable.title}" has been marked as completed`,
+          message: `"${deliverable.title}" has been marked as completed${closedBy ? ` — cerrada por ${closedBy.name}` : ""}`,
           type: "deliverable_completed",
           link,
         })),

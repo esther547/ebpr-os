@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { resolveCloser } from "@/app/api/deliverables/_lib/closer";
 
 const bodySchema = z.object({
   notes: z.string().trim().max(5000).optional().nullable(),
@@ -54,12 +55,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (assignment.deliverableId) {
     const deliverable = await db.deliverable.findUnique({
       where: { id: assignment.deliverableId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, assigneeId: true },
     });
     if (deliverable && deliverable.status !== "COMPLETED" && deliverable.status !== "CANCELLED") {
+      // Record who closed the goal: the current user when they are a strategist/admin,
+      // otherwise the goal's assigned strategist.
+      const resolved = await resolveCloser({ currentUser: user, assigneeId: deliverable.assigneeId });
       await db.deliverable.update({
         where: { id: deliverable.id },
-        data: { status: "COMPLETED", completedAt: new Date() },
+        data: { status: "COMPLETED", completedAt: new Date(), closedById: resolved.closer?.id ?? null },
       });
     }
 

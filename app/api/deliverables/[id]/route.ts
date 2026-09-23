@@ -6,6 +6,7 @@ import { cycleForDate } from "@/lib/cycles";
 import { requireUser } from "@/lib/auth";
 import { canManageDeliverables } from "@/lib/permissions";
 import { parseDateInput, recordStatusTransition } from "../_lib/status-transition";
+import { resolveCloser, type Closer } from "../_lib/closer";
 import { syncAgendaItemDetails, activityInstant } from "../_lib/agenda-sync";
 import { checkClientDate, dayKeyOf } from "@/lib/client-availability";
 
@@ -25,6 +26,8 @@ const updateDeliverableSchema = z.object({
   venueName: z.string().max(200).nullable().optional(),
   venueAddress: z.string().max(300).nullable().optional(),
   needsRunner: z.boolean().optional(),
+  /** Strategist who closed the goal; used when the goal is (or becomes) COMPLETED. */
+  closedById: z.string().min(1).nullable().optional(),
 });
 
 function zodMessage(err: z.ZodError) {
@@ -48,6 +51,7 @@ export async function GET(
     where: { id },
     include: {
       assignee: { select: { id: true, name: true, avatar: true } },
+      closedBy: { select: { id: true, name: true } },
       strategyItem: { select: { id: true, title: true, category: true } },
       campaign: { select: { id: true, name: true } },
       tasks: {
@@ -101,7 +105,17 @@ export async function PUT(
 
     const existing = await db.deliverable.findUnique({
       where: { id },
-      select: { id: true, clientId: true, title: true, status: true, dueDate: true, eventTime: true },
+      select: {
+        id: true,
+        clientId: true,
+        title: true,
+        status: true,
+        dueDate: true,
+        eventTime: true,
+        assigneeId: true,
+        completedAt: true,
+        closedById: true,
+      },
     });
     if (!existing) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -111,9 +125,32 @@ export async function PUT(
     const d = parsed.data;
     if (d.title !== undefined) data.title = d.title;
     if (d.type !== undefined) data.type = d.type;
-    if (d.status !== undefined && d.status !== existing.status) {
+    const statusChanged = d.status !== undefined && d.status !== existing.status;
+    if (statusChanged) {
       data.status = d.status;
       data.completedAt = d.status === "COMPLETED" ? new Date() : null;
+      if (d.status !== "COMPLETED") data.closedById = null; // leaving COMPLETED clears the closer
+    }
+
+    // Who closed the goal: recorded when it becomes COMPLETED, or (re)assigned explicitly
+    // on a goal that is already COMPLETED.
+    const effectiveStatus = d.status ?? existing.status;
+    let closer: Closer | null = null;
+    if (
+      effectiveStatus === "COMPLETED" &&
+      (statusChanged || (d.closedById !== undefined && d.closedById !== null))
+    ) {
+      const resolved = await resolveCloser({
+        requestedId: d.closedById,
+        currentUser: user,
+        assigneeId: d.assigneeId !== undefined ? d.assigneeId || null : existing.assigneeId,
+      });
+      if (resolved.error !== undefined) {
+        return NextResponse.json({ error: resolved.error }, { status: 400 });
+      }
+      closer = resolved.closer;
+      data.closedById = closer?.id ?? null;
+      if (!statusChanged && !existing.completedAt) data.completedAt = new Date();
     }
     if (d.assigneeId !== undefined) data.assigneeId = d.assigneeId || null;
     if (d.dueDate !== undefined) {
@@ -163,6 +200,7 @@ export async function PUT(
       data,
       include: {
         assignee: { select: { id: true, name: true, avatar: true } },
+        closedBy: { select: { id: true, name: true } },
       },
     });
 
@@ -183,6 +221,7 @@ export async function PUT(
         to: d.status,
         userId: user.id,
         outcome: d.outcome,
+        closedBy: closer,
       });
     } else {
       await db.activityLog.create({
@@ -191,7 +230,12 @@ export async function PUT(
           deliverableId: deliverable.id,
           userId: user.id,
           action: "deliverable_updated",
-          description: `Updated deliverable "${deliverable.title}"`,
+          description:
+            `Updated deliverable "${deliverable.title}"` +
+            (closer && closer.id !== existing.closedById ? ` — cerrada por ${closer.name}` : ""),
+          ...(closer && closer.id !== existing.closedById && {
+            metadata: { closedById: closer.id, previousClosedById: existing.closedById },
+          }),
         },
       });
     }

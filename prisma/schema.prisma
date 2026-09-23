@@ -146,38 +146,39 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Internal assignments
-  assignedDeliverables Deliverable[]      @relation("DeliverableAssignee")
-  assignedTasks        Task[]             @relation("TaskAssignee")
-  createdTasks         Task[]             @relation("TaskCreator")
+  assignedDeliverables Deliverable[]              @relation("DeliverableAssignee")
+  closedDeliverables   Deliverable[]              @relation("DeliverableClosedBy")
+  assignedTasks        Task[]                     @relation("TaskAssignee")
+  createdTasks         Task[]                     @relation("TaskCreator")
   runnerAssignments    RunnerAssignment[]
-  runnerHours          RunnerHours[]      @relation("RunnerHoursUser")
+  runnerHours          RunnerHours[]              @relation("RunnerHoursUser")
   availability         RunnerAvailability[]
   weeklyAvailability   RunnerWeeklyAvailability[]
   activityLogs         ActivityLog[]
   comments             Comment[]
-  approvalRequests     Approval[]         @relation("ApprovalRequester")
-  files                File[]             @relation("FileUploader")
-  pressReleases        PressRelease[]     @relation("PressReleaseCreator")
-  reminders            Reminder[]         @relation("ReminderCreator")
-  notifications        Notification[]     @relation("UserNotifications")
-  assignedPriorities   WeeklyPriority[]   @relation("PriorityAssignee")
-  createdPriorities    WeeklyPriority[]   @relation("PriorityCreator")
-  createdAvailability  ClientAvailability[] @relation("AvailabilityCreator")
+  approvalRequests     Approval[]                 @relation("ApprovalRequester")
+  files                File[]                     @relation("FileUploader")
+  pressReleases        PressRelease[]             @relation("PressReleaseCreator")
+  reminders            Reminder[]                 @relation("ReminderCreator")
+  notifications        Notification[]             @relation("UserNotifications")
+  assignedPriorities   WeeklyPriority[]           @relation("PriorityAssignee")
+  createdPriorities    WeeklyPriority[]           @relation("PriorityCreator")
+  createdAvailability  ClientAvailability[]       @relation("AvailabilityCreator")
 
   @@map("users")
 }
 
 model ClientUser {
-  id        String     @id @default(cuid())
-  clerkId   String     @unique
-  email     String     @unique
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  email     String   @unique
   name      String
   clientId  String
-  client    Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  role      UserRole   @default(CLIENT_VIEWER)
-  isActive  Boolean    @default(true)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  role      UserRole @default(CLIENT_VIEWER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   approvalResponses ApprovalResponse[]
 
@@ -187,30 +188,29 @@ model ClientUser {
 // ─── CLIENTS ─────────────────────────────────────────────
 
 model Client {
-  id          String       @id @default(cuid())
-  name        String
-  slug        String       @unique
-  industry    String?
-  website     String?
-  logo        String?
-  description String?
-  status      ClientStatus @default(PROSPECT)
+  id             String       @id @default(cuid())
+  name           String
+  slug           String       @unique
+  industry       String?
+  website        String?
+  logo           String?
+  description    String?
+  status         ClientStatus @default(PROSPECT)
   shareToken     String?      @unique // for public campaign monitor link
-  strategyDocUrl String?      // Google Doc link for client strategy
+  strategyDocUrl String? // Google Doc link for client strategy
 
   // Monthly deliverable target (0 = preparation month, no target yet)
-  monthlyTarget Int @default(6)
+  monthlyTarget     Int       @default(6)
   // Day of month the client's cycle resets ("fecha de corte"), 1-31
-  cycleDay      Int?
+  cycleDay          Int?
   // Goals owed from previous cycles ("metas atrasadas")
-  goalsOwed     Int     @default(0)
+  goalsOwed         Int       @default(0)
   // What the team should close next for this client ("metas de septiembre" note)
-  focusNote     String?
+  focusNote         String?
   // Google Doc with the client's agenda (events/appearances)
-  agendaDocUrl  String?
+  agendaDocUrl      String?
   // Last successful regeneration of that Doc from the portal
   agendaDocSyncedAt DateTime?
-
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -289,14 +289,14 @@ model Onboarding {
   kickoffNotes     String?
   narrative        String?
   brandPositioning String?
-  goals            Json?            // string[]
+  goals            Json? // string[]
   vision           String?
   targetAudience   String?
 
   // Questionnaire
-  questionnaireSentAt       DateTime?
-  questionnaireCompletedAt  DateTime?
-  questionnaireResponses    Json?
+  questionnaireSentAt      DateTime?
+  questionnaireCompletedAt DateTime?
+  questionnaireResponses   Json?
 
   checklistItems OnboardingChecklistItem[]
 
@@ -322,9 +322,9 @@ model OnboardingChecklistItem {
 // ─── STRATEGY DOCUMENT ───────────────────────────────────
 
 model StrategyDocument {
-  id         String   @id @default(cuid())
-  clientId   String   @unique
-  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  id         String  @id @default(cuid())
+  clientId   String  @unique
+  client     Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
   campaignId String?
 
   // Dates
@@ -335,15 +335,15 @@ model StrategyDocument {
   year           Int?
 
   // Narrative sections (bilingual — stored as-is)
-  purpose              String?
-  objective            String?
-  strategicPath        String?
-  messagingFramework   String?
-  keyMessages          Json?     // string[]
-  clientPersona        String?
-  targetAudience       String?
-  executionNotes       String?
-  servicesProvided     Json?     // string[]
+  purpose            String?
+  objective          String?
+  strategicPath      String?
+  messagingFramework String?
+  keyMessages        Json? // string[]
+  clientPersona      String?
+  targetAudience     String?
+  executionNotes     String?
+  servicesProvided   Json? // string[]
 
   // Phases
   phase1Name  String?
@@ -354,7 +354,7 @@ model StrategyDocument {
   phase2End   DateTime?
 
   // External collaborators (not Clerk users — e.g. partner agencies)
-  externalCollaborators Json?  // [{name, role, organization}]
+  externalCollaborators Json? // [{name, role, organization}]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -365,30 +365,30 @@ model StrategyDocument {
 // ─── STRATEGY / WISHLIST ─────────────────────────────────
 
 model StrategyItem {
-  id         String           @id @default(cuid())
-  clientId   String
-  client     Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  campaignId String?
-  campaign   Campaign?        @relation(fields: [campaignId], references: [id])
-  title      String
+  id          String           @id @default(cuid())
+  clientId    String
+  client      Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  campaignId  String?
+  campaign    Campaign?        @relation(fields: [campaignId], references: [id])
+  title       String
   description String?
-  category   StrategyCategory
-  status     StrategyStatus   @default(IDEA)
-  assigneeId String?          // references User.id
-  notes      String?
-  priority   Int              @default(0)
-  targetDate DateTime?
+  category    StrategyCategory
+  status      StrategyStatus   @default(IDEA)
+  assigneeId  String? // references User.id
+  notes       String?
+  priority    Int              @default(0)
+  targetDate  DateTime?
 
   // Enriched fields from real strategy docs
-  targetName     String?    // specific outlet/guest/brand/event name
-  brandCategory  String?    // "Fragancias", "Deporte", "Tecnología"
-  episodeNumber  Int?       // for podcast episodes
-  scheduledDate  DateTime?  // dated appearances/episodes
-  eventLocation  String?    // city/country for events
-  phase          Int?       // 1 or 2
-  isBigWin       Boolean    @default(false)
-  source         String?    // "CLIENT" = idea the client called in with; "TEAM" / null = ours
-  requestedAt    DateTime?  // when the client asked for it
+  targetName    String? // specific outlet/guest/brand/event name
+  brandCategory String? // "Fragancias", "Deporte", "Tecnología"
+  episodeNumber Int? // for podcast episodes
+  scheduledDate DateTime? // dated appearances/episodes
+  eventLocation String? // city/country for events
+  phase         Int? // 1 or 2
+  isBigWin      Boolean   @default(false)
+  source        String? // "CLIENT" = idea the client called in with; "TEAM" / null = ours
+  requestedAt   DateTime? // when the client asked for it
 
   deliverable Deliverable?
 
@@ -409,8 +409,8 @@ model Campaign {
   status        CampaignStatus @default(PREPARATION)
   startDate     DateTime?
   endDate       DateTime?
-  objectives    Json?          // string[]
-  ownerId       String?        // lead strategist userId
+  objectives    Json? // string[]
+  ownerId       String? // lead strategist userId
   monthlyTarget Int            @default(6)
 
   deliverables  Deliverable[]
@@ -426,30 +426,33 @@ model Campaign {
 // ─── DELIVERABLES ─────────────────────────────────────────
 
 model Deliverable {
-  id             String            @id @default(cuid())
+  id             String        @id @default(cuid())
   clientId       String
-  client         Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client         Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
   campaignId     String?
-  campaign       Campaign?         @relation(fields: [campaignId], references: [id])
-  strategyItemId String?           @unique
-  strategyItem   StrategyItem?     @relation(fields: [strategyItemId], references: [id])
-  assigneeId     String?           // references User.id
-  assignee       User?             @relation("DeliverableAssignee", fields: [assigneeId], references: [id])
+  campaign       Campaign?     @relation(fields: [campaignId], references: [id])
+  strategyItemId String?       @unique
+  strategyItem   StrategyItem? @relation(fields: [strategyItemId], references: [id])
+  assigneeId     String? // references User.id
+  assignee       User?         @relation("DeliverableAssignee", fields: [assigneeId], references: [id])
+  // Strategist (SUPER_ADMIN/STRATEGIST) who closed the goal; set whenever status becomes COMPLETED
+  closedById     String?
+  closedBy       User?         @relation("DeliverableClosedBy", fields: [closedById], references: [id])
 
   title           String
   type            DeliverableType
   status          DeliverableStatus @default(IDEA)
   dueDate         DateTime?
   // Activity details ("pauta"): when a goal is confirmed these seed the agenda item
-  eventTime       DateTime?         // instant of the appearance (Miami)
+  eventTime       DateTime? // instant of the appearance (Miami)
   venueName       String?
   venueAddress    String?
   needsRunner     Boolean           @default(true)
   completedAt     DateTime?
-  month           Int               // 1–12
+  month           Int // 1–12
   year            Int
   notes           String?
-  outcome         String?           // the win / result text
+  outcome         String? // the win / result text
   isClientVisible Boolean           @default(true)
   isInternal      Boolean           @default(false)
 
@@ -468,16 +471,16 @@ model Deliverable {
 // ─── TASKS ───────────────────────────────────────────────
 
 model Task {
-  id            String      @id @default(cuid())
+  id            String       @id @default(cuid())
   clientId      String?
   deliverableId String?
   deliverable   Deliverable? @relation(fields: [deliverableId], references: [id])
   campaignId    String?
-  campaign      Campaign?   @relation(fields: [campaignId], references: [id])
+  campaign      Campaign?    @relation(fields: [campaignId], references: [id])
   assigneeId    String?
-  assignee      User?       @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  assignee      User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
   createdById   String?
-  createdBy     User?       @relation("TaskCreator", fields: [createdById], references: [id])
+  createdBy     User?        @relation("TaskCreator", fields: [createdById], references: [id])
 
   title       String
   description String?
@@ -505,24 +508,24 @@ model RunnerAssignment {
   eventName     String
   clientId      String?
   deliverableId String?
-  location      String?          // city/country (short)
+  location      String? // city/country (short)
   notes         String?
   status        AssignmentStatus @default(SCHEDULED)
-  weekOf        DateTime         // Monday of the week
+  weekOf        DateTime // Monday of the week
 
   // Enriched agenda fields
-  arrivalTime       DateTime?  // "Llegada" time
-  eventTime         DateTime?  // "Al Aire" — actual event/broadcast start time
-  venueName         String?    // "Telemundo Center"
-  venueAddress      String?    // full street address
-  itemType          String?    // "TV Appearance", "Podcast", "Red Carpet", "Event"
-  accompanistCount  Int        @default(0)
-  monthNumber       Int?       // MES 1, MES 2... for grouping
-  agendaSequence    Int?       // sequential # within the agenda doc
+  arrivalTime      DateTime? // "Llegada" time
+  eventTime        DateTime? // "Al Aire" — actual event/broadcast start time
+  venueName        String? // "Telemundo Center"
+  venueAddress     String? // full street address
+  itemType         String? // "TV Appearance", "Podcast", "Red Carpet", "Event"
+  accompanistCount Int       @default(0)
+  monthNumber      Int? // MES 1, MES 2... for grouping
+  agendaSequence   Int? // sequential # within the agenda doc
 
   // Auto-scheduling
   autoAssigned Boolean   @default(false) // true when lib/runner-assign.ts picked the runner
-  assignedAt   DateTime?                 // when a runner was last attached
+  assignedAt   DateTime? // when a runner was last attached
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -552,8 +555,8 @@ model RunnerWeeklyAvailability {
   id          String   @id @default(cuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id])
-  dayOfWeek   Int      // 0 = Sunday … 6 = Saturday (Miami)
-  startMinute Int      // minutes from midnight, Miami time
+  dayOfWeek   Int // 0 = Sunday … 6 = Saturday (Miami)
+  startMinute Int // minutes from midnight, Miami time
   endMinute   Int
   createdAt   DateTime @default(now())
 
@@ -564,13 +567,13 @@ model RunnerWeeklyAvailability {
 // ─── APPROVALS ───────────────────────────────────────────
 
 model Approval {
-  id            String         @id @default(cuid())
+  id            String       @id @default(cuid())
   clientId      String
-  client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client        Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
   deliverableId String?
-  deliverable   Deliverable?   @relation(fields: [deliverableId], references: [id])
+  deliverable   Deliverable? @relation(fields: [deliverableId], references: [id])
   requestedById String
-  requestedBy   User           @relation("ApprovalRequester", fields: [requestedById], references: [id])
+  requestedBy   User         @relation("ApprovalRequester", fields: [requestedById], references: [id])
 
   title       String
   description String?
@@ -578,7 +581,7 @@ model Approval {
   status      ApprovalStatus @default(PENDING)
   version     Int            @default(1)
   fileUrl     String?
-  content     String?        // text content for review (press release copy, etc.)
+  content     String? // text content for review (press release copy, etc.)
 
   responses ApprovalResponse[]
 
@@ -605,20 +608,20 @@ model ApprovalResponse {
 // ─── FILES ────────────────────────────────────────────────
 
 model File {
-  id            String      @id @default(cuid())
+  id            String       @id @default(cuid())
   clientId      String
-  client        Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client        Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
   campaignId    String?
   deliverableId String?
   deliverable   Deliverable? @relation(fields: [deliverableId], references: [id])
   uploadedById  String
-  uploadedBy    User        @relation("FileUploader", fields: [uploadedById], references: [id])
+  uploadedBy    User         @relation("FileUploader", fields: [uploadedById], references: [id])
 
   name            String
   url             String
   size            Int?
   mimeType        String?
-  isClientVisible Boolean    @default(false)
+  isClientVisible Boolean  @default(false)
   tags            String[]
 
   createdAt DateTime @default(now())
@@ -630,15 +633,15 @@ model File {
 // ─── ACTIVITY LOG ─────────────────────────────────────────
 
 model ActivityLog {
-  id            String      @id @default(cuid())
+  id            String       @id @default(cuid())
   clientId      String?
-  client        Client?     @relation(fields: [clientId], references: [id])
+  client        Client?      @relation(fields: [clientId], references: [id])
   deliverableId String?
   deliverable   Deliverable? @relation(fields: [deliverableId], references: [id])
   userId        String
-  user          User        @relation(fields: [userId], references: [id])
+  user          User         @relation(fields: [userId], references: [id])
 
-  action      String  // "status_changed" | "file_uploaded" | "approval_requested" | etc.
+  action      String // "status_changed" | "file_uploaded" | "approval_requested" | etc.
   description String
   metadata    Json?
 
@@ -657,7 +660,7 @@ model Comment {
   user          User         @relation(fields: [userId], references: [id])
 
   content    String
-  isInternal Boolean  @default(true)
+  isInternal Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -675,7 +678,7 @@ model Report {
   year        Int
   title       String
   summary     String?
-  data        Json?   // structured wins, coverage, stats
+  data        Json? // structured wins, coverage, stats
   isPublished Boolean @default(false)
 
   createdAt DateTime @default(now())
@@ -697,7 +700,7 @@ model Reminder {
   description String?
   remindAt    DateTime
   isDone      Boolean  @default(false)
-  type        String?  // "event", "deliverable", "payment", "general"
+  type        String? // "event", "deliverable", "payment", "general"
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -708,14 +711,14 @@ model Reminder {
 // ─── RUNNER HOURS ────────────────────────────────────────
 
 model RunnerHours {
-  id          String   @id @default(cuid())
-  runnerId    String
-  runner      User     @relation("RunnerHoursUser", fields: [runnerId], references: [id])
+  id           String   @id @default(cuid())
+  runnerId     String
+  runner       User     @relation("RunnerHoursUser", fields: [runnerId], references: [id])
   assignmentId String?
-  date        DateTime
-  hours       Decimal  @db.Decimal(5, 2)
-  description String?
-  clientName  String?  // for display — runners don't see client IDs
+  date         DateTime
+  hours        Decimal  @db.Decimal(5, 2)
+  description  String?
+  clientName   String? // for display — runners don't see client IDs
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -726,14 +729,14 @@ model RunnerHours {
 // ─── NOTIFICATIONS ───────────────────────────────────────
 
 model Notification {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation("UserNotifications", fields: [userId], references: [id])
-  title     String
-  message   String
-  type      String?  // "runner_reminder", "overdue_payment", "unsigned_contract"
-  isRead    Boolean  @default(false)
-  link      String?  // URL to navigate to
+  id      String  @id @default(cuid())
+  userId  String
+  user    User    @relation("UserNotifications", fields: [userId], references: [id])
+  title   String
+  message String
+  type    String? // "runner_reminder", "overdue_payment", "unsigned_contract"
+  isRead  Boolean @default(false)
+  link    String? // URL to navigate to
 
   createdAt DateTime @default(now())
 
@@ -743,18 +746,18 @@ model Notification {
 // ─── JOURNALISTS ─────────────────────────────────────────
 
 model Journalist {
-  id           String  @id @default(cuid())
-  name         String
-  email        String  @unique
-  outlet       String? // "People en Español", "Univision", etc.
-  beat         String? // "Entertainment", "Music", "Lifestyle"
-  phone        String?
-  city         String?
-  country      String?
-  language     String? // "Spanish", "English", "Both"
-  notes        String?
-  isActive     Boolean @default(true)
-  tags         String[]
+  id       String   @id @default(cuid())
+  name     String
+  email    String   @unique
+  outlet   String? // "People en Español", "Univision", etc.
+  beat     String? // "Entertainment", "Music", "Lifestyle"
+  phone    String?
+  city     String?
+  country  String?
+  language String? // "Spanish", "English", "Both"
+  notes    String?
+  isActive Boolean  @default(true)
+  tags     String[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -774,24 +777,24 @@ enum PressReleaseStatus {
 }
 
 model PressRelease {
-  id            String             @id @default(cuid())
-  clientId      String
-  client        Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  title         String
-  content       String             // the actual press release text
-  status        PressReleaseStatus @default(DRAFT)
-  createdById   String
-  createdBy     User               @relation("PressReleaseCreator", fields: [createdById], references: [id])
+  id          String             @id @default(cuid())
+  clientId    String
+  client      Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title       String
+  content     String // the actual press release text
+  status      PressReleaseStatus @default(DRAFT)
+  createdById String
+  createdBy   User               @relation("PressReleaseCreator", fields: [createdById], references: [id])
 
   // Approval
-  approvedAt    DateTime?
-  approvedBy    String?            // who approved it
+  approvedAt DateTime?
+  approvedBy String? // who approved it
 
   // Distribution
-  scheduledDate DateTime?          // when to send (weekdays only)
-  sentAt        DateTime?
-  recipientCount Int?              // how many journalists received it
-  tags          String[]           // to filter journalist list by beat/tag
+  scheduledDate  DateTime? // when to send (weekdays only)
+  sentAt         DateTime?
+  recipientCount Int? // how many journalists received it
+  tags           String[] // to filter journalist list by beat/tag
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -827,33 +830,31 @@ model ContractSignature {
   @@map("contract_signatures")
 }
 
-
 // ─── WEEKLY PRIORITIES ───────────────────────────────────
 // The list the team writes every Monday: a handful of free-form lines per
 // client (plus agency-wide "general" ones). `weekOf` is Miami Monday 00:00,
 // computed with tzMidnight(weekStartKey(dayKey)) so it is timezone-stable.
 
 model WeeklyPriority {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   weekOf      DateTime
   clientId    String?
-  client      Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client      Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   title       String
   notes       String?
   assigneeId  String?
-  assignee    User?    @relation("PriorityAssignee", fields: [assigneeId], references: [id])
-  isDone      Boolean  @default(false)
+  assignee    User?     @relation("PriorityAssignee", fields: [assigneeId], references: [id])
+  isDone      Boolean   @default(false)
   doneAt      DateTime?
-  order       Int      @default(0)
+  order       Int       @default(0)
   createdById String
-  createdBy   User     @relation("PriorityCreator", fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdBy   User      @relation("PriorityCreator", fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([weekOf, clientId])
   @@map("weekly_priorities")
 }
-
 
 // ─── CLIENT AVAILABILITY / TRAVEL ────────────────────────
 // Dates the client is off (OFF: do not book anything) or travelling (TRAVEL:
