@@ -4,6 +4,7 @@ import { Plus, ArrowRight } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { FEATURES } from "@/lib/features";
+import { financeActivityFilter } from "@/lib/finance-visibility";
 import { DeliverablePacingBar } from "@/components/deliverables/pacing-bar";
 import { formatDate } from "@/lib/utils";
 import { currentCycle, cycleLabel } from "@/lib/cycles";
@@ -28,7 +29,7 @@ export async function generateMetadata({ params }: Props) {
 }
 
 export default async function ClientPage({ params }: Props) {
-  await requireUser();
+  const viewer = await requireUser();
 
   const client = await db.client.findUnique({
     where: { id: params.clientId },
@@ -82,7 +83,7 @@ export default async function ClientPage({ params }: Props) {
 
   // Recent activity
   const activity = await db.activityLog.findMany({
-    where: { clientId: params.clientId },
+    where: { clientId: params.clientId, ...financeActivityFilter(viewer) },
     orderBy: { createdAt: "desc" },
     take: 8,
     include: { user: { select: { id: true, name: true, avatar: true } } },

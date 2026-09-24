@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canSeeInternalData } from "@/lib/permissions";
+import { financeActivityFilter } from "@/lib/finance-visibility";
 
 export async function GET(req: NextRequest) {
   try {
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
     if (deliverableId) where.deliverableId = deliverableId;
 
     const logs = await db.activityLog.findMany({
-      where,
+      where: { ...where, ...financeActivityFilter(user) },
       orderBy: { createdAt: "desc" },
       take: limit,
       include: {
