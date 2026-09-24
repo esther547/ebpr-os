@@ -6,6 +6,7 @@ import { COMPANION_ROLES } from "@/lib/companions";
 import { z } from "zod";
 import { startOfWeek, startOfDay, endOfDay } from "date-fns";
 import { checkClientDate } from "@/lib/client-availability";
+import { ensureGoalForAgendaItem } from "@/lib/agenda-goal";
 
 const agendaItemSchema = z.object({
   // Optional: an activity with no runner yet is a valid agenda item — it simply
@@ -203,6 +204,16 @@ export async function POST(
         runner: { select: { id: true, name: true } },
       },
     });
+
+    // A pauta scheduled by the team is a closed goal: create the linked Metas record
+    // (credited to whoever added it) unless the item was linked to an existing goal.
+    if (!data.deliverableId && item.status !== "CANCELLED") {
+      try {
+        await ensureGoalForAgendaItem(item.id, { id: user.id, role: user.role });
+      } catch (err) {
+        console.error("Could not create the goal for the agenda item:", err);
+      }
+    }
 
     await db.activityLog.create({
       data: {
