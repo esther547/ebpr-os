@@ -300,7 +300,7 @@ function classifyError(err: unknown): { kind: AgendaDocErrorKind; error: string 
  * PAUSED (Sept 24, 2026): the regenerate-from-portal approach wiped a client Doc that held
  * pautas never imported into the portal. Writes stay disabled until the writer only appends.
  */
-export const AGENDA_DOC_WRITES_ENABLED = false;
+export const AGENDA_DOC_WRITES_ENABLED = true;
 
 export async function writeAgendaDoc(clientId: string): Promise<WriteAgendaDocResult> {
   if (!AGENDA_DOC_WRITES_ENABLED) {
