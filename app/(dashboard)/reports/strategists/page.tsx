@@ -90,7 +90,7 @@ export default async function StrategistReportPage({
         clientName: g.client.name,
         title: g.title,
         typeLabel: TYPE_LABELS_ES[g.type] ?? g.type,
-        dateLabel: g.completedAt ? shortDate.format(g.completedAt) : "—",
+        dateLabel: (g.closedAt ?? g.completedAt) ? shortDate.format((g.closedAt ?? g.completedAt) as Date) : "—",
       })),
     };
   }

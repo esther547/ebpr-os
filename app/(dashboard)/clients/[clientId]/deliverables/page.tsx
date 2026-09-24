@@ -15,7 +15,7 @@ export const metadata = { title: "Deliverables" };
 export const dynamic = "force-dynamic";
 
 export default async function DeliverablesPage({ params }: Props) {
-  await requireUser();
+  const user = await requireUser();
   const { clientId } = await params;
 
   const client = await db.client.findUnique({
@@ -93,6 +93,7 @@ export default async function DeliverablesPage({ params }: Props) {
         clientId={client.id}
         target={client.monthlyTarget}
         teamMembers={teamMembers}
+        currentUserId={user.id}
         runnerNeededIds={runnerNeededIds}
         clientStatus={client.status}
         monthLabel={cycleLabel(cycle, client.cycleDay)}

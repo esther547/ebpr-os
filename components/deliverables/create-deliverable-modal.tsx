@@ -5,15 +5,17 @@ import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/modal";
 import { Button, Input, Select, Textarea, FormGroup, FormActions } from "@/components/ui/form-field";
 import { useToast } from "@/components/ui/toast";
+import { localDateInputValue } from "@/lib/form-helpers";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clientId: string;
   teamMembers: { id: string; name: string }[];
+  currentUserId?: string;
 }
 
-export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembers }: Props) {
+export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembers, currentUserId }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -36,6 +38,8 @@ export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembe
       venueName: (form.get("venueName") as string) || null,
       venueAddress: (form.get("venueAddress") as string) || null,
       needsRunner: form.get("needsRunner") === "on",
+      closedById: (form.get("closedById") as string) || null,
+      closedAt: (form.get("closedAt") as string) || null,
       status: form.get("confirmed") === "on" ? "CONFIRMED" : undefined,
     };
 
@@ -91,8 +95,22 @@ export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembe
           </Select>
         </FormGroup>
 
+        <div className="grid gap-4 sm:grid-cols-2 rounded-xl bg-accent2-soft/60 p-3">
+          <FormGroup label="Cerrada por" htmlFor="del-closed-by" description="Estratega que logró esta meta. Cuenta en Metas por estratega desde hoy.">
+            <Select id="del-closed-by" name="closedById" defaultValue={currentUserId ?? ""}>
+              <option value="">Aún no está cerrada</option>
+              {teamMembers.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </Select>
+          </FormGroup>
+          <FormGroup label="Fecha de cierre" htmlFor="del-closed-at">
+            <Input id="del-closed-at" name="closedAt" type="date" defaultValue={localDateInputValue()} />
+          </FormGroup>
+        </div>
+
         <FormGroup label="Assigned To" htmlFor="del-assignee">
-          <Select id="del-assignee" name="assigneeId">
+          <Select id="del-assignee" name="assigneeId" defaultValue={currentUserId ?? ""}>
             <option value="">Unassigned</option>
             {teamMembers.map((m) => (
               <option key={m.id} value={m.id}>{m.name}</option>

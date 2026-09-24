@@ -122,6 +122,7 @@ export type ClosedGoal = {
   title: string;
   type: DeliverableType;
   completedAt: Date | null;
+  closedAt: Date | null;
   client: { id: string; name: string };
   closedBy: { id: string; name: string } | null;
 };
@@ -129,16 +130,25 @@ export type ClosedGoal = {
 /** Every goal completed (completedAt) inside the inclusive Miami range, newest first. */
 export async function loadClosedGoals(fromKey: string, toKey: string): Promise<ClosedGoal[]> {
   return db.deliverable.findMany({
-    where: { status: "COMPLETED", completedAt: rangeBounds(fromKey, toKey) },
+    // A goal counts when it was secured ("cerrada") in the range; legacy completed goals
+    // without a closing date fall back to completedAt.
+    where: {
+      status: { not: "CANCELLED" },
+      OR: [
+        { closedAt: rangeBounds(fromKey, toKey) },
+        { closedAt: null, status: "COMPLETED", completedAt: rangeBounds(fromKey, toKey) },
+      ],
+    },
     select: {
       id: true,
       title: true,
       type: true,
       completedAt: true,
+      closedAt: true,
       client: { select: { id: true, name: true } },
       closedBy: { select: { id: true, name: true } },
     },
-    orderBy: { completedAt: "desc" },
+    orderBy: [{ closedAt: "desc" }, { completedAt: "desc" }],
   });
 }
 

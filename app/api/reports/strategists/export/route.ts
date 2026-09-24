@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
       client: g.client.name,
       title: g.title,
       type: TYPE_LABELS_ES[g.type] ?? g.type,
-      date: g.completedAt ? dayKeyInTz(g.completedAt) : "",
+      date: (g.closedAt ?? g.completedAt) ? dayKeyInTz((g.closedAt ?? g.completedAt) as Date) : "",
     }))
     .sort(
       (a, b) =>

@@ -53,6 +53,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         assigneeId: true,
         completedAt: true,
         closedById: true,
+        closedAt: true,
       },
     });
     if (!existing) {
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest, { params }: Params) {
               : null,
         // Leaving COMPLETED clears the closer.
         ...(to === "COMPLETED"
-          ? setCloser && { closedById: closer?.id ?? null }
+          ? setCloser && { closedById: closer?.id ?? null, closedAt: existing.closedAt ?? new Date() }
           : { closedById: null }),
       },
       include: { closedBy: { select: { id: true, name: true } } },

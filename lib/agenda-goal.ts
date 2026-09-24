@@ -7,7 +7,8 @@ import { CLOSER_ROLES } from "@/app/api/deliverables/_lib/closer";
  * A pauta added to a client's agenda IS a goal for the team: when a strategist
  * schedules an appearance, the goal was already closed. This creates the linked
  * Deliverable so it shows on the client's Metas and on the per-strategist report.
- *   past date  -> COMPLETED, completedAt = event date, closedBy = creator
+ *   Either way the creator "closed" (secured) the goal today: closedBy/closedAt = creator/now.
+ *   past date  -> COMPLETED, completedAt = event date
  *   future     -> CONFIRMED (auto-completes when the runner marks the pauta done)
  * Idempotent: does nothing if the assignment already has a deliverable.
  */
@@ -46,7 +47,8 @@ export async function ensureGoalForAgendaItem(
       type: goalTypeFor(a.itemType, a.eventName),
       status: isPast ? "COMPLETED" : "CONFIRMED",
       completedAt: isPast ? a.eventDate : null,
-      closedById: isPast && isStrategist ? creator.id : null,
+      closedById: isStrategist ? creator.id : null,
+      closedAt: isStrategist ? new Date() : null,
       assigneeId: isStrategist ? creator.id : null,
       dueDate: a.eventDate,
       eventTime: a.eventTime,

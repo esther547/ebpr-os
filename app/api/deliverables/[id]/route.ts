@@ -115,6 +115,7 @@ export async function PUT(
         assigneeId: true,
         completedAt: true,
         closedById: true,
+        closedAt: true,
       },
     });
     if (!existing) {
@@ -150,6 +151,7 @@ export async function PUT(
       }
       closer = resolved.closer;
       data.closedById = closer?.id ?? null;
+      if (closer && !existing.closedAt) data.closedAt = new Date();
       if (!statusChanged && !existing.completedAt) data.completedAt = new Date();
     }
     if (d.assigneeId !== undefined) data.assigneeId = d.assigneeId || null;

@@ -10,12 +10,15 @@ import {
   tzMidnight,
 } from "@/components/runners/miami-time";
 import { syncAllAgendaDocs, type AgendaDocSyncReport } from "@/lib/google-docs-writer";
+import { runEventReminders, type EventReminderSummary } from "@/lib/industry-events";
 
 /**
  * Cron endpoint — called daily (8am Miami) to generate notifications:
  * 1. Runner reminders (24h before + same day)
  * 2. Strategist reminders (deliverable due tomorrow)
  * 3. Scheduling conflict detection (same runner, same day)
+ * 4. Industry events calendar: early reminders (default 60 days before)
+ * 5. Agenda Google Doc sync
  *
  * Idempotent: every notification carries a stable link that embeds the
  * record id(s) it is about, and we dedupe on (userId, type, link), so running
@@ -214,6 +217,17 @@ export async function GET(req: NextRequest) {
   }
   results.conflictsDetected = conflicts;
 
+  // ── 4b. Industry events calendar — early "work the opportunity" reminders ──
+  // Runs before the Docs sync so a slow Google API can never starve it of the
+  // 60s budget. Each event occurrence is reminded once (IndustryEventReminder).
+  let events: EventReminderSummary | { error: string };
+  try {
+    events = await runEventReminders(now);
+  } catch (err) {
+    console.error("Cron: industry event reminders failed:", err);
+    events = { error: err instanceof Error ? err.message : String(err) };
+  }
+
   // ── 5. Mirror every active client's agenda into its Google Doc ────
   // The portal is the source of truth: each "Agenda 2026" doc is regenerated
   // from the RunnerAssignment rows every night. This rides along with the daily
@@ -229,7 +243,7 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json(
-    { message: "Cron completed", timestamp: now.toISOString(), today: todayKey, results, agendaDocs },
+    { message: "Cron completed", timestamp: now.toISOString(), today: todayKey, results, events, agendaDocs },
     { headers: NO_STORE }
   );
 }

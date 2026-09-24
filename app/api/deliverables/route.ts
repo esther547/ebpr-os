@@ -6,6 +6,7 @@ import { canManageDeliverables } from "@/lib/permissions";
 import { cycleForDate, currentCycle } from "@/lib/cycles";
 import { parseDateInput } from "./_lib/status-transition";
 import { activityInstant, ensureAgendaItemForDeliverable } from "./_lib/agenda-sync";
+import { resolveCloser } from "./_lib/closer";
 import { checkClientDate } from "@/lib/client-availability";
 
 const createDeliverableSchema = z.object({
@@ -34,6 +35,8 @@ const createDeliverableSchema = z.object({
   venueName: z.string().max(200).nullable().optional(),
   venueAddress: z.string().max(300).nullable().optional(),
   needsRunner: z.boolean().optional(),
+  closedById: z.string().min(1).nullable().optional(),
+  closedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
 });
 
 function zodMessage(err: z.ZodError) {
@@ -63,7 +66,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { month: bodyMonth, year: bodyYear, dueDate: dueDateStr, eventTime: eventTimeStr, ...rest } = parsed.data;
+    const { month: bodyMonth, year: bodyYear, dueDate: dueDateStr, eventTime: eventTimeStr, closedById: closedByReq, closedAt: closedAtStr, ...rest } = parsed.data;
+
+    // "Cerrada por": the strategist who secured this goal. Counts on the per-strategist
+    // report from the closing date, even when the pauta itself happens later.
+    let closer: { id: string; name: string } | null = null;
+    if (closedByReq) {
+      const resolved = await resolveCloser({ requestedId: closedByReq, currentUser: user });
+      if (resolved.error) return NextResponse.json({ error: resolved.error }, { status: 400 });
+      closer = resolved.closer ?? null;
+    }
 
     const client = await db.client.findUnique({
       where: { id: rest.clientId },
@@ -104,6 +116,11 @@ export async function POST(req: NextRequest) {
         venueName: rest.venueName?.trim() || null,
         venueAddress: rest.venueAddress?.trim() || null,
         needsRunner: rest.needsRunner ?? true,
+        closedById: closer?.id ?? null,
+        closedAt: closer ? (closedAtStr ? new Date(`${closedAtStr}T12:00:00.000Z`) : new Date()) : null,
+        // A goal that is already secured: confirmed if the pauta is still ahead, completed if it already happened.
+        status: rest.status ?? (closer ? (dueDate && dueDate.getTime() < Date.now() ? "COMPLETED" : "CONFIRMED") : undefined),
+        completedAt: !rest.status && closer && dueDate && dueDate.getTime() < Date.now() ? dueDate : undefined,
       },
       include: {
         assignee: { select: { id: true, name: true, avatar: true } },

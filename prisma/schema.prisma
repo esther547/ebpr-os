@@ -146,24 +146,25 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Internal assignments
-  assignedDeliverables Deliverable[]              @relation("DeliverableAssignee")
-  closedDeliverables   Deliverable[]              @relation("DeliverableClosedBy")
-  assignedTasks        Task[]                     @relation("TaskAssignee")
-  createdTasks         Task[]                     @relation("TaskCreator")
-  runnerAssignments    RunnerAssignment[]
-  runnerHours          RunnerHours[]              @relation("RunnerHoursUser")
-  availability         RunnerAvailability[]
-  weeklyAvailability   RunnerWeeklyAvailability[]
-  activityLogs         ActivityLog[]
-  comments             Comment[]
-  approvalRequests     Approval[]                 @relation("ApprovalRequester")
-  files                File[]                     @relation("FileUploader")
-  pressReleases        PressRelease[]             @relation("PressReleaseCreator")
-  reminders            Reminder[]                 @relation("ReminderCreator")
-  notifications        Notification[]             @relation("UserNotifications")
-  assignedPriorities   WeeklyPriority[]           @relation("PriorityAssignee")
-  createdPriorities    WeeklyPriority[]           @relation("PriorityCreator")
-  createdAvailability  ClientAvailability[]       @relation("AvailabilityCreator")
+  assignedDeliverables  Deliverable[]              @relation("DeliverableAssignee")
+  closedDeliverables    Deliverable[]              @relation("DeliverableClosedBy")
+  assignedTasks         Task[]                     @relation("TaskAssignee")
+  createdTasks          Task[]                     @relation("TaskCreator")
+  runnerAssignments     RunnerAssignment[]
+  runnerHours           RunnerHours[]              @relation("RunnerHoursUser")
+  availability          RunnerAvailability[]
+  weeklyAvailability    RunnerWeeklyAvailability[]
+  activityLogs          ActivityLog[]
+  comments              Comment[]
+  approvalRequests      Approval[]                 @relation("ApprovalRequester")
+  files                 File[]                     @relation("FileUploader")
+  pressReleases         PressRelease[]             @relation("PressReleaseCreator")
+  reminders             Reminder[]                 @relation("ReminderCreator")
+  notifications         Notification[]             @relation("UserNotifications")
+  assignedPriorities    WeeklyPriority[]           @relation("PriorityAssignee")
+  createdPriorities     WeeklyPriority[]           @relation("PriorityCreator")
+  createdAvailability   ClientAvailability[]       @relation("AvailabilityCreator")
+  createdIndustryEvents IndustryEvent[]            @relation("IndustryEventCreator")
 
   @@map("users")
 }
@@ -437,6 +438,7 @@ model Deliverable {
   assignee       User?         @relation("DeliverableAssignee", fields: [assigneeId], references: [id])
   // Strategist (SUPER_ADMIN/STRATEGIST) who closed the goal; set whenever status becomes COMPLETED
   closedById     String?
+  closedAt        DateTime?         // when the strategist secured ("cerró") the goal
   closedBy       User?         @relation("DeliverableClosedBy", fields: [closedById], references: [id])
 
   title           String
@@ -882,4 +884,55 @@ model ClientAvailability {
 
   @@index([clientId, startDate, endDate])
   @@map("client_availability")
+}
+
+// ─── INDUSTRY EVENTS CALENDAR ────────────────────────────
+// Yearly industry events (awards, fashion weeks, galas, premieres…) the team
+// should work as PR opportunities. `year` null = recurs every year; `day` null
+// = "sometime during the month". The daily cron reminds the team `leadDays`
+// before each occurrence; IndustryEventReminder records which occurrence was
+// already reminded so it never repeats.
+
+enum EventCategory {
+  AWARDS
+  FASHION
+  FILM
+  GALA
+  SPORTS
+  MEDIA
+  OTHER
+}
+
+model IndustryEvent {
+  id          String        @id @default(cuid())
+  name        String
+  category    EventCategory @default(OTHER)
+  month       Int // 1-12
+  day         Int? // approximate day; null = "durante el mes"
+  year        Int? // null = recurs every year
+  city        String?
+  notes       String?
+  url         String?
+  leadDays    Int           @default(60) // remind this many days before
+  isActive    Boolean       @default(true)
+  createdById String?
+  createdBy   User?         @relation("IndustryEventCreator", fields: [createdById], references: [id])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  reminders IndustryEventReminder[]
+
+  @@index([month, day])
+  @@map("industry_events")
+}
+
+model IndustryEventReminder {
+  id       String        @id @default(cuid())
+  eventId  String
+  event    IndustryEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  occursOn DateTime // the occurrence date (noon UTC)
+  sentAt   DateTime      @default(now())
+
+  @@unique([eventId, occursOn])
+  @@map("industry_event_reminders")
 }

@@ -13,6 +13,7 @@ interface Props {
   clientId: string;
   target: number;
   teamMembers: { id: string; name: string }[];
+  currentUserId?: string;
   runnerNeededIds?: string[];
   clientStatus?: string;
   monthLabel?: string;
@@ -23,6 +24,7 @@ export function DeliverablesPageClient({
   clientId,
   target,
   teamMembers,
+  currentUserId,
   runnerNeededIds = [],
   clientStatus = "ACTIVE",
   monthLabel,
@@ -72,6 +74,7 @@ export function DeliverablesPageClient({
         onOpenChange={setShowCreate}
         clientId={clientId}
         teamMembers={teamMembers}
+        currentUserId={currentUserId}
       />
     </div>
   );
