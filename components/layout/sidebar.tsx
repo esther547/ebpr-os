@@ -57,7 +57,7 @@ const navGroups: NavGroup[] = [
     label: "Business",
     items: [
       { href: "/legal", label: "Legal & Contracts", icon: <Shield />, roles: ["SUPER_ADMIN", "LEGAL"] },
-      { href: "/follow-up", label: "Follow-Up", icon: <ClipboardList />, roles: ["SUPER_ADMIN", "ASSISTANT", "FINANCE", "LEGAL"] },
+      { href: "/follow-up", label: "Follow-Up", icon: <ClipboardList />, roles: ["SUPER_ADMIN", "ASSISTANT", "LEGAL"] },
       { href: "/reports", label: "Reports", icon: <BarChart3 />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
       { href: "/reports/strategists", label: "Metas por estratega", icon: <Trophy />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
     ],
@@ -72,7 +72,6 @@ const ROLE_LABELS: Record<UserRole, string> = {
   SUPER_ADMIN: "Admin",
   STRATEGIST: "Strategist",
   LEGAL: "Legal",
-  FINANCE: "Follow-up",
   ASSISTANT: "Assistant",
   RUNNER: "Runner",
   CLIENT_ADMIN: "Client",

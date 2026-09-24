@@ -19,11 +19,9 @@ type ContractRow = {
   title: string;
   status: string;
   client: { id: string; name: string };
-  value: unknown;
   startDate: string | Date | null;
   endDate: string | Date | null;
   signedAt: string | Date | null;
-  billingReady: boolean;
   fileUrl: string | null;
   fileName: string | null;
 };

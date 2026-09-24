@@ -140,17 +140,6 @@ async function main() {
         role: UserRole.LEGAL,
       },
     }),
-    // Finance
-    prisma.user.upsert({
-      where: { email: "lori@ebpublicrelations.com" },
-      update: { name: "Lori", role: UserRole.FINANCE },
-      create: {
-        clerkId: "seed_lori",
-        email: "lori@ebpublicrelations.com",
-        name: "Lori",
-        role: UserRole.FINANCE,
-      },
-    }),
     // Runners
     prisma.user.upsert({
       where: { email: "julieta@ebpublicrelations.com" },

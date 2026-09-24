@@ -11,7 +11,6 @@ const createContractSchema = z.object({
   title: z.string().trim().min(1).max(200),
   startDate: z.string().nullable().optional(),
   endDate: z.string().nullable().optional(),
-  value: z.number().positive().nullable().optional(),
   notes: z.string().nullable().optional(),
 });
 
@@ -45,7 +44,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
   }
 
-  const { clientId, title, startDate, endDate, value, notes } = parsed.data;
+  const { clientId, title, startDate, endDate, notes } = parsed.data;
 
   const client = await db.client.findUnique({ where: { id: clientId }, select: { id: true } });
   if (!client) {
@@ -60,7 +59,6 @@ export async function POST(req: NextRequest) {
         title,
         startDate: parseDateInput(startDate),
         endDate: parseDateInput(endDate),
-        value: value ?? undefined,
         notes: notes || undefined,
       },
     });

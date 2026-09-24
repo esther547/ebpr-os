@@ -12,7 +12,7 @@ const createSchema = z.object({
     .toLowerCase()
     .email("Enter a valid email address"),
   name: z.string().trim().min(1, "Name is required"),
-  role: z.enum(["SUPER_ADMIN", "STRATEGIST", "RUNNER", "LEGAL", "FINANCE", "ASSISTANT"]),
+  role: z.enum(["SUPER_ADMIN", "STRATEGIST", "RUNNER", "LEGAL", "ASSISTANT"]),
 });
 
 export async function GET() {

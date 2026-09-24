@@ -29,7 +29,6 @@ export function CreateContractModal({ open, onOpenChange, clients }: Props) {
       title: form.get("title") as string,
       startDate: (form.get("startDate") as string) || undefined,
       endDate: (form.get("endDate") as string) || undefined,
-      value: form.get("value") ? parseFloat(form.get("value") as string) : undefined,
       notes: (form.get("notes") as string) || undefined,
     };
 
@@ -72,7 +71,7 @@ export function CreateContractModal({ open, onOpenChange, clients }: Props) {
         </FormGroup>
 
         <FormGroup label="Contract Title" htmlFor="ct-title" required>
-          <Input id="ct-title" name="title" placeholder="e.g., 2026 PR Retainer" required autoFocus />
+          <Input id="ct-title" name="title" placeholder="e.g., 2026 PR Agreement" required autoFocus />
         </FormGroup>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -83,10 +82,6 @@ export function CreateContractModal({ open, onOpenChange, clients }: Props) {
             <Input id="ct-end" name="endDate" type="date" />
           </FormGroup>
         </div>
-
-        <FormGroup label="Contract Value ($)" htmlFor="ct-value">
-          <Input id="ct-value" name="value" type="number" step="0.01" min="0" placeholder="0.00" />
-        </FormGroup>
 
         <FormGroup label="Notes" htmlFor="ct-notes">
           <Textarea id="ct-notes" name="notes" rows={3} placeholder="Internal notes about this contract..." />

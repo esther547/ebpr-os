@@ -222,10 +222,10 @@ export default async function DashboardPage() {
           year={year}
         />
 
-        {/* Alerts: missing signatures, overdue payments, deliverables due this week */}
+        {/* Alerts: missing signatures, deliverables due this week */}
         <DashboardAlerts
           todayKey={todayKey}
-          canOpenLegalFinance={user.role === "SUPER_ADMIN"}
+          canOpenLegal={user.role === "SUPER_ADMIN"}
         />
 
         {/* Two-column layout: main grid + right panel */}

@@ -36,7 +36,6 @@ const ROLE_LABELS: Record<string, string> = {
   STRATEGIST: "Strategist",
   RUNNER: "Runner",
   LEGAL: "Legal",
-  FINANCE: "Follow-up (Laurie)",
   ASSISTANT: "Assistant",
   CLIENT_ADMIN: "Client Admin",
   CLIENT_VIEWER: "Client Viewer",
@@ -47,7 +46,6 @@ const ROLE_TONES: Record<string, BadgeTone> = {
   STRATEGIST: "info",
   RUNNER: "purple",
   LEGAL: "warning",
-  FINANCE: "success",
   ASSISTANT: "outline",
   CLIENT_ADMIN: "neutral",
   CLIENT_VIEWER: "neutral",
@@ -57,7 +55,6 @@ const ROLE_OPTIONS = [
   ["SUPER_ADMIN", "Super Admin"],
   ["STRATEGIST", "Strategist"],
   ["LEGAL", "Legal"],
-  ["FINANCE", "Follow-up (Laurie)"],
   ["ASSISTANT", "Assistant"],
   ["RUNNER", "Runner"],
 ] as const;

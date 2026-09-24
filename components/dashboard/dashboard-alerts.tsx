@@ -9,8 +9,8 @@ import { ArrowRight, FileSignature, CalendarClock } from "lucide-react";
 type Props = {
   /** Today, "yyyy-MM-dd" (Miami). */
   todayKey: string;
-  /** Legal/finance links only make sense for roles that can open them. */
-  canOpenLegalFinance: boolean;
+  /** Legal links only make sense for roles that can open them. */
+  canOpenLegal: boolean;
 };
 
 const MAX_ITEMS = 5;
@@ -20,7 +20,7 @@ const MAX_ITEMS = 5;
  * - Contracts sent but not signed (missing signatures)
  * - Deliverables due within the next 7 days that are not done
  */
-export async function DashboardAlerts({ todayKey, canOpenLegalFinance }: Props) {
+export async function DashboardAlerts({ todayKey, canOpenLegal }: Props) {
   const todayStart = tzMidnight(todayKey);
   const weekAhead = tzMidnight(addDaysKey(todayKey, 8)); // exclusive
 
@@ -67,7 +67,7 @@ export async function DashboardAlerts({ todayKey, canOpenLegalFinance }: Props) 
     {
       key: "signatures",
       label: "Missing signatures",
-      href: canOpenLegalFinance ? "/legal" : null,
+      href: canOpenLegal ? "/legal" : null,
       tone: "warning",
       icon: <FileSignature className="h-3.5 w-3.5" />,
       items: unsignedContracts.map((c) => ({

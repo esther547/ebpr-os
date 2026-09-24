@@ -156,7 +156,6 @@ export const INTERNAL_ROLES: UserRole[] = [
   UserRole.STRATEGIST,
   UserRole.RUNNER,
   UserRole.LEGAL,
-  UserRole.FINANCE,
   UserRole.ASSISTANT,
 ];
 
@@ -173,7 +172,6 @@ export const ROLE_HOME: Record<UserRole, string> = {
   SUPER_ADMIN: "/dashboard",
   STRATEGIST: "/dashboard",
   LEGAL: FEATURES.legal ? "/legal" : "/paused",
-  FINANCE: FEATURES.legal ? "/follow-up" : "/paused",
   ASSISTANT: FEATURES.legal ? "/follow-up" : "/paused",
   RUNNER: "/runner-portal",
   CLIENT_ADMIN: "/portal",
@@ -184,7 +182,6 @@ const ROLE_PREFIXES: Record<UserRole, string[]> = {
   SUPER_ADMIN: ["/"],
   STRATEGIST: ["/dashboard", "/priorities", "/events", "/clients", "/runners", "/press-releases", "/journalists", "/reports"],
   LEGAL: ["/legal", "/follow-up", "/paused"],
-  FINANCE: ["/follow-up", "/paused"],
   ASSISTANT: ["/follow-up", "/assistant-portal", "/paused"],
   RUNNER: ["/runner-portal"],
   CLIENT_ADMIN: ["/portal"],

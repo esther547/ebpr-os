@@ -11,16 +11,14 @@ const updateContractSchema = z.object({
   status: z.enum(["DRAFT", "SENT", "SIGNED", "EXPIRED", "TERMINATED"]).optional(),
   startDate: z.string().nullable().optional(),
   endDate: z.string().nullable().optional(),
-  value: z.number().positive().nullable().optional(),
   notes: z.string().nullable().optional(),
-  billingReady: z.boolean().optional(),
   fileUrl: z.string().nullable().optional(),
   fileName: z.string().nullable().optional(),
 });
 
 type Params = { params: { id: string } };
 
-// Follow-up roles (ASSISTANT, FINANCE) may only add notes or mark a contract signed.
+// Follow-up roles (ASSISTANT) may only add notes or mark a contract signed.
 const FOLLOW_UP_FIELDS = new Set(["notes", "status"]);
 
 export async function PUT(req: NextRequest, { params }: Params) {
@@ -62,9 +60,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
   if (d.startDate !== undefined) data.startDate = parseDateInput(d.startDate);
   if (d.endDate !== undefined) data.endDate = parseDateInput(d.endDate);
-  if (d.value !== undefined) data.value = d.value;
   if (d.notes !== undefined) data.notes = d.notes;
-  if (d.billingReady !== undefined) data.billingReady = d.billingReady;
   if (d.fileUrl !== undefined) data.fileUrl = d.fileUrl;
   if (d.fileName !== undefined) data.fileName = d.fileName;
 
@@ -88,10 +84,5 @@ export async function PUT(req: NextRequest, { params }: Params) {
     },
   });
 
-  if (!canManageContracts(user)) {
-    // Follow-up-only roles never receive contract value.
-    const { value: _value, ...safe } = contract;
-    return NextResponse.json({ data: safe });
-  }
   return NextResponse.json({ data: contract });
 }

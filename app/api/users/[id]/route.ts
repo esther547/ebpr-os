@@ -7,7 +7,7 @@ import { z } from "zod";
 const updateSchema = z.object({
   name: z.string().trim().min(1, "Name is required").optional(),
   email: z.string().trim().toLowerCase().email("Enter a valid email address").optional(),
-  role: z.enum(["SUPER_ADMIN", "STRATEGIST", "RUNNER", "LEGAL", "FINANCE", "ASSISTANT"]).optional(),
+  role: z.enum(["SUPER_ADMIN", "STRATEGIST", "RUNNER", "LEGAL", "ASSISTANT"]).optional(),
   isActive: z.boolean().optional(),
 });
 

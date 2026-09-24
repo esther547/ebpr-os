@@ -14,7 +14,7 @@ export default async function SignContractPage({ params }: { params: { token: st
     where: { token },
     include: {
       contract: {
-        select: { id: true, title: true, value: true, startDate: true, endDate: true, client: { select: { name: true } } },
+        select: { id: true, title: true, startDate: true, endDate: true, client: { select: { name: true } } },
       },
     },
   });
