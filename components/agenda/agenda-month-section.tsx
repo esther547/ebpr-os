@@ -55,12 +55,8 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export function AgendaMonthSection({ monthNumber, monthLabel, items, runners = [], clientId, canEdit = true }: Props) {
-  const sorted = [...items].sort((a, b) => {
-    if (a.agendaSequence !== null && b.agendaSequence !== null) {
-      return a.agendaSequence - b.agendaSequence;
-    }
-    return new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime();
-  });
+  // Items arrive in report order (lib/agenda-months.ts); the number is the row's place in its MES.
+  const sorted = items;
 
   return (
     <section>
@@ -86,7 +82,7 @@ export function AgendaMonthSection({ monthNumber, monthLabel, items, runners = [
           </thead>
           <tbody>
             {sorted.map((item, i) => (
-              <AgendaItemRow key={item.id} item={item} seq={item.agendaSequence ?? i + 1} clientId={canEdit ? clientId : undefined} runners={runners} />
+              <AgendaItemRow key={item.id} item={item} seq={i + 1} clientId={canEdit ? clientId : undefined} runners={runners} />
             ))}
           </tbody>
         </Table>

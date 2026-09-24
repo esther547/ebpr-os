@@ -7,6 +7,7 @@ import { PageHeader, SectionHeader } from "@/components/layout/header";
 import { Card } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { allocateAgendaMonths } from "@/lib/agenda-months";
 
 export const metadata = { title: "My Agenda" };
 export const dynamic = "force-dynamic";
@@ -35,46 +36,25 @@ export default async function PortalAgendaPage() {
   if (!clientUser) redirect("/sign-in");
   if (!clientUser.isActive) redirect("/access-pending");
 
-  const now = new Date();
-  const currentYear = now.getFullYear();
+  const [client, items] = await Promise.all([
+    db.client.findUnique({
+      where: { id: clientUser.clientId },
+      select: { monthlyTarget: true, cycleDay: true },
+    }),
+    db.runnerAssignment.findMany({
+      where: { clientId: clientUser.clientId },
+      orderBy: [{ eventDate: "asc" }],
+      include: {
+        runner: { select: { id: true, name: true } },
+      },
+    }),
+  ]);
 
-  // Fetch all agenda items from current year onward
-  const items = await db.runnerAssignment.findMany({
-    where: {
-      clientId: clientUser.clientId,
-      eventDate: { gte: new Date(`${currentYear}-01-01`) },
-    },
-    orderBy: [
-      { monthNumber: "asc" },
-      { agendaSequence: "asc" },
-      { eventDate: "asc" },
-    ],
-    include: {
-      runner: { select: { id: true, name: true } },
-    },
+  // Report months: MES 1 = the first `monthlyTarget` goals, MES 2 the next… (lib/agenda-months.ts)
+  const months = allocateAgendaMonths(items, {
+    monthlyTarget: client?.monthlyTarget ?? 0,
+    cycleDay: client?.cycleDay ?? null,
   });
-
-  // Group by monthNumber
-  const byMonth = new Map<number, typeof items>();
-  for (const item of items) {
-    const key = item.monthNumber ?? getMonthNumber(item.eventDate);
-    const arr = byMonth.get(key) ?? [];
-    arr.push(item);
-    byMonth.set(key, arr);
-  }
-
-  const sortedMonths = Array.from(byMonth.keys()).sort((a, b) => a - b);
-
-  // Derive calendar month from the first item in the month group for labeling
-  const getMonthLabel = (monthNum: number, monthItems: typeof items) => {
-    const first = monthItems[0];
-    const d = first ? new Date(first.eventDate) : null;
-    const calMonth = d ? MONTH_NAMES[d.getMonth() + 1] : "";
-    const calYear = d ? d.getFullYear() : currentYear;
-    return calMonth
-      ? `MES ${monthNum} — ${calMonth.toUpperCase()} ${calYear}`
-      : `MES ${monthNum}`;
-  };
 
   const upcomingCount = items.filter(
     (i) =>
@@ -102,21 +82,19 @@ export default async function PortalAgendaPage() {
         />
       ) : (
         <div className="space-y-6">
-          {sortedMonths.map((monthNum) => {
-            const monthItems = byMonth.get(monthNum) ?? [];
-            const label = getMonthLabel(monthNum, monthItems);
-
-            return (
-              <section key={monthNum}>
-                <SectionHeader title={label} />
-                <Card padding="none" className="divide-y divide-border">
-                  {monthItems.map((item, idx) => (
-                    <AgendaRow key={item.id} item={item} index={idx + 1} />
-                  ))}
-                </Card>
-              </section>
-            );
-          })}
+          {months.map((m) => (
+            <section key={m.monthNumber}>
+              <SectionHeader
+                title={`MES ${m.monthNumber} — ${MONTH_NAMES[m.month].toUpperCase()} ${m.year}`}
+                description={m.target ? `${m.items.length} of ${m.target} goals` : undefined}
+              />
+              <Card padding="none" className="divide-y divide-border">
+                {m.items.map((item, idx) => (
+                  <AgendaRow key={item.id} item={item} index={idx + 1} />
+                ))}
+              </Card>
+            </section>
+          ))}
         </div>
       )}
     </div>
@@ -209,6 +187,3 @@ function AgendaRow({
   );
 }
 
-function getMonthNumber(date: Date): number {
-  return new Date(date).getMonth() + 1;
-}

@@ -16,6 +16,7 @@
  * on each one. Until that happens every write fails with a clean 403 result —
  * it never throws and never crashes the cron.
  */
+import { allocateAgendaMonths } from "@/lib/agenda-months";
 import { google } from "googleapis";
 import type { docs_v1 } from "googleapis";
 import { db } from "@/lib/db";
@@ -125,6 +126,9 @@ export function formatFecha(dayKey: string): string {
 
 type AssignmentLike = {
   eventDate: Date;
+  monthNumber?: number | null;
+  agendaSequence?: number | null;
+  createdAt?: Date;
   eventTime: Date | null;
   eventName: string;
   venueName: string | null;
@@ -147,62 +151,56 @@ function joinLines(...parts: (string | null | undefined)[]): string {
     .join("\n");
 }
 
-/** Pure transform: assignments → month sections. Exported for testing. */
+/**
+ * Pure transform: assignments → report-month sections (MES 1 = the first `target`
+ * pautas, MES 2 the next `target`… see lib/agenda-months.ts). Exported for testing.
+ */
 export function sectionsFromAssignments(
   assignments: AssignmentLike[],
+  client: { monthlyTarget: number | null; cycleDay: number | null },
   now = new Date()
 ): AgendaSection[] {
-  const sorted = [...assignments].sort(
-    (a, b) => a.eventDate.getTime() - b.eventDate.getTime()
-  );
-
-  // Group by Miami calendar month, preserving chronological order.
-  const byMonth = new Map<string, AgendaRow[]>();
-  for (const a of sorted) {
-    const dayKey = dayKeyInTz(a.eventDate);
-    const monthKey = dayKey.slice(0, 7); // "2026-01"
-    const rows = byMonth.get(monthKey) ?? [];
-    rows.push({
-      number: rows.length + 1,
-      fecha: formatFecha(dayKey),
-      hora: formatHora(a.eventTime),
-      lugar: joinLines(a.venueName, a.venueAddress),
-      item: joinLines(a.eventName, a.notes),
-      estado: estadoFor(a, now),
-    });
-    byMonth.set(monthKey, rows);
-  }
-
-  return Array.from(byMonth.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([monthKey, rows], i) => {
-      const monthName = MONTH_NAMES_ES[Number(monthKey.slice(5, 7)) - 1];
+  return allocateAgendaMonths(assignments, client).map((m) => ({
+    monthNumber: m.monthNumber,
+    monthName: m.monthName,
+    heading: m.heading,
+    rows: m.items.map((a, i) => {
+      const dayKey = dayKeyInTz(a.eventDate);
       return {
-        monthNumber: i + 1,
-        monthName,
-        heading: `MES ${i + 1} (${monthName})`,
-        rows,
+        number: i + 1,
+        fecha: formatFecha(dayKey),
+        hora: formatHora(a.eventTime),
+        lugar: joinLines(a.venueName, a.venueAddress),
+        item: joinLines(a.eventName, a.notes),
+        estado: estadoFor(a, now),
       };
-    });
+    }),
+  }));
 }
 
 /** Loads a client's agenda rows and turns them into the doc's month sections. */
 export async function buildAgendaSections(clientId: string): Promise<AgendaSection[]> {
-  const assignments = await db.runnerAssignment.findMany({
-    where: { clientId },
-    orderBy: [{ eventDate: "asc" }],
-    select: {
-      eventDate: true,
-      eventTime: true,
-      eventName: true,
-      venueName: true,
-      venueAddress: true,
-      notes: true,
-      status: true,
-      runnerId: true,
-    },
-  });
-  return sectionsFromAssignments(assignments);
+  const [client, assignments] = await Promise.all([
+    db.client.findUnique({ where: { id: clientId }, select: { monthlyTarget: true, cycleDay: true } }),
+    db.runnerAssignment.findMany({
+      where: { clientId },
+      orderBy: [{ eventDate: "asc" }],
+      select: {
+        eventDate: true,
+        monthNumber: true,
+        agendaSequence: true,
+        createdAt: true,
+        eventTime: true,
+        eventName: true,
+        venueName: true,
+        venueAddress: true,
+        notes: true,
+        status: true,
+        runnerId: true,
+      },
+    }),
+  ]);
+  return sectionsFromAssignments(assignments, { monthlyTarget: client?.monthlyTarget ?? 0, cycleDay: client?.cycleDay ?? null });
 }
 
 // ─── Doc inspection helpers ──────────────────────────────

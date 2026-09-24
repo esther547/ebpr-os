@@ -10,7 +10,7 @@ import { SyncDocButton } from "@/components/agenda/sync-doc-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays } from "lucide-react";
-import { format, getMonth } from "date-fns";
+import { allocateAgendaMonths } from "@/lib/agenda-months";
 
 type Props = { params: { clientId: string } };
 
@@ -29,7 +29,7 @@ export default async function AgendaPage({ params }: Props) {
 
   const rawItems = await db.runnerAssignment.findMany({
     where: { clientId: params.clientId },
-    orderBy: [{ monthNumber: "asc" }, { agendaSequence: "asc" }, { eventDate: "asc" }],
+    orderBy: [{ eventDate: "asc" }],
     include: {
       runner: { select: { id: true, name: true } },
     },
@@ -63,19 +63,12 @@ export default async function AgendaPage({ params }: Props) {
     notes: item.notes,
     agendaSequence: item.agendaSequence,
     monthNumber: item.monthNumber,
+    createdAt: item.createdAt,
     runner: item.runner ? { id: item.runner.id, name: item.runner.name } : null,
   }));
 
-  // Group by monthNumber (or derive from date)
-  const byMonth = new Map<number, typeof items>();
-  for (const item of items) {
-    const monthKey = item.monthNumber ?? getMonth(new Date(item.eventDate)) + 1;
-    const arr = byMonth.get(monthKey) ?? [];
-    arr.push(item);
-    byMonth.set(monthKey, arr);
-  }
-
-  const sortedMonths = Array.from(byMonth.keys()).sort((a, b) => a - b);
+  // Report months: MES 1 holds the first `monthlyTarget` pautas, MES 2 the next… (lib/agenda-months.ts)
+  const months = allocateAgendaMonths(items, client);
 
   // Activities on the agenda that nobody is accompanying yet.
   const needsRunnerCount = items.filter(
@@ -114,6 +107,9 @@ export default async function AgendaPage({ params }: Props) {
       )}
 
       <p className="mb-6 text-xs text-ink-muted">
+        {client.monthlyTarget
+          ? `Reporte mensual: cada MES muestra ${client.monthlyTarget} ${client.monthlyTarget === 1 ? "meta" : "metas"} en orden cronológico; lo que sobra pasa al mes siguiente. `
+          : ""}
         El Google Doc de la agenda se regenera cada noche desde el portal.
       </p>
 
@@ -125,30 +121,19 @@ export default async function AgendaPage({ params }: Props) {
         />
       ) : (
         <div className="space-y-8">
-          {sortedMonths.map((monthNum) => {
-            const monthItems = byMonth.get(monthNum) ?? [];
-            const label = getMonthLabel(monthItems[0]?.eventDate ?? new Date());
-            return (
-              <AgendaMonthSection
-                key={monthNum}
-                monthNumber={monthNum}
-                monthLabel={label}
-                items={monthItems}
-                runners={runners}
-                clientId={client.id}
-              />
-            );
-          })}
+          {months.map((m) => (
+            <AgendaMonthSection
+              key={m.monthNumber}
+              monthNumber={m.monthNumber}
+              monthLabel={`${m.monthName} ${m.year}${m.target ? ` · ${m.items.length} de ${m.target}` : ""}`}
+              items={m.items}
+              runners={runners}
+              clientId={client.id}
+            />
+          ))}
         </div>
       )}
     </>
   );
 }
 
-function getMonthLabel(sampleDate: Date): string {
-  try {
-    return format(new Date(sampleDate), "MMMM yyyy").toUpperCase();
-  } catch {
-    return "";
-  }
-}
