@@ -13,6 +13,10 @@ export type SuggestionItem = {
   batchId: string;
   deliverableId: string | null;
   priorityId: string | null;
+  /** Internal "Contacto / fuente" (never shown to the client). */
+  contactNotes: string | null;
+  contactSource: string | null;
+  contactUpdatedAt: string | null;
   createdAt: string;
   createdByName: string | null;
 };

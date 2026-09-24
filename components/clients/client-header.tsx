@@ -116,7 +116,8 @@ export function ClientHeader({
             agendaDocUrl={client.agendaDocUrl ?? null}
             status={client.status}
           />
-          <ClientWishlistButton clientId={client.id} />
+          {/* /clients/* is admin/strategist-only, so the internal contact field can show */}
+          <ClientWishlistButton clientId={client.id} showContact />
           <ShareMonitorButton clientId={client.id} />
           {actions}
         </>

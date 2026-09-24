@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Target } from "lucide-react";
+import { Lock, Target } from "lucide-react";
 import { requireUser } from "@/lib/auth";
+import { canManageClients } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { ClientHeader } from "@/components/clients/client-header";
 import { availabilityNowFor } from "@/lib/client-availability";
@@ -25,7 +26,9 @@ export const metadata = { title: "Strategy" };
 export const dynamic = "force-dynamic";
 
 export default async function StrategyPage({ params }: Props) {
-  await requireUser();
+  const user = await requireUser();
+  // "Contacto / fuente" is internal: only admins/strategists see or edit it.
+  const showContacts = canManageClients(user);
 
   const client = await db.client.findUnique({
     where: { id: params.clientId },
@@ -46,11 +49,13 @@ export default async function StrategyPage({ params }: Props) {
     where: { clientId: params.clientId },
   });
 
-  // All strategy items
-  const items = await db.strategyItem.findMany({
-    where: { clientId: params.clientId },
-    orderBy: [{ priority: "desc" }, { scheduledDate: "asc" }, { createdAt: "desc" }],
-  });
+  // All strategy items (contact fields stripped for anyone who may not see them)
+  const items = (
+    await db.strategyItem.findMany({
+      where: { clientId: params.clientId },
+      orderBy: [{ priority: "desc" }, { scheduledDate: "asc" }, { createdAt: "desc" }],
+    })
+  ).map((i) => (showContacts ? i : { ...i, contactNotes: null, contactSource: null, contactUpdatedAt: null }));
 
   // Tasks (workflow section)
   const tasks = await db.task.findMany({
@@ -101,6 +106,13 @@ export default async function StrategyPage({ params }: Props) {
       />
 
       <div className="space-y-6">
+        {showContacts && (
+          <p className="-mt-2 flex items-center gap-1.5 text-xs text-ink-muted">
+            <Lock className="h-3.5 w-3.5 shrink-0" />
+            Contactos y fuentes son internos: nunca se muestran al cliente.
+          </p>
+        )}
+
         {/* Google Doc Link */}
         <StrategyDocLink clientId={client.id} strategyDocUrl={client.strategyDocUrl} />
 
@@ -124,24 +136,24 @@ export default async function StrategyPage({ params }: Props) {
         {/* Phase banners */}
         {doc && (doc.phase1Name || doc.phase2Name) && <StrategyPhaseBanner doc={doc} />}
 
-        <ClientWishlist clientId={client.id} items={clientWishlist} />
+        <ClientWishlist clientId={client.id} items={clientWishlist} showContacts={showContacts} />
 
-        {bigWins.length > 0 && <StrategyBigWins items={bigWins} />}
+        {bigWins.length > 0 && <StrategyBigWins items={bigWins} showContacts={showContacts} />}
 
-        {brandDeals.length > 0 && <StrategyBrandDeals groups={brandDealGroups} />}
+        {brandDeals.length > 0 && <StrategyBrandDeals groups={brandDealGroups} showContacts={showContacts} />}
 
         {mediaTargets.length > 0 && (
-          <StrategyOutletList title="Press & Media Targets" items={mediaTargets} category="MEDIA_TARGET" />
+          <StrategyOutletList title="Press & Media Targets" items={mediaTargets} category="MEDIA_TARGET" showContacts={showContacts} />
         )}
 
         {influencers.length > 0 && (
-          <StrategyOutletList title="Influencer Targets" items={influencers} category="INFLUENCER" />
+          <StrategyOutletList title="Influencer Targets" items={influencers} category="INFLUENCER" showContacts={showContacts} />
         )}
 
-        {events.length > 0 && <StrategyEventsList items={events} />}
+        {events.length > 0 && <StrategyEventsList items={events} showContacts={showContacts} />}
 
         {positioning.length > 0 && (
-          <StrategyOutletList title="Positioning Angles" items={positioning} category="POSITIONING" />
+          <StrategyOutletList title="Positioning Angles" items={positioning} category="POSITIONING" showContacts={showContacts} />
         )}
 
         {tasks.length > 0 && <StrategyWorkflowTable tasks={tasks} />}

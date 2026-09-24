@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRightLeft, Pencil, Trash2 } from "lucide-react";
+import { ArrowRightLeft, ChevronDown, Contact, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -22,9 +22,21 @@ type Props = {
   onDelete: (item: PriorityItem) => void;
 };
 
+const CONTACTS_MARKER = "— Contactos —";
+
+/** Split a priority's notes into the free text and the internal "— Contactos —" block (never shown to clients). */
+export function splitPriorityNotes(notes: string | null | undefined): { text: string; contacts: string } {
+  if (!notes) return { text: "", contacts: "" };
+  const idx = notes.indexOf(CONTACTS_MARKER);
+  if (idx < 0) return { text: notes.trim(), contacts: "" };
+  return { text: notes.slice(0, idx).trim(), contacts: notes.slice(idx + CONTACTS_MARKER.length).trim() };
+}
+
 export function PriorityRow({ item, onToggle, onRename, onEdit, onMove, onDelete }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.title);
+  const [showContacts, setShowContacts] = useState(false);
+  const { text: noteText, contacts } = splitPriorityNotes(item.notes);
 
   function startEditing() {
     setDraft(item.title);
@@ -78,10 +90,29 @@ export function PriorityRow({ item, onToggle, onRename, onEdit, onMove, onDelete
             {item.title}
           </button>
         )}
-        {item.notes && !editing && (
-          <p className={cn("mt-0.5 break-words text-xs", item.isDone ? "text-ink-muted/70" : "text-ink-muted")}>
-            {item.notes}
+        {noteText && !editing && (
+          <p className={cn("mt-0.5 whitespace-pre-line break-words text-xs", item.isDone ? "text-ink-muted/70" : "text-ink-muted")}>
+            {noteText}
           </p>
+        )}
+        {contacts && !editing && (
+          <div className="mt-1">
+            <button
+              type="button"
+              onClick={() => setShowContacts((v) => !v)}
+              aria-expanded={showContacts}
+              className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-secondary transition-colors hover:border-accent2 hover:text-accent2"
+            >
+              <Contact className="h-3 w-3" />
+              Posible contacto
+              <ChevronDown className={cn("h-3 w-3 transition-transform", showContacts && "rotate-180")} />
+            </button>
+            {showContacts && (
+              <div className="mt-1.5 max-h-80 overflow-y-auto whitespace-pre-line break-words rounded-lg border border-border bg-surface-2 p-2.5 text-xs leading-relaxed text-ink-secondary">
+                {contacts}
+              </div>
+            )}
+          </div>
         )}
       </div>
 

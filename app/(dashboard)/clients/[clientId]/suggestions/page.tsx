@@ -26,6 +26,9 @@ function toItem(r: SuggestionRow): SuggestionItem {
     batchId: r.batchId,
     deliverableId: r.deliverableId,
     priorityId: r.priorityId,
+    contactNotes: r.contactNotes,
+    contactSource: r.contactSource,
+    contactUpdatedAt: r.contactUpdatedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
     createdByName: r.createdBy?.name ?? null,
   };

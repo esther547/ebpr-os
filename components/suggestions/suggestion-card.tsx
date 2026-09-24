@@ -17,6 +17,7 @@ import {
 import { categoryLabel, type SuggestionStatusValue } from "@/lib/client-suggestions-format";
 import { ConvertToGoalModal } from "./convert-to-goal-modal";
 import { EditSuggestionModal } from "./edit-suggestion-modal";
+import { ContactField, contactEndpoints } from "@/components/strategy/contact-field";
 import type { SuggestionItem, TeamMember } from "./types";
 
 const CATEGORY_TONE: Record<string, BadgeTone> = {
@@ -133,6 +134,12 @@ export function SuggestionCard({
         )}
 
         <p className="whitespace-pre-line text-xs leading-relaxed text-ink-secondary">{s.rationale}</p>
+
+        <ContactField
+          key={s.id}
+          {...contactEndpoints.suggestion(clientId, s.id)}
+          initial={{ contactNotes: s.contactNotes, contactSource: s.contactSource, contactUpdatedAt: s.contactUpdatedAt }}
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3 sm:px-5">

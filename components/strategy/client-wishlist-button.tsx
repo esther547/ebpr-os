@@ -9,7 +9,16 @@ import { useToast } from "@/components/ui/toast";
 import { apiErrorMessage, localDateInputValue } from "@/lib/form-helpers";
 
 /** "+ Wish list cliente": an idea the client called in with, saved to their strategy wishlist. */
-export function ClientWishlistButton({ clientId, size = "sm" }: { clientId: string; size?: "sm" | "default" }) {
+export function ClientWishlistButton({
+  clientId,
+  size = "sm",
+  showContact = false,
+}: {
+  clientId: string;
+  size?: "sm" | "default";
+  /** Show the internal "Contacto / fuente" field (admins/strategists only). */
+  showContact?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const router = useRouter();
@@ -24,6 +33,7 @@ export function ClientWishlistButton({ clientId, size = "sm" }: { clientId: stri
       title: (f.get("title") as string).trim(),
       category: (f.get("category") as string) || "OTHER",
       notes: ((f.get("notes") as string) || "").trim() || undefined,
+      contactNotes: ((f.get("contactNotes") as string) || "").trim() || undefined,
       source: "CLIENT",
       requestedAt: `${date}T12:00:00.000Z`,
       priority: 1,
@@ -77,6 +87,15 @@ export function ClientWishlistButton({ clientId, size = "sm" }: { clientId: stri
           <FormGroup label="Notas" htmlFor="cw-notes" description="Contexto de la llamada, contactos, fechas que mencionó, por qué le importa.">
             <Textarea id="cw-notes" name="notes" rows={3} />
           </FormGroup>
+          {showContact && (
+            <FormGroup
+              label="Contacto / fuente (interno)"
+              htmlFor="cw-contact"
+              description="Quién nos puede abrir la puerta y cómo llegar. Nunca se muestra al cliente. También puedes buscarlo con IA después de guardar."
+            >
+              <Textarea id="cw-contact" name="contactNotes" rows={2} maxLength={8000} />
+            </FormGroup>
+          )}
           <FormActions>
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button type="submit" loading={saving}>Guardar</Button>

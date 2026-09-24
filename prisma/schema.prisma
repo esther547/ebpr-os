@@ -393,6 +393,11 @@ model StrategyItem {
   source        String? // "CLIENT" = idea the client called in with; "TEAM" / null = ours
   requestedAt   DateTime? // when the client asked for it
 
+  // Internal-only contact / source to reach the target (never shown to the client)
+  contactNotes     String? // who/how: booker, producer, PR agency, press form…
+  contactSource    String? // "TEAM" | "AI"
+  contactUpdatedAt DateTime?
+
   deliverable Deliverable?
 
   createdAt DateTime @default(now())
@@ -968,6 +973,10 @@ model ClientSuggestion {
   createdBy     User?            @relation("SuggestionCreator", fields: [createdById], references: [id])
   deliverableId String? // set when converted into a goal
   priorityId    String? // set when pushed to weekly priorities
+  // Internal-only contact / source to reach the target (never shown to the client)
+  contactNotes     String? // who/how: booker, producer, PR agency, press form…
+  contactSource    String? // "TEAM" | "AI"
+  contactUpdatedAt DateTime?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
