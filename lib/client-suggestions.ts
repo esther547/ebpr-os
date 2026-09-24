@@ -206,7 +206,7 @@ export async function buildClientContext(clientId: string, now: Date = new Date(
       currentAndUpcoming(clientId, now),
       upcomingEvents(120, now),
       db.weeklyPriority.findMany({
-        where: { weekOf, clientId },
+        where: { weekOf, clientId, list: "TEAM" },
         select: { title: true, notes: true, isDone: true },
         orderBy: [{ order: "asc" }, { createdAt: "asc" }],
       }),

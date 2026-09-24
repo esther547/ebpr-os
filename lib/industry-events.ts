@@ -107,13 +107,13 @@ export async function createOpportunityPriority(
   const title = opportunityPriorityTitle(event.name, occursKey);
 
   const existing = await db.weeklyPriority.findFirst({
-    where: { weekOf, clientId: null, title: { equals: title, mode: "insensitive" } },
+    where: { weekOf, clientId: null, list: "TEAM", title: { equals: title, mode: "insensitive" } },
     select: { id: true },
   });
   if (existing) return { created: false, id: existing.id };
 
   const last = await db.weeklyPriority.aggregate({
-    where: { weekOf, clientId: null },
+    where: { weekOf, clientId: null, list: "TEAM" },
     _max: { order: true },
   });
   const row = await db.weeklyPriority.create({

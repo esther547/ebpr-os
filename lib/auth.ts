@@ -172,7 +172,7 @@ export const ROLE_HOME: Record<UserRole, string> = {
   SUPER_ADMIN: "/dashboard",
   STRATEGIST: "/dashboard",
   LEGAL: FEATURES.legal ? "/legal" : "/paused",
-  ASSISTANT: FEATURES.legal ? "/follow-up" : "/paused",
+  ASSISTANT: "/todos",
   RUNNER: "/runner-portal",
   CLIENT_ADMIN: "/portal",
   CLIENT_VIEWER: "/portal",
@@ -180,9 +180,9 @@ export const ROLE_HOME: Record<UserRole, string> = {
 
 const ROLE_PREFIXES: Record<UserRole, string[]> = {
   SUPER_ADMIN: ["/"],
-  STRATEGIST: ["/dashboard", "/priorities", "/events", "/clients", "/runners", "/press-releases", "/journalists", "/reports"],
+  STRATEGIST: ["/dashboard", "/priorities", "/todos", "/events", "/clients", "/runners", "/press-releases", "/journalists", "/reports"],
   LEGAL: ["/legal", "/follow-up", "/paused"],
-  ASSISTANT: ["/follow-up", "/assistant-portal", "/paused"],
+  ASSISTANT: ["/todos", "/follow-up", "/assistant-portal", "/paused"],
   RUNNER: ["/runner-portal"],
   CLIENT_ADMIN: ["/portal"],
   CLIENT_VIEWER: ["/portal"],

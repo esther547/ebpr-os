@@ -16,6 +16,7 @@ import {
   BookOpen,
   ClipboardList,
   ListChecks,
+  ListTodo,
   Trophy,
   Menu,
   X,
@@ -31,6 +32,8 @@ type NavItem = {
   label: string;
   icon: React.ReactNode;
   roles: UserRole[];
+  /** When set, the item is shown only to these emails (personal pages), whatever the role. */
+  emails?: string[];
 };
 
 type NavGroup = { label: string; items: NavItem[] };
@@ -41,6 +44,8 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
       { href: "/priorities", label: "Prioridades", icon: <ListChecks />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
+      { href: "/todos/esther", label: "Esther to dos", icon: <ListTodo />, roles: [], emails: ["esther@ebmanagement.io"] },
+      { href: "/todos/carolina", label: "Carolina's to dos", icon: <ListTodo />, roles: [], emails: ["esther@ebmanagement.io", "carolina@ebmanagement.io"] },
       { href: "/events", label: "Calendario de eventos", icon: <CalendarRange />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
       { href: "/clients", label: "Clients", icon: <Users />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
       { href: "/runners", label: "Runners", icon: <CalendarDays />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
@@ -103,7 +108,13 @@ export function Sidebar({ userRole, userName, userEmail }: SidebarProps) {
   }, [pathname]);
 
   const groups = navGroups
-    .map((g) => ({ ...g, items: g.items.filter((i) => i.roles.includes(userRole) && (FEATURES.legal || !["/legal", "/follow-up"].includes(i.href))) }))
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((i) => {
+        const allowed = i.emails ? i.emails.includes(userEmail.toLowerCase()) : i.roles.includes(userRole);
+        return allowed && (FEATURES.legal || !["/legal", "/follow-up"].includes(i.href));
+      }),
+    }))
     .filter((g) => g.items.length > 0);
 
   // Most specific match wins, so /reports/strategists does not also light up /reports.

@@ -18,6 +18,75 @@ export function canManagePriorities(user: SessionUser): boolean {
   return user.role === "SUPER_ADMIN" || user.role === "STRATEGIST";
 }
 
+// ─── Boards ────────────────────────────────────────────────
+// The same weekly list machinery powers three boards: the team's "Prioridades"
+// and two personal to-do pages. Personal boards are locked by email, not role.
+
+export type PriorityListKey = "TEAM" | "ESTHER" | "CAROLINA";
+
+export type PriorityList = {
+  key: PriorityListKey;
+  /** URL of the board. */
+  path: string;
+  title: string;
+  subtitle: string;
+  /** Emails that may open the board (lowercase). Empty = role-based (team board). */
+  viewers: string[];
+  /** Personal boards have no assignees. */
+  personal: boolean;
+};
+
+const ESTHER = "esther@ebmanagement.io";
+const CAROLINA = "carolina@ebmanagement.io";
+
+export const PRIORITY_LISTS: Record<PriorityListKey, PriorityList> = {
+  TEAM: {
+    key: "TEAM",
+    path: "/priorities",
+    title: "Prioridades de la semana",
+    subtitle: "Lo que acordamos cerrar esta semana, por cliente.",
+    viewers: [],
+    personal: false,
+  },
+  ESTHER: {
+    key: "ESTHER",
+    path: "/todos/esther",
+    title: "Esther to dos",
+    subtitle: "Solo tú ves esta lista.",
+    viewers: [ESTHER],
+    personal: true,
+  },
+  CAROLINA: {
+    key: "CAROLINA",
+    path: "/todos/carolina",
+    title: "Carolina's to dos",
+    subtitle: "Solo Carolina y Esther ven esta lista.",
+    viewers: [ESTHER, CAROLINA],
+    personal: true,
+  },
+};
+
+/** "esther" → ESTHER list; unknown slugs → null. */
+export function priorityListFromSlug(slug: string): PriorityList | null {
+  const key = slug.toUpperCase() as PriorityListKey;
+  return key in PRIORITY_LISTS && key !== "TEAM" ? PRIORITY_LISTS[key] : null;
+}
+
+export function isPriorityListKey(value: unknown): value is PriorityListKey {
+  return typeof value === "string" && value in PRIORITY_LISTS;
+}
+
+export function canAccessPriorityList(user: SessionUser, key: PriorityListKey): boolean {
+  const list = PRIORITY_LISTS[key];
+  if (!list.personal) return canManagePriorities(user);
+  return list.viewers.includes((user.email ?? "").toLowerCase());
+}
+
+/** The personal boards this user may open (for the sidebar / landing redirect). */
+export function personalListsFor(user: SessionUser): PriorityList[] {
+  return Object.values(PRIORITY_LISTS).filter((l) => l.personal && canAccessPriorityList(user, l.key));
+}
+
 const DAY_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** True for a real calendar day written as "yyyy-MM-dd" (rejects 2026-02-31). */
@@ -40,6 +109,7 @@ export function weekOfInstant(weekKey: string): Date {
 export const prioritySelect = {
   id: true,
   weekOf: true,
+  list: true,
   clientId: true,
   title: true,
   notes: true,
@@ -62,15 +132,15 @@ type Authorized =
   | { user: SessionUser; error?: undefined }
   | { user?: undefined; error: NextResponse };
 
-/** 401 when signed out, 403 for every role that is not admin/strategist. */
-export async function authorizePriorities(): Promise<Authorized> {
+/** 401 when signed out, 403 when the user may not open that board (team board by default). */
+export async function authorizePriorities(list: PriorityListKey = "TEAM"): Promise<Authorized> {
   let user: SessionUser;
   try {
     user = await requireUser();
   } catch {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
-  if (!canManagePriorities(user)) {
+  if (!canAccessPriorityList(user, list)) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
   return { user };

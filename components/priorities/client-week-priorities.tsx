@@ -15,7 +15,7 @@ export async function ClientWeekPriorities({ clientId }: { clientId: string }) {
   const weekKey = weekStartKey(dayKeyInTz(new Date()));
 
   const items = await db.weeklyPriority.findMany({
-    where: { clientId, weekOf: weekOfInstant(weekKey), isDone: false },
+    where: { clientId, weekOf: weekOfInstant(weekKey), isDone: false, list: "TEAM" },
     select: {
       id: true,
       title: true,

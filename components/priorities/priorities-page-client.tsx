@@ -31,7 +31,16 @@ import {
   type TeamMember,
 } from "./helpers";
 
+export type BoardInfo = {
+  key: "TEAM" | "ESTHER" | "CAROLINA";
+  path: string;
+  title: string;
+  subtitle: string;
+  personal: boolean;
+};
+
 type Props = {
+  board: BoardInfo;
   initialItems: PriorityItem[];
   clients: ClientOption[];
   teamMembers: TeamMember[];
@@ -42,6 +51,7 @@ type Props = {
 };
 
 export function PrioritiesPageClient({
+  board,
   initialItems,
   clients,
   teamMembers,
@@ -113,7 +123,7 @@ export function PrioritiesPageClient({
     try {
       const created = await request<PriorityItem>("/api/priorities", {
         method: "POST",
-        body: JSON.stringify({ week: weekKey, clientId, title, assigneeId }),
+        body: JSON.stringify({ week: weekKey, list: board.key, clientId, title, assigneeId }),
       });
       setItems((prev) => [...prev, created]);
       router.refresh();
@@ -151,7 +161,7 @@ export function PrioritiesPageClient({
       try {
         const created = await request<PriorityItem>("/api/priorities", {
           method: "POST",
-          body: JSON.stringify({ week: weekKey, ...draft }),
+          body: JSON.stringify({ week: weekKey, list: board.key, ...draft }),
         });
         setItems((prev) => [...prev, created]);
         router.refresh();
@@ -185,7 +195,7 @@ export function PrioritiesPageClient({
     try {
       const result = await request<{ count: number }>("/api/priorities/carry-over", {
         method: "POST",
-        body: JSON.stringify({ fromWeek, toWeek }),
+        body: JSON.stringify({ fromWeek, toWeek, list: board.key }),
       });
       setConfirmCarryOver(false);
       toast({
@@ -206,6 +216,7 @@ export function PrioritiesPageClient({
   // ─── Render ────────────────────────────────────────────
 
   const rowProps = {
+    personal: board.personal,
     onAdd: addPriority,
     onToggle: toggleDone,
     onRename: renamePriority,
@@ -218,12 +229,8 @@ export function PrioritiesPageClient({
     <>
       <PageHeader
         eyebrow={weekRangeLabel(weekKey)}
-        title="Prioridades de la semana"
-        subtitle={
-          isCurrentWeek
-            ? "Lo que acordamos cerrar esta semana, por cliente."
-            : "Semana distinta a la actual."
-        }
+        title={board.title}
+        subtitle={isCurrentWeek ? board.subtitle : "Semana distinta a la actual."}
         actions={
           <>
             <Button
@@ -234,25 +241,25 @@ export function PrioritiesPageClient({
               Copiar pendientes a la próxima semana
             </Button>
             <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)}>
-              Prioridad
+              {board.personal ? "To do" : "Prioridad"}
             </Button>
           </>
         }
       >
         <div className="flex flex-wrap items-center gap-2">
           <Button asChild variant="secondary" size="icon-sm" aria-label="Semana anterior">
-            <Link href={`/priorities?week=${prevWeek}`}>
+            <Link href={`${board.path}?week=${prevWeek}`}>
               <ChevronLeft className="h-4 w-4" />
             </Link>
           </Button>
           <Button asChild variant="secondary" size="icon-sm" aria-label="Semana siguiente">
-            <Link href={`/priorities?week=${nextWeek}`}>
+            <Link href={`${board.path}?week=${nextWeek}`}>
               <ChevronRight className="h-4 w-4" />
             </Link>
           </Button>
           {!isCurrentWeek && (
             <Button asChild variant="ghost" size="sm">
-              <Link href="/priorities">Esta semana</Link>
+              <Link href={board.path}>Esta semana</Link>
             </Button>
           )}
           <span className="ml-auto">
@@ -278,8 +285,8 @@ export function PrioritiesPageClient({
       {items.length === 0 ? (
         <EmptyState
           icon={<ListChecks />}
-          title="Todavía no hay prioridades para esta semana"
-          description="Agrega la lista de la reunión o copia los pendientes de la semana pasada."
+          title={board.personal ? "Todavía no hay to dos para esta semana" : "Todavía no hay prioridades para esta semana"}
+          description={board.personal ? "Anota lo tuyo o copia los pendientes de la semana pasada." : "Agrega la lista de la reunión o copia los pendientes de la semana pasada."}
           action={
             <div className="flex flex-wrap items-center justify-center gap-2">
               <Button
@@ -291,7 +298,7 @@ export function PrioritiesPageClient({
                 Copiar pendientes de la semana pasada
               </Button>
               <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)}>
-                Prioridad
+                {board.personal ? "To do" : "Prioridad"}
               </Button>
             </div>
           }
@@ -309,7 +316,7 @@ export function PrioritiesPageClient({
               key={section.id}
               clientId={section.id}
               title={section.name}
-              href={`/clients/${section.id}/deliverables`}
+              href={board.personal ? undefined : `/clients/${section.id}/deliverables`}
               items={section.items}
               {...rowProps}
             />

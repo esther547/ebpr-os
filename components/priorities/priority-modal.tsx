@@ -118,6 +118,7 @@ export function PriorityModal({
           />
         </FormGroup>
 
+        {teamMembers.length > 0 && (
         <FormGroup label="Responsable" htmlFor="priority-assignee">
           <Select
             id="priority-assignee"
@@ -132,6 +133,7 @@ export function PriorityModal({
             ))}
           </Select>
         </FormGroup>
+        )}
 
         <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>

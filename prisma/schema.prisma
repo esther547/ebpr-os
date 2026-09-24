@@ -853,12 +853,15 @@ model WeeklyPriority {
   isDone      Boolean   @default(false)
   doneAt      DateTime?
   order       Int       @default(0)
+  /// Which board the line belongs to: "TEAM" (Prioridades), "ESTHER" or "CAROLINA" (personal to-dos).
+  list        String    @default("TEAM")
   createdById String
   createdBy   User      @relation("PriorityCreator", fields: [createdById], references: [id])
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   @@index([weekOf, clientId])
+  @@index([list, weekOf])
   @@map("weekly_priorities")
 }
 

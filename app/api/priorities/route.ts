@@ -5,6 +5,7 @@ import {
   INVALID_BODY,
   authorizePriorities,
   badRequest,
+  isPriorityListKey,
   isValidDayKey,
   priorityOrderBy,
   prioritySelect,
@@ -18,6 +19,7 @@ export const dynamic = "force-dynamic";
 
 const createSchema = z.object({
   week: z.string().optional().nullable(),
+  list: z.enum(["TEAM", "ESTHER", "CAROLINA"]).optional(),
   clientId: z.string().min(1).nullable().optional(),
   title: z.string().trim().min(1, "El título es obligatorio").max(300),
   notes: z.string().trim().max(2000).nullable().optional(),
@@ -26,7 +28,9 @@ const createSchema = z.object({
 
 /** GET /api/priorities?week=yyyy-MM-dd — the list for one Miami week. */
 export async function GET(req: NextRequest) {
-  const auth = await authorizePriorities();
+  const listRaw = req.nextUrl.searchParams.get("list") ?? "TEAM";
+  if (!isPriorityListKey(listRaw)) return badRequest("Lista desconocida");
+  const auth = await authorizePriorities(listRaw);
   if (auth.error) return auth.error;
 
   const raw = req.nextUrl.searchParams.get("week");
@@ -36,19 +40,16 @@ export async function GET(req: NextRequest) {
 
   const weekKey = resolveWeekKey(raw);
   const items = await db.weeklyPriority.findMany({
-    where: { weekOf: weekOfInstant(weekKey) },
+    where: { weekOf: weekOfInstant(weekKey), list: listRaw },
     select: prioritySelect,
     orderBy: priorityOrderBy,
   });
 
-  return NextResponse.json({ data: items, week: weekKey });
+  return NextResponse.json({ data: items, week: weekKey, list: listRaw });
 }
 
 /** POST /api/priorities — add one line to a week (client-specific or general). */
 export async function POST(req: NextRequest) {
-  const auth = await authorizePriorities();
-  if (auth.error) return auth.error;
-
   const body = await readJsonBody(req);
   if (body === INVALID_BODY) return badRequest("El cuerpo de la petición no es JSON válido");
 
@@ -59,6 +60,10 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+
+  const list = parsed.data.list ?? "TEAM";
+  const auth = await authorizePriorities(list);
+  if (auth.error) return auth.error;
 
   const { week, title } = parsed.data;
   if (week && !isValidDayKey(week)) {
@@ -79,13 +84,14 @@ export async function POST(req: NextRequest) {
 
   const weekOf = weekOfInstant(resolveWeekKey(week));
   const last = await db.weeklyPriority.aggregate({
-    where: { weekOf, clientId },
+    where: { weekOf, clientId, list },
     _max: { order: true },
   });
 
   const item = await db.weeklyPriority.create({
     data: {
       weekOf,
+      list,
       clientId,
       title,
       notes: parsed.data.notes || null,

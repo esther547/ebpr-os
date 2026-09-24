@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic";
 const schema = z.object({
   fromWeek: z.string().min(1, "Falta la semana de origen"),
   toWeek: z.string().min(1, "Falta la semana de destino"),
+  list: z.enum(["TEAM", "ESTHER", "CAROLINA"]).optional(),
 });
 
 /**
@@ -26,9 +27,6 @@ const schema = z.object({
  * is skipped, so running it twice is harmless.
  */
 export async function POST(req: NextRequest) {
-  const auth = await authorizePriorities();
-  if (auth.error) return auth.error;
-
   const body = await readJsonBody(req);
   if (body === INVALID_BODY) return badRequest("El cuerpo de la petición no es JSON válido");
 
@@ -39,6 +37,10 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+
+  const list = parsed.data.list ?? "TEAM";
+  const auth = await authorizePriorities(list);
+  if (auth.error) return auth.error;
 
   const { fromWeek, toWeek } = parsed.data;
   if (!isValidDayKey(fromWeek) || !isValidDayKey(toWeek)) {
@@ -54,12 +56,12 @@ export async function POST(req: NextRequest) {
 
   const [pending, target] = await Promise.all([
     db.weeklyPriority.findMany({
-      where: { weekOf: fromWeekOf, isDone: false },
+      where: { weekOf: fromWeekOf, isDone: false, list },
       select: { clientId: true, title: true, notes: true, assigneeId: true, order: true },
       orderBy: [{ order: "asc" }, { createdAt: "asc" }],
     }),
     db.weeklyPriority.findMany({
-      where: { weekOf: toWeekOf },
+      where: { weekOf: toWeekOf, list },
       select: { clientId: true, title: true, order: true },
     }),
   ]);
@@ -74,6 +76,7 @@ export async function POST(req: NextRequest) {
 
   const rows: {
     weekOf: Date;
+    list: string;
     clientId: string | null;
     title: string;
     notes: string | null;
@@ -91,6 +94,7 @@ export async function POST(req: NextRequest) {
     nextOrder.set(listKey, order + 1);
     rows.push({
       weekOf: toWeekOf,
+      list,
       clientId: item.clientId,
       title: item.title,
       notes: item.notes,

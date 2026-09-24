@@ -15,6 +15,8 @@ type Props = {
   /** Client page link, when this card belongs to a client. */
   href?: string;
   items: PriorityItem[];
+  /** Personal to-do boards: no assignees, simpler wording. */
+  personal?: boolean;
   onAdd: (clientId: string | null, raw: string) => Promise<void>;
   onToggle: (item: PriorityItem) => void;
   onRename: (item: PriorityItem, title: string) => void;
@@ -28,6 +30,7 @@ export function PrioritySectionCard({
   title,
   href,
   items,
+  personal = false,
   onAdd,
   onToggle,
   onRename,
@@ -87,8 +90,8 @@ export function PrioritySectionCard({
                 void save();
               }
             }}
-            placeholder="Agregar prioridad… @nombre para asignar"
-            aria-label={`Agregar prioridad a ${title}`}
+            placeholder={personal ? "Agregar to do…" : "Agregar prioridad… @nombre para asignar"}
+            aria-label={`${personal ? "Agregar to do a" : "Agregar prioridad a"} ${title}`}
             className="h-8 text-sm"
           />
         </div>
@@ -98,7 +101,7 @@ export function PrioritySectionCard({
           variant="secondary"
           loading={saving}
           disabled={!draft.trim()}
-          aria-label="Agregar prioridad"
+          aria-label={personal ? "Agregar to do" : "Agregar prioridad"}
         >
           {!saving && <Plus className="h-4 w-4" />}
         </Button>

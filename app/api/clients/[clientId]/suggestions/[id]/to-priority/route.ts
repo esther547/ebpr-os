@@ -28,6 +28,7 @@ export async function POST(_req: Request, { params }: { params: { clientId: stri
     where: {
       weekOf,
       clientId: params.clientId,
+      list: "TEAM",
       OR: [
         ...(suggestion.priorityId ? [{ id: suggestion.priorityId }] : []),
         { title: { equals: title, mode: "insensitive" as const } },
@@ -47,7 +48,7 @@ export async function POST(_req: Request, { params }: { params: { clientId: stri
 
   const priority = await db.$transaction(async (tx) => {
     const last = await tx.weeklyPriority.aggregate({
-      where: { weekOf, clientId: params.clientId },
+      where: { weekOf, clientId: params.clientId, list: "TEAM" },
       _max: { order: true },
     });
     const created = await tx.weeklyPriority.create({

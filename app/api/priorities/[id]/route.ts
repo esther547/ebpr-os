@@ -6,6 +6,7 @@ import {
   INVALID_BODY,
   authorizePriorities,
   badRequest,
+  isPriorityListKey,
   prioritySelect,
   readJsonBody,
   zodMessage,
@@ -27,9 +28,6 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await authorizePriorities();
-  if (auth.error) return auth.error;
-
   const { id } = await params;
 
   const body = await readJsonBody(req);
@@ -48,9 +46,11 @@ export async function PATCH(
 
   const existing = await db.weeklyPriority.findUnique({
     where: { id },
-    select: { id: true, weekOf: true, clientId: true },
+    select: { id: true, weekOf: true, clientId: true, list: true },
   });
   if (!existing) return NextResponse.json({ error: "Prioridad no encontrada" }, { status: 404 });
+  const auth = await authorizePriorities(isPriorityListKey(existing.list) ? existing.list : "TEAM");
+  if (auth.error) return auth.error;
 
   const d = parsed.data;
   const data: Prisma.WeeklyPriorityUncheckedUpdateInput = {};
@@ -83,7 +83,7 @@ export async function PATCH(
     // Moving to another list puts the item at the bottom of that list.
     if (clientId !== existing.clientId && d.order === undefined) {
       const last = await db.weeklyPriority.aggregate({
-        where: { weekOf: existing.weekOf, clientId },
+        where: { weekOf: existing.weekOf, clientId, list: existing.list },
         _max: { order: true },
       });
       data.order = (last._max.order ?? -1) + 1;
@@ -107,10 +107,12 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await authorizePriorities();
+  const { id } = await params;
+  const existing = await db.weeklyPriority.findUnique({ where: { id }, select: { list: true } });
+  if (!existing) return NextResponse.json({ error: "Prioridad no encontrada" }, { status: 404 });
+  const auth = await authorizePriorities(isPriorityListKey(existing.list) ? existing.list : "TEAM");
   if (auth.error) return auth.error;
 
-  const { id } = await params;
   try {
     await db.weeklyPriority.delete({ where: { id } });
     return NextResponse.json({ success: true });
