@@ -37,7 +37,7 @@ function getAuth() {
 }
 
 export function extractDocId(url: string): string | null {
-  const match = url.match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
+  const match = url.match(/\/document\/(?:u\/\d+\/)?d\/([a-zA-Z0-9_-]+)/);
   return match ? match[1] : null;
 }
 
