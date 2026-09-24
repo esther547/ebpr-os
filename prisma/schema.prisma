@@ -165,6 +165,7 @@ model User {
   createdPriorities     WeeklyPriority[]           @relation("PriorityCreator")
   createdAvailability   ClientAvailability[]       @relation("AvailabilityCreator")
   createdIndustryEvents IndustryEvent[]            @relation("IndustryEventCreator")
+  createdSuggestions    ClientSuggestion[]         @relation("SuggestionCreator")
 
   @@map("users")
 }
@@ -232,6 +233,7 @@ model Client {
   reminders        Reminder[]
   weeklyPriorities WeeklyPriority[]
   availability     ClientAvailability[]
+  suggestions      ClientSuggestion[]
 
   @@map("clients")
 }
@@ -438,7 +440,7 @@ model Deliverable {
   assignee       User?         @relation("DeliverableAssignee", fields: [assigneeId], references: [id])
   // Strategist (SUPER_ADMIN/STRATEGIST) who closed the goal; set whenever status becomes COMPLETED
   closedById     String?
-  closedAt        DateTime?         // when the strategist secured ("cerró") the goal
+  closedAt       DateTime? // when the strategist secured ("cerró") the goal
   closedBy       User?         @relation("DeliverableClosedBy", fields: [closedById], references: [id])
 
   title           String
@@ -935,4 +937,40 @@ model IndustryEventReminder {
 
   @@unique([eventId, occursOn])
   @@map("industry_event_reminders")
+}
+
+// ─── CLIENT SUGGESTIONS (Sugerencias) ────────────────────
+// PR moves Claude proposes for one client from its profile (strategy, wish
+// list, recent goals, agenda, travel, industry events). Each generation run
+// shares a batchId. A suggestion can become a goal (deliverableId) or a line
+// on this week's priorities (priorityId).
+
+enum SuggestionStatus {
+  NEW
+  IN_PROGRESS
+  DONE
+  DISMISSED
+}
+
+model ClientSuggestion {
+  id            String           @id @default(cuid())
+  clientId      String
+  client        Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title         String // the action, one line, Spanish
+  rationale     String // why it fits this client (2-3 sentences)
+  category      String // MEDIA_TARGET | INFLUENCER | EVENT | BRAND_OPPORTUNITY | SOCIAL_MEDIA | PRESS_RELEASE | OTHER
+  effort        String? // "bajo" | "medio" | "alto"
+  timing        String? // e.g. "antes del 20 de octubre (Latin Billboard)"
+  status        SuggestionStatus @default(NEW)
+  batchId       String // one id per generation run
+  model         String? // model id used
+  createdById   String?
+  createdBy     User?            @relation("SuggestionCreator", fields: [createdById], references: [id])
+  deliverableId String? // set when converted into a goal
+  priorityId    String? // set when pushed to weekly priorities
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([clientId, status])
+  @@map("client_suggestions")
 }
