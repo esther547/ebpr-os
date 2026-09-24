@@ -1,4 +1,5 @@
 import { UserRole } from "@prisma/client";
+import { canSeeFinance } from "@/lib/finance-visibility";
 import type { SessionUser } from "./auth";
 
 // ─── Role checks ─────────────────────────────────────────
@@ -24,11 +25,10 @@ export const canManageClients = (u: SessionUser) =>
 export const canViewClients = (u: SessionUser) =>
   u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST;
 
-export const canManageContracts = (u: SessionUser) =>
-  u.role === UserRole.SUPER_ADMIN || u.role === UserRole.LEGAL;
+// Contracts carry amounts: while Legal is paused, only Esther can see or edit them.
+export const canManageContracts = (u: SessionUser) => canSeeFinance(u);
 
-export const canViewContracts = (u: SessionUser) =>
-  u.role === UserRole.SUPER_ADMIN || u.role === UserRole.LEGAL;
+export const canViewContracts = (u: SessionUser) => canSeeFinance(u);
 
 export const canManageDeliverables = (u: SessionUser) =>
   u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST;
