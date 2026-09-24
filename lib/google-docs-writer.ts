@@ -6,9 +6,10 @@
  * RunnerAssignment rows: nightly from the daily cron, and on demand from the
  * "Actualizar Google Doc" button on the client agenda page.
  *
- * Only the part of the document from the first "MES ..." paragraph down is
- * replaced — the header block (title, client name, "Presented by:", the EB
- * logo, the company lines) is never touched.
+ * Only the part of the document from the first "MES ..." block down is replaced,
+ * by ONE table styled like the agency's template (lib/agenda-doc-style.ts). The
+ * header block (title, client name, "Presented by:", the EB logo, the company
+ * lines) is never touched.
  *
  * The docs are owned by the agency; the service account
  * (ebpr-docs@ebpr-492704.iam.gserviceaccount.com) must be added as an **Editor**
@@ -20,6 +21,21 @@ import type { docs_v1 } from "googleapis";
 import { db } from "@/lib/db";
 import { GOOGLE_NOT_CONFIGURED, extractDocId, getGoogleCredentials } from "@/lib/google-docs";
 import { dayKeyInTz, dayOfWeekForKey, minutesOfDayInTz } from "@/components/runners/miami-time";
+import {
+  DATA_CELL_BG,
+  DATA_ROW_MIN_HEIGHT_PT,
+  HEADER_ROW_BG,
+  MONTH_ROW_BG,
+  MONTH_ROW_MIN_HEIGHT_PT,
+  NUMBER_CELL_BG,
+  baseTextRequests,
+  cellBlockStyle,
+  columnWidthRequests,
+  fillCellRequests,
+  mergeRowRequest,
+  rowHeightStyle,
+  type CellFill,
+} from "@/lib/agenda-doc-style";
 
 export const SERVICE_ACCOUNT_EMAIL_FALLBACK = "ebpr-docs@ebpr-492704.iam.gserviceaccount.com";
 
@@ -247,15 +263,36 @@ function countDatedRows(body: docs_v1.Schema$Body | undefined): number {
   return n;
 }
 
-/** Cell start indexes (row by row) of every table that starts at or after `fromIndex`, in order. */
-function tablesFrom(body: docs_v1.Schema$Body | undefined, fromIndex: number): number[][][] {
+/** Every table that starts at or after `fromIndex`, in order: its start index and cell start indexes (row by row). */
+function tablesFrom(
+  body: docs_v1.Schema$Body | undefined,
+  fromIndex: number
+): { start: number; cells: number[][] }[] {
   return (body?.content ?? [])
     .filter((el) => el.table && (el.startIndex ?? 0) >= fromIndex)
-    .map((el) =>
-      (el.table?.tableRows ?? []).map((row) =>
+    .map((el) => ({
+      start: el.startIndex ?? 0,
+      cells: (el.table?.tableRows ?? []).map((row) =>
         (row.tableCells ?? []).map((cell) => cell.content?.[0]?.startIndex ?? 0)
-      )
-    );
+      ),
+    }));
+}
+
+/**
+ * Where the regenerated agenda starts: the first "MES" block, pulled back over the empty
+ * paragraph right above it (insertTable always adds its own newline before the table, so
+ * keeping that blank line would leave two between the header block and the agenda).
+ */
+function cutStartIndex(body: docs_v1.Schema$Body | undefined): number | null {
+  const mes = findFirstMesIndex(body);
+  if (mes === null) return null;
+  const content = body?.content ?? [];
+  const i = content.findIndex((el) => el.startIndex === mes);
+  const prev = i > 0 ? content[i - 1] : undefined;
+  if (prev?.paragraph && paragraphText(prev) === "\n" && (prev.startIndex ?? 0) > 1) {
+    return prev.startIndex ?? mes;
+  }
+  return mes;
 }
 
 // ─── Result types ────────────────────────────────────────
@@ -285,14 +322,64 @@ function classifyError(err: unknown): { kind: AgendaDocErrorKind; error: string 
 
 // ─── Writing ─────────────────────────────────────────────
 
+type LayoutRow =
+  | { kind: "month"; heading: string }
+  | { kind: "header" }
+  | { kind: "data"; row: AgendaRow };
+
+/** The single agenda table, row by row: per month a merged month row, the header row, the pautas. */
+function layoutRows(sections: AgendaSection[]): LayoutRow[] {
+  const rows: LayoutRow[] = [];
+  for (const section of sections) {
+    rows.push({ kind: "month", heading: section.heading });
+    rows.push({ kind: "header" });
+    for (const row of section.rows) rows.push({ kind: "data", row });
+  }
+  return rows;
+}
+
+/** Text + style of each cell of a layout row (6 cells; merged month cells stay empty). */
+function cellSpecs(row: LayoutRow): Omit<CellFill, "index">[] {
+  if (row.kind === "month") {
+    return AGENDA_TABLE_HEADER.map((_, col) => ({
+      text: col === 0 ? row.heading : "",
+      bold: "all" as const,
+      white: true,
+      align: "CENTER" as const,
+    }));
+  }
+  if (row.kind === "header") {
+    return AGENDA_TABLE_HEADER.map((text, col) => ({
+      text,
+      bold: "all" as const,
+      white: true,
+      align: col === 0 ? ("START" as const) : ("CENTER" as const),
+    }));
+  }
+  const r = row.row;
+  return [
+    { text: String(r.number), bold: "all", align: "START" },
+    { text: r.fecha, bold: "none", align: "CENTER" },
+    { text: r.hora, bold: r.hora === "—" ? "none" : "all", align: "CENTER" },
+    { text: r.lugar, bold: "none", align: "CENTER" },
+    { text: r.item, bold: "firstLine", align: "CENTER" },
+    { text: r.estado, bold: "none", align: "CENTER" },
+  ];
+}
+
 /**
- * Regenerates the month sections of a client's agenda doc from the portal.
+ * Regenerates the agenda of a client's doc from the portal, in the agency's template
+ * (lib/agenda-doc-style.ts): ONE 6-column table holding every month block.
  *
- * Everything from the first "MES ..." paragraph to the end of the body is
- * deleted (the header block above it is preserved), then each month is appended
- * in turn: heading paragraph, empty table, then a single batchUpdate that fills
- * the cells. Filling happens in *descending* index order so that every insert
- * leaves the indexes of the not-yet-filled cells valid.
+ * Everything from the first "MES ..." block (paragraph or table) to the end of the body is
+ * deleted — the header block above it is preserved — and the whole table is rebuilt with
+ * 2 reads + 2 writes (the Docs API write quota is 60/min/user):
+ *   1. get                    — find the "MES" anchor, never-destroy guard
+ *   2. batchUpdate            — delete old agenda + insertTable(Σ(2 + pautas) rows × 6)
+ *   3. get                    — exact cell indexes of the new table
+ *   4. batchUpdate            — column widths, cell texts (descending index order), cell/row
+ *                               backgrounds + heights, paragraph/text styles (indexes shifted by the
+ *                               inserted text), and finally the month-row merges
  *
  * Never throws — failures come back as { ok: false }.
  */
@@ -343,11 +430,11 @@ export async function writeAgendaDoc(clientId: string): Promise<WriteAgendaDocRe
   }
 
   try {
-    // ── 1. One write: clear from the first "MES ..." down and append every heading + empty table ──
+    // ── 1. Read: where the agenda starts, and the never-destroy guard ──
     const initial = await docs.documents.get({ documentId });
     const body = initial.data.body;
-    const cutIndex = findFirstMesIndex(body) ?? bodyEndIndex(body) - 1;
     const end = bodyEndIndex(body) - 1; // the document's final newline cannot be deleted
+    const cutIndex = cutStartIndex(body) ?? end;
 
     // Never destroy information: if the Doc holds more dated rows than the portal knows, refuse.
     const docRows = countDatedRows(body);
@@ -356,95 +443,70 @@ export async function writeAgendaDoc(clientId: string): Promise<WriteAgendaDocRe
       return { ok: false, kind: "other", error: `El Doc tiene ${docRows} pautas y el portal solo ${portalRows}; no se sobrescribe. Importa primero la agenda del Doc al portal.` };
     }
 
+    // ── 2. Write: clear the old agenda and append ONE empty table for every month block ──
+    const layout = layoutRows(sections);
+    const columns = AGENDA_TABLE_HEADER.length;
     const build: docs_v1.Schema$Request[] = [];
     if (end > cutIndex) {
       build.push({ deleteContentRange: { range: { startIndex: cutIndex, endIndex: end } } });
     }
-    for (const section of sections) {
-      build.push({ insertText: { endOfSegmentLocation: {}, text: `${section.heading}\n` } });
-      build.push({
-        insertTable: {
-          endOfSegmentLocation: {},
-          rows: section.rows.length + 1,
-          columns: AGENDA_TABLE_HEADER.length,
-        },
-      });
-    }
+    build.push({ insertTable: { endOfSegmentLocation: {}, rows: layout.length, columns } });
     await docs.documents.batchUpdate({ documentId, requestBody: { requests: build } });
 
-    // ── 2. One read: exact cell indexes of the tables we just appended ──
+    // ── 3. Read: exact cell indexes of the table we just appended ──
     const after = await docs.documents.get({ documentId });
     const tables = tablesFrom(after.data.body, cutIndex);
-    if (tables.length !== sections.length) {
-      return { ok: false, kind: "other", error: `El documento quedó con ${tables.length} tablas y se esperaban ${sections.length}; revísalo manualmente.` };
+    if (tables.length !== 1 || tables[0].cells.length !== layout.length) {
+      return { ok: false, kind: "other", error: `El documento quedó con ${tables.length} tablas de agenda (se esperaba 1 de ${layout.length} filas); revísalo manualmente.` };
     }
+    const { start: tableStart, cells } = tables[0];
 
-    // ── 3. One write: fill every cell (descending index order) and bold headings + header rows ──
-    const inserts: { index: number; text: string; bold?: boolean }[] = [];
-    let totalRows = 0;
-    sections.forEach((section, t) => {
-      const cellTexts: string[][] = [
-        [...AGENDA_TABLE_HEADER],
-        ...section.rows.map((r) => [String(r.number), r.fecha, r.hora, r.lugar, r.item, r.estado]),
-      ];
-      tables[t].forEach((row, rowIdx) => {
-        row.forEach((index, colIdx) => {
-          const text = cellTexts[rowIdx]?.[colIdx] ?? "";
-          if (text) inserts.push({ index, text, bold: rowIdx === 0 });
-        });
-      });
-      totalRows += section.rows.length;
+    // ── 4. Write: fill every cell and apply the template styles ──
+    const fills: CellFill[] = [];
+    layout.forEach((row, r) => {
+      cellSpecs(row).forEach((spec, c) => fills.push({ ...spec, index: cells[r][c] }));
     });
-    inserts.sort((a, b) => a.index - b.index);
+    const { inserts, styles, inserted } = fillCellRequests(fills);
+    const firstCell = cells[0][0];
+    const lastCell = cells[cells.length - 1][columns - 1];
 
-    const requests: docs_v1.Schema$Request[] = [];
-    for (let i = inserts.length - 1; i >= 0; i--) {
-      requests.push({ insertText: { location: { index: inserts[i].index }, text: inserts[i].text } });
-    }
-    // Final positions: each cell shifts by the length of everything inserted before it.
-    let shift = 0;
-    for (const ins of inserts) {
-      if (ins.bold) {
-        requests.push({
-          updateTextStyle: {
-            range: { startIndex: ins.index + shift, endIndex: ins.index + shift + ins.text.length },
-            textStyle: { bold: true },
-            fields: "bold",
-          },
-        });
+    const requests: docs_v1.Schema$Request[] = [...columnWidthRequests(tableStart), ...inserts];
+    // Cell backgrounds/borders/padding and row heights address cells by (row, column): unaffected by the inserts.
+    const monthRows: number[] = [];
+    const dataRows: number[] = [];
+    layout.forEach((row, r) => {
+      if (row.kind === "month") {
+        monthRows.push(r);
+        requests.push(cellBlockStyle(tableStart, r, 1, 0, columns, MONTH_ROW_BG));
+      } else if (row.kind === "header") {
+        requests.push(cellBlockStyle(tableStart, r, 1, 0, columns, HEADER_ROW_BG));
+      } else {
+        dataRows.push(r);
       }
-      shift += ins.text.length;
+    });
+    // Consecutive data rows share one request per column group.
+    for (let i = 0; i < dataRows.length; ) {
+      let j = i;
+      while (j + 1 < dataRows.length && dataRows[j + 1] === dataRows[j] + 1) j++;
+      const span = j - i + 1;
+      requests.push(cellBlockStyle(tableStart, dataRows[i], span, 0, 1, NUMBER_CELL_BG));
+      requests.push(cellBlockStyle(tableStart, dataRows[i], span, 1, columns - 1, DATA_CELL_BG));
+      i = j + 1;
     }
-    // Headings sit before the tables, so their indexes are unaffected by the cell inserts.
-    for (const section of sections) {
-      const hs = findHeadingStart(after.data.body, section.heading);
-      if (hs !== null) {
-        requests.push({
-          updateTextStyle: {
-            range: { startIndex: hs, endIndex: hs + section.heading.length },
-            textStyle: { bold: true },
-            fields: "bold",
-          },
-        });
-      }
-    }
+    requests.push(rowHeightStyle(tableStart, monthRows, MONTH_ROW_MIN_HEIGHT_PT));
+    if (dataRows.length) requests.push(rowHeightStyle(tableStart, dataRows, DATA_ROW_MIN_HEIGHT_PT));
+    // Text: defaults over the whole table, then the per-cell bold/white/left-aligned spans.
+    requests.push(...baseTextRequests(firstCell, lastCell + inserted + 1));
+    requests.push(...styles);
+    // Merges last: they may move text between cells, and every index above was computed before them.
+    for (const r of monthRows) requests.push(mergeRowRequest(tableStart, r, columns));
     await docs.documents.batchUpdate({ documentId, requestBody: { requests } });
 
     await db.client.update({ where: { id: clientId }, data: { agendaDocSyncedAt: new Date() } }).catch(() => undefined);
-    return { ok: true, months: sections.length, rows: totalRows };
+    return { ok: true, months: sections.length, rows: portalRows };
   } catch (err) {
     return { ok: false, ...classifyError(err) };
   }
-}
-
-/** Start index of the (last) paragraph whose trimmed text equals the heading. */
-function findHeadingStart(body: docs_v1.Schema$Body | undefined, heading: string): number | null {
-  let found: number | null = null;
-  for (const el of body?.content ?? []) {
-    if (!el.paragraph) continue;
-    if (paragraphText(el).trim() === heading) found = el.startIndex ?? null;
-  }
-  return found;
 }
 
 // ─── Nightly sync ────────────────────────────────────────
