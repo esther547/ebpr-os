@@ -234,6 +234,19 @@ function bodyEndIndex(body: docs_v1.Schema$Body | undefined): number {
   return content.length ? content[content.length - 1].endIndex ?? 1 : 1;
 }
 
+/** Table rows whose second cell looks like a date (MM/DD/YY) — i.e. real pautas in the Doc. */
+function countDatedRows(body: docs_v1.Schema$Body | undefined): number {
+  let n = 0;
+  for (const el of body?.content ?? []) {
+    for (const row of el.table?.tableRows ?? []) {
+      const cells = row.tableCells ?? [];
+      const text = (cells[1]?.content ?? []).map((c) => (c.paragraph?.elements ?? []).map((e) => e.textRun?.content ?? "").join("")).join(" ");
+      if (/\d{1,2}\/\d{1,2}\/\d{2,4}/.test(text)) n++;
+    }
+  }
+  return n;
+}
+
 /** Cell start indexes (row by row) of every table that starts at or after `fromIndex`, in order. */
 function tablesFrom(body: docs_v1.Schema$Body | undefined, fromIndex: number): number[][][] {
   return (body?.content ?? [])
@@ -283,7 +296,16 @@ function classifyError(err: unknown): { kind: AgendaDocErrorKind; error: string 
  *
  * Never throws — failures come back as { ok: false }.
  */
+/**
+ * PAUSED (Sept 24, 2026): the regenerate-from-portal approach wiped a client Doc that held
+ * pautas never imported into the portal. Writes stay disabled until the writer only appends.
+ */
+export const AGENDA_DOC_WRITES_ENABLED = false;
+
 export async function writeAgendaDoc(clientId: string): Promise<WriteAgendaDocResult> {
+  if (!AGENDA_DOC_WRITES_ENABLED) {
+    return { ok: false, kind: "other", error: "La sincronización a Google Docs está en pausa mientras se cambia a modo 'solo agregar'. El documento no se modificó." };
+  }
   let docs: docs_v1.Docs;
   let documentId: string;
   let sections: AgendaSection[];
@@ -326,6 +348,13 @@ export async function writeAgendaDoc(clientId: string): Promise<WriteAgendaDocRe
     const body = initial.data.body;
     const cutIndex = findFirstMesIndex(body) ?? bodyEndIndex(body) - 1;
     const end = bodyEndIndex(body) - 1; // the document's final newline cannot be deleted
+
+    // Never destroy information: if the Doc holds more dated rows than the portal knows, refuse.
+    const docRows = countDatedRows(body);
+    const portalRows = sections.reduce((n, sec) => n + sec.rows.length, 0);
+    if (docRows > portalRows) {
+      return { ok: false, kind: "other", error: `El Doc tiene ${docRows} pautas y el portal solo ${portalRows}; no se sobrescribe. Importa primero la agenda del Doc al portal.` };
+    }
 
     const build: docs_v1.Schema$Request[] = [];
     if (end > cutIndex) {
