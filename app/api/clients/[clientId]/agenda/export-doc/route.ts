@@ -2,16 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { canManageClients } from "@/lib/permissions";
 import { db } from "@/lib/db";
-import { writeAgendaDoc } from "@/lib/google-docs-writer";
+import { appendNewPautasToDoc } from "@/lib/agenda-doc-append";
 
 export const maxDuration = 60;
 
 export const dynamic = "force-dynamic";
 
 /**
- * POST — regenerate this client's "Agenda 2026" Google Doc from the portal.
- * The portal is the source of truth; the doc's header block is preserved and
- * everything from the first "MES ..." paragraph down is rewritten.
+ * POST — add to this client's agenda Google Doc the pautas it does not list yet.
+ * Append-only: the doc is the agency's ledger and is never rewritten (Esther, Sept 25 2026).
  */
 export async function POST(
   _req: NextRequest,
@@ -36,24 +35,29 @@ export async function POST(
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
   }
 
-  const result = await writeAgendaDoc(clientId);
+  const result = await appendNewPautasToDoc(clientId);
 
   if (result.ok) {
-    await db.activityLog
-      .create({
-        data: {
-          clientId,
-          userId: user.id,
-          action: "agenda_doc_synced",
-          description: `Regeneró el Google Doc de agenda de ${client.name} (${result.months} meses, ${result.rows} pautas)`,
-        },
-      })
-      .catch(() => {});
+    if (result.added > 0) {
+      await db.activityLog
+        .create({
+          data: {
+            clientId,
+            userId: user.id,
+            action: "agenda_doc_synced",
+            description: `Agregó ${result.added} ${result.added === 1 ? "pauta nueva" : "pautas nuevas"} al Google Doc de agenda de ${client.name}`,
+          },
+        })
+        .catch(() => {});
+    }
     return NextResponse.json({
       ok: true,
-      months: result.months,
-      rows: result.rows,
-      message: `Google Doc actualizado: ${result.months} ${result.months === 1 ? "mes" : "meses"}, ${result.rows} ${result.rows === 1 ? "pauta" : "pautas"}`,
+      months: 0,
+      rows: result.added,
+      message:
+        result.added === 0
+          ? "El Google Doc ya tiene todas las pautas del portal; no se cambió nada."
+          : `Google Doc actualizado: ${result.added} ${result.added === 1 ? "pauta nueva agregada" : "pautas nuevas agregadas"}${result.skipped ? ` (${result.skipped} más se agregan en la próxima corrida)` : ""}`,
     });
   }
 

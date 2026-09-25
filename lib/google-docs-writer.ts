@@ -17,6 +17,7 @@
  * it never throws and never crashes the cron.
  */
 import { allocateAgendaMonths } from "@/lib/agenda-months";
+import { appendNewPautasToDoc } from "@/lib/agenda-doc-append";
 import { google } from "googleapis";
 import type { docs_v1 } from "googleapis";
 import { db } from "@/lib/db";
@@ -556,11 +557,12 @@ export async function syncAllAgendaDocs(opts: { budgetMs?: number } = {}): Promi
   for (const client of clients) {
     if (Date.now() - startedAt > budgetMs) break; // the rest runs tomorrow night
     report.attempted++;
+    // Append-only since Sept 25, 2026: the doc is never rewritten, only missing pautas are added.
     let result: WriteAgendaDocResult;
     try {
-      result = await writeAgendaDoc(client.id);
+      const r = await appendNewPautasToDoc(client.id);
+      result = r.ok ? { ok: true, months: 0, rows: r.added } : r;
     } catch (err) {
-      // writeAgendaDoc already swallows its own errors; this is belt and braces.
       result = { ok: false, ...classifyError(err) };
     }
 
