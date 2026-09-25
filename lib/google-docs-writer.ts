@@ -151,10 +151,7 @@ function joinLines(...parts: (string | null | undefined)[]): string {
     .join("\n");
 }
 
-/**
- * Pure transform: assignments → report-month sections (MES 1 = the first `target`
- * pautas, MES 2 the next `target`… see lib/agenda-months.ts). Exported for testing.
- */
+/** Pure transform: assignments → month sections (cycle month of each pauta; see lib/agenda-months.ts). */
 export function sectionsFromAssignments(
   assignments: AssignmentLike[],
   client: { monthlyTarget: number | null; cycleDay: number | null },
@@ -385,7 +382,7 @@ function cellSpecs(row: LayoutRow): Omit<CellFill, "index">[] {
  * PAUSED (Sept 24, 2026): the regenerate-from-portal approach wiped a client Doc that held
  * pautas never imported into the portal. Writes stay disabled until the writer only appends.
  */
-export const AGENDA_DOC_WRITES_ENABLED = true;
+export const AGENDA_DOC_WRITES_ENABLED = false; // Esther, Sept 25 2026: the docs are hers; the portal must only append new pautas, never rewrite
 
 export async function writeAgendaDoc(clientId: string): Promise<WriteAgendaDocResult> {
   if (!AGENDA_DOC_WRITES_ENABLED) {

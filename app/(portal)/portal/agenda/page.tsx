@@ -86,7 +86,6 @@ export default async function PortalAgendaPage() {
             <section key={m.monthNumber}>
               <SectionHeader
                 title={`MES ${m.monthNumber} — ${MONTH_NAMES[m.month].toUpperCase()} ${m.year}`}
-                description={m.target ? `${m.items.length} of ${m.target} goals` : undefined}
               />
               <Card padding="none" className="divide-y divide-border">
                 {m.items.map((item, idx) => (

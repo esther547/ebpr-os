@@ -1,17 +1,14 @@
 /**
- * Agenda "report months".
+ * Agenda months.
  *
- * The client agenda doubles as the monthly report: month N of service must show exactly
- * the client's monthly target (6 metas, 8 metas…), whatever calendar day each pauta
- * happened on. Goals are therefore poured, in chronological order, into consecutive
- * cycle months starting from the client's first pauta: MES 1 gets the first `target`
- * items, MES 2 the next `target`, and so on. A busy month spills forward, a slow month
- * is filled by the next one — which is how the agency reports goals owed.
+ * Pautas are grouped by the Miami calendar month of their date (exactly how the
+ * Google Docs were laid out before Sept 24), numbered MES 1, MES 2… in order. The agency keeps its own monthly accounting by hand
+ * (some pautas count as two goals, months get rebalanced in the Google Doc), so the
+ * portal never redistributes goals across months — Esther, Sept 25 2026.
  *
  * An item with an explicit `monthNumber` is pinned to that MES (manual override).
- * Clients without a target (PREP, 0) fall back to plain cycle-month grouping.
  */
-import { cycleForDate, type Cycle } from "@/lib/cycles";
+import { dayKeyInTz } from "@/components/runners/miami-time";
 
 export const MONTH_NAMES_ES = [
   "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
@@ -64,10 +61,15 @@ export function allocateAgendaMonths<T extends AgendaMonthItem>(
   const sorted = chronological(items);
   if (sorted.length === 0) return [];
   const target = Math.max(0, client.monthlyTarget ?? 0);
-  const cycleOf = (d: Date): Cycle => cycleForDate(client.cycleDay, d);
+  // Calendar month in Miami (the docs never used the cut-off cycle for their MES blocks).
+  const cycleOf = (d: Date) => {
+    const [y, m] = dayKeyInTz(d).split("-").map(Number);
+    return { year: y, month: m };
+  };
 
-  // No quota: one section per cycle month that has items.
-  if (target === 0) {
+  // One section per calendar month that has items (no redistribution — see header note).
+  const pinnedAway = sorted.some((it) => it.monthNumber && it.monthNumber >= 1);
+  if (!pinnedAway) {
     const groups = new Map<string, { month: number; year: number; items: T[] }>();
     for (const it of sorted) {
       const c = cycleOf(it.eventDate);
@@ -78,24 +80,18 @@ export function allocateAgendaMonths<T extends AgendaMonthItem>(
     }
     return [...groups.values()]
       .sort((a, b) => a.year - b.year || a.month - b.month)
-      .map((g, i) => section(i + 1, g.month, g.year, g.items, 0));
+      .map((g, i) => section(i + 1, g.month, g.year, g.items, target));
   }
 
+  // With pins: MES k = k-th calendar month from the first pauta; unpinned items go to their own month.
   const first = cycleOf(sorted[0].eventDate);
   const buckets = new Map<number, T[]>();
   const put = (k: number, it: T) => buckets.set(k, [...(buckets.get(k) ?? []), it]);
-
-  // Pinned items first: they reserve their slot in the MES the team chose.
-  const pinned = sorted.filter((it) => it.monthNumber && it.monthNumber >= 1);
-  for (const it of pinned) put(it.monthNumber as number, it);
-
-  // Everything else pours forward: a MES is full when it holds `target` items.
-  let k = 1;
-  for (const it of sorted) {
-    if (it.monthNumber && it.monthNumber >= 1) continue;
-    while ((buckets.get(k)?.length ?? 0) >= target) k++;
-    put(k, it);
-  }
+  const monthIndex = (d: Date) => {
+    const c = cycleOf(d);
+    return (c.year * 12 + c.month) - (first.year * 12 + first.month) + 1;
+  };
+  for (const it of sorted) put(it.monthNumber && it.monthNumber >= 1 ? it.monthNumber : monthIndex(it.eventDate), it);
 
   const last = Math.max(...buckets.keys());
   const out: AgendaMonth<T>[] = [];

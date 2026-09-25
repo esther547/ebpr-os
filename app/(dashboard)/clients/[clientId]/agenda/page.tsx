@@ -107,10 +107,7 @@ export default async function AgendaPage({ params }: Props) {
       )}
 
       <p className="mb-6 text-xs text-ink-muted">
-        {client.monthlyTarget
-          ? `Reporte mensual: cada MES muestra ${client.monthlyTarget} ${client.monthlyTarget === 1 ? "meta" : "metas"} en orden cronológico; lo que sobra pasa al mes siguiente. `
-          : ""}
-        El Google Doc de la agenda se regenera cada noche desde el portal.
+        Las pautas se agrupan por el mes de su fecha. El Google Doc de la agenda no se reescribe: el portal solo le agrega las pautas nuevas.
       </p>
 
       {items.length === 0 ? (
@@ -125,7 +122,7 @@ export default async function AgendaPage({ params }: Props) {
             <AgendaMonthSection
               key={m.monthNumber}
               monthNumber={m.monthNumber}
-              monthLabel={`${m.monthName} ${m.year}${m.target ? ` · ${m.items.length} de ${m.target}` : ""}`}
+              monthLabel={`${m.monthName} ${m.year}`}
               items={m.items}
               runners={runners}
               clientId={client.id}
