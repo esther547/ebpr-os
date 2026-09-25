@@ -20,7 +20,7 @@ import {
   formatHora,
   getDocsClient,
   type AgendaDocErrorKind,
-} from "@/lib/google-docs-writer";
+} from "@/lib/agenda-doc-shared";
 import {
   HEADER_ROW_BG,
   MONTH_ROW_BG,
