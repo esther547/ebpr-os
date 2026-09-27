@@ -39,7 +39,10 @@ export async function PrioritiesBoard({
     list.personal
       ? Promise.resolve([])
       : db.user.findMany({
-          where: { isActive: true, role: { in: ["SUPER_ADMIN", "STRATEGIST"] } },
+          // Email-locked boards assign only among their viewers; the team board among admins + strategists.
+          where: list.viewers.length
+            ? { isActive: true, email: { in: list.viewers, mode: "insensitive" } }
+            : { isActive: true, role: { in: ["SUPER_ADMIN", "STRATEGIST"] } },
           select: { id: true, name: true },
           orderBy: { name: "asc" },
         }),

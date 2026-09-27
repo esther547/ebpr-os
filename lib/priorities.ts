@@ -22,7 +22,7 @@ export function canManagePriorities(user: SessionUser): boolean {
 // The same weekly list machinery powers three boards: the team's "Prioridades"
 // and two personal to-do pages. Personal boards are locked by email, not role.
 
-export type PriorityListKey = "TEAM" | "ESTHER" | "CAROLINA" | "LEGAL";
+export type PriorityListKey = "TEAM" | "ESTHER" | "CAROLINA" | "LEGAL" | "EBM";
 
 export type PriorityList = {
   key: PriorityListKey;
@@ -40,6 +40,8 @@ export type PriorityList = {
 
 const ESTHER = "esther@ebmanagement.io";
 const CAROLINA = "carolina@ebmanagement.io";
+/** EB Management team (Esther, Sept 27 2026). Add Benjy, Alexa and Clara here once their emails exist in the portal. */
+const EBM_TEAM = [ESTHER, CAROLINA, "ayax@ebmanagement.io"];
 
 export const PRIORITY_LISTS: Record<PriorityListKey, PriorityList> = {
   TEAM: {
@@ -75,6 +77,14 @@ export const PRIORITY_LISTS: Record<PriorityListKey, PriorityList> = {
     viewers: [ESTHER, CAROLINA],
     personal: true,
   },
+  EBM: {
+    key: "EBM",
+    path: "/todos/ebm",
+    title: "EBM",
+    subtitle: "Pendientes de EB Management, por semana. Solo el equipo de EBM ve esta lista.",
+    viewers: EBM_TEAM,
+    personal: false,
+  },
 };
 
 /** "esther" → ESTHER list; unknown slugs → null. */
@@ -89,13 +99,13 @@ export function isPriorityListKey(value: unknown): value is PriorityListKey {
 
 export function canAccessPriorityList(user: SessionUser, key: PriorityListKey): boolean {
   const list = PRIORITY_LISTS[key];
-  if (!list.personal) return canManagePriorities(user);
+  if (list.viewers.length === 0) return canManagePriorities(user);
   return list.viewers.includes((user.email ?? "").toLowerCase());
 }
 
 /** The personal boards this user may open (for the sidebar / landing redirect). */
 export function personalListsFor(user: SessionUser): PriorityList[] {
-  return Object.values(PRIORITY_LISTS).filter((l) => l.personal && canAccessPriorityList(user, l.key));
+  return Object.values(PRIORITY_LISTS).filter((l) => l.viewers.length > 0 && canAccessPriorityList(user, l.key));
 }
 
 const DAY_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
