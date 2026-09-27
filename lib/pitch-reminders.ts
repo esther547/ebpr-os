@@ -17,6 +17,8 @@ import { dayKeyInTz, dayOfWeekForKey } from "@/components/runners/miami-time";
 
 export const APP_URL = "https://os.ebpublicrelations.com";
 export const EVENT_URGENT_DAYS = 60;
+/** Under a week out there is nothing left to pitch; those events drop off the reminder. */
+export const EVENT_MIN_DAYS = 7;
 export const EVENT_WINDOW_DAYS = 120;
 export const WISHLIST_STALE_DAYS = 14;
 
@@ -64,7 +66,7 @@ export function reminderModeForToday(now: Date): ReminderMode | null {
 export async function buildPitchReminder(mode: ReminderMode, now: Date = new Date()): Promise<PitchReminderData> {
   const todayKey = dayKeyInTz(now);
   const events = await upcomingEvents(EVENT_WINDOW_DAYS, now);
-  const eventsLate = events.filter((e) => e.daysUntil <= EVENT_URGENT_DAYS);
+  const eventsLate = events.filter((e) => e.daysUntil >= EVENT_MIN_DAYS && e.daysUntil <= EVENT_URGENT_DAYS);
   const eventsSoon = mode === "full" ? events.filter((e) => e.daysUntil > EVENT_URGENT_DAYS) : [];
 
   const items = await db.strategyItem.findMany({
