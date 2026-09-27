@@ -13,6 +13,7 @@ const isPublicRoute = createRouteMatcher([
   "/monitor/(.*)",     // public campaign monitor pages
   "/api/cron(.*)",     // cron job endpoint (protected by CRON_SECRET)
   "/api/digest(.*)",   // weekly digest cron (protected by CRON_SECRET)
+  "/api/pitch-reminders(.*)", // strategists' pitch reminders (protected by CRON_SECRET / SUPER_ADMIN)
   "/api/calendar(.*)", // iCal feed (protected by per-user token)
 ]);
 
