@@ -50,7 +50,14 @@ export const canViewReports = (u: SessionUser) =>
   u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST;
 
 export const canManagePressReleases = (u: SessionUser) =>
+  u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST || u.role === UserRole.WRITER;
+
+// "Necesitamos un comunicado" requests: strategists ask, the writer (Michel) delivers.
+export const canRequestPressRelease = (u: SessionUser) =>
   u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST;
+export const isWriter = (u: SessionUser) => u.role === UserRole.WRITER;
+export const canWorkPressReleaseRequests = (u: SessionUser) =>
+  u.role === UserRole.SUPER_ADMIN || u.role === UserRole.WRITER;
 
 export const canManageJournalists = (u: SessionUser) =>
   u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST;

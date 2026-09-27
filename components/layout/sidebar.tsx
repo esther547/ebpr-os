@@ -58,7 +58,7 @@ const navGroups: NavGroup[] = [
   {
     label: "Media",
     items: [
-      { href: "/press-releases", label: "Press Releases", icon: <Newspaper />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
+      { href: "/press-releases", label: "Press Releases", icon: <Newspaper />, roles: ["SUPER_ADMIN", "STRATEGIST", "WRITER"] },
       { href: "/journalists", label: "Journalists", icon: <BookOpen />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
     ],
   },
@@ -82,6 +82,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   STRATEGIST: "Strategist",
   LEGAL: "Legal",
   ASSISTANT: "Assistant",
+  WRITER: "Redactor",
   RUNNER: "Runner",
   CLIENT_ADMIN: "Client",
   CLIENT_VIEWER: "Client",

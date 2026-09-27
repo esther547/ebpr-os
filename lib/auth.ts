@@ -157,6 +157,7 @@ export const INTERNAL_ROLES: UserRole[] = [
   UserRole.RUNNER,
   UserRole.LEGAL,
   UserRole.ASSISTANT,
+  UserRole.WRITER,
 ];
 
 export const CLIENT_ROLES: UserRole[] = [
@@ -173,6 +174,7 @@ export const ROLE_HOME: Record<UserRole, string> = {
   STRATEGIST: "/dashboard",
   LEGAL: FEATURES.legal ? "/legal" : "/paused",
   ASSISTANT: "/todos",
+  WRITER: "/press-releases",
   RUNNER: "/runner-portal",
   CLIENT_ADMIN: "/portal",
   CLIENT_VIEWER: "/portal",
@@ -183,6 +185,7 @@ const ROLE_PREFIXES: Record<UserRole, string[]> = {
   STRATEGIST: ["/dashboard", "/priorities", "/todos", "/events", "/social", "/clients", "/runners", "/press-releases", "/journalists", "/reports"],
   LEGAL: ["/legal", "/follow-up", "/paused"],
   ASSISTANT: ["/todos", "/follow-up", "/assistant-portal", "/paused"],
+  WRITER: ["/press-releases"], // Michel: that tab and nothing else (Esther, Sept 27 2026)
   RUNNER: ["/runner-portal"],
   CLIENT_ADMIN: ["/portal"],
   CLIENT_VIEWER: ["/portal"],

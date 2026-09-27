@@ -19,6 +19,8 @@ enum UserRole {
   RUNNER
   LEGAL
   ASSISTANT
+  /// Redactor externo (Michel): solo la pestaña Press Releases.
+  WRITER
   CLIENT_ADMIN
   CLIENT_VIEWER
 }
@@ -166,6 +168,7 @@ model User {
   createdIndustryEvents IndustryEvent[]            @relation("IndustryEventCreator")
   createdSuggestions    ClientSuggestion[]         @relation("SuggestionCreator")
   createdSocialPosts    SocialPost[]               @relation("SocialPostCreator")
+  pressReleaseRequests  PressReleaseRequest[]      @relation("PressReleaseRequester")
 
   @@map("users")
 }
@@ -235,6 +238,7 @@ model Client {
   availability     ClientAvailability[]
   suggestions      ClientSuggestion[]
   socialPosts      SocialPost[]
+  pressReleaseRequests PressReleaseRequest[]
 
   @@map("clients")
 }
@@ -1006,4 +1010,27 @@ model SocialPost {
 
   @@index([postedAt])
   @@map("social_posts")
+}
+
+/// "Necesitamos un comunicado": a strategist's brief to the writer (client, news, date, photos, info).
+model PressReleaseRequest {
+  id            String   @id @default(cuid())
+  clientId      String
+  client        Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  news          String   // la noticia
+  dueDate       DateTime // para cuándo
+  photosUrl     String?  // link a fotos (Drive, WeTransfer…)
+  info          String?  // información adicional / links
+  /// REQUESTED | IN_PROGRESS | DONE | CANCELLED
+  status        String   @default("REQUESTED")
+  draftUrl      String?  // link al comunicado entregado
+  writerNotes   String?  // comentarios del redactor
+  requestedById String
+  requestedBy   User     @relation("PressReleaseRequester", fields: [requestedById], references: [id])
+  doneAt        DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status, dueDate])
+  @@map("press_release_requests")
 }
