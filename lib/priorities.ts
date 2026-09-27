@@ -22,7 +22,7 @@ export function canManagePriorities(user: SessionUser): boolean {
 // The same weekly list machinery powers three boards: the team's "Prioridades"
 // and two personal to-do pages. Personal boards are locked by email, not role.
 
-export type PriorityListKey = "TEAM" | "ESTHER" | "CAROLINA" | "LEGAL" | "EBM";
+export type PriorityListKey = "TEAM" | "ESTHER" | "CAROLINA" | "LEGAL";
 
 export type PriorityList = {
   key: PriorityListKey;
@@ -40,15 +40,6 @@ export type PriorityList = {
 
 const ESTHER = "esther@ebmanagement.io";
 const CAROLINA = "carolina@ebmanagement.io";
-/** EB Management team (Esther, Sept 27 2026). */
-const EBM_TEAM = [
-  ESTHER,
-  CAROLINA,
-  "ayax@ebmanagement.io",
-  "benjy@ebmanagement.io",
-  "clara@ebmanagement.io",
-  "aevans@ebmanagement.io", // Alexa
-];
 
 export const PRIORITY_LISTS: Record<PriorityListKey, PriorityList> = {
   TEAM: {
@@ -83,14 +74,6 @@ export const PRIORITY_LISTS: Record<PriorityListKey, PriorityList> = {
     subtitle: "Pendientes legales. Solo Esther y Carolina ven esta lista.",
     viewers: [ESTHER, CAROLINA],
     personal: true,
-  },
-  EBM: {
-    key: "EBM",
-    path: "/todos/ebm",
-    title: "EBM",
-    subtitle: "Pendientes de EB Management, por semana. Solo el equipo de EBM ve esta lista.",
-    viewers: EBM_TEAM,
-    personal: false,
   },
 };
 

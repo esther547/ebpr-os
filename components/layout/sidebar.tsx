@@ -50,7 +50,7 @@ const navGroups: NavGroup[] = [
       { href: "/todos/esther", label: "Esther to dos", icon: <ListTodo />, roles: [], emails: ["esther@ebmanagement.io"] },
       { href: "/todos/carolina", label: "Carolina's to dos", icon: <ListTodo />, roles: [], emails: ["esther@ebmanagement.io", "carolina@ebmanagement.io"] },
       { href: "/todos/legal", label: "Legal to dos", icon: <Scale />, roles: [], emails: ["esther@ebmanagement.io", "carolina@ebmanagement.io"] },
-      { href: "/todos/ebm", label: "EBM", icon: <Briefcase />, roles: [], emails: ["esther@ebmanagement.io", "carolina@ebmanagement.io", "ayax@ebmanagement.io", "benjy@ebmanagement.io", "clara@ebmanagement.io", "aevans@ebmanagement.io"] },
+      { href: "/ebm", label: "EBM", icon: <Briefcase />, roles: ["SELLER"], emails: ["esther@ebmanagement.io", "carolina@ebmanagement.io", "ayax@ebmanagement.io", "benjy@ebmanagement.io", "clara@ebmanagement.io", "aevans@ebmanagement.io"] },
       { href: "/events", label: "Calendario de eventos", icon: <CalendarRange />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
       { href: "/social", label: "Redes sociales", icon: <Megaphone />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
       { href: "/clients", label: "Clients", icon: <Users />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
@@ -85,6 +85,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   LEGAL: "Legal",
   ASSISTANT: "Assistant",
   WRITER: "Redactor",
+  SELLER: "Vendedor EBM",
   RUNNER: "Runner",
   CLIENT_ADMIN: "Client",
   CLIENT_VIEWER: "Client",
@@ -118,7 +119,7 @@ export function Sidebar({ userRole, userName, userEmail }: SidebarProps) {
     .map((g) => ({
       ...g,
       items: g.items.filter((i) => {
-        const allowed = i.emails ? i.emails.includes(userEmail.toLowerCase()) : i.roles.includes(userRole);
+        const allowed = i.roles.includes(userRole) || (i.emails ? i.emails.includes(userEmail.toLowerCase()) : false);
         return allowed && (FEATURES.legal || !["/legal", "/follow-up"].includes(i.href));
       }),
     }))

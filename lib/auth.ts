@@ -158,6 +158,7 @@ export const INTERNAL_ROLES: UserRole[] = [
   UserRole.LEGAL,
   UserRole.ASSISTANT,
   UserRole.WRITER,
+  UserRole.SELLER,
 ];
 
 export const CLIENT_ROLES: UserRole[] = [
@@ -175,6 +176,7 @@ export const ROLE_HOME: Record<UserRole, string> = {
   LEGAL: FEATURES.legal ? "/legal" : "/paused",
   ASSISTANT: "/todos",
   WRITER: "/press-releases",
+  SELLER: "/ebm",
   RUNNER: "/runner-portal",
   CLIENT_ADMIN: "/portal",
   CLIENT_VIEWER: "/portal",
@@ -182,10 +184,11 @@ export const ROLE_HOME: Record<UserRole, string> = {
 
 const ROLE_PREFIXES: Record<UserRole, string[]> = {
   SUPER_ADMIN: ["/"],
-  STRATEGIST: ["/dashboard", "/priorities", "/todos", "/events", "/social", "/clients", "/runners", "/press-releases", "/journalists", "/reports"],
+  STRATEGIST: ["/dashboard", "/priorities", "/todos", "/ebm", "/events", "/social", "/clients", "/runners", "/press-releases", "/journalists", "/reports"],
   LEGAL: ["/legal", "/follow-up", "/paused"],
-  ASSISTANT: ["/todos", "/follow-up", "/assistant-portal", "/paused"],
+  ASSISTANT: ["/todos", "/ebm", "/follow-up", "/assistant-portal", "/paused"],
   WRITER: ["/press-releases"], // Michel: that tab and nothing else (Esther, Sept 27 2026)
+  SELLER: ["/ebm"], // EBM sellers: the brand-deals tracker and nothing else
   RUNNER: ["/runner-portal"],
   CLIENT_ADMIN: ["/portal"],
   CLIENT_VIEWER: ["/portal"],

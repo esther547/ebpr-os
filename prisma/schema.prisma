@@ -21,6 +21,8 @@ enum UserRole {
   ASSISTANT
   /// Redactor externo (Michel): solo la pestaña Press Releases.
   WRITER
+  /// Vendedor de EB Management (brand deals): solo la pestaña EBM.
+  SELLER
   CLIENT_ADMIN
   CLIENT_VIEWER
 }
@@ -169,6 +171,9 @@ model User {
   createdSuggestions    ClientSuggestion[]         @relation("SuggestionCreator")
   createdSocialPosts    SocialPost[]               @relation("SocialPostCreator")
   pressReleaseRequests  PressReleaseRequest[]      @relation("PressReleaseRequester")
+  ownedBrandLeads       BrandLead[]                @relation("BrandLeadOwner")
+  createdBrandLeads     BrandLead[]                @relation("BrandLeadCreator")
+  brandLeadUpdates      BrandLeadUpdate[]          @relation("BrandLeadUpdateAuthor")
 
   @@map("users")
 }
@@ -239,6 +244,7 @@ model Client {
   suggestions      ClientSuggestion[]
   socialPosts      SocialPost[]
   pressReleaseRequests PressReleaseRequest[]
+  brandLeads       BrandLead[]
 
   @@map("clients")
 }
@@ -1033,4 +1039,52 @@ model PressReleaseRequest {
 
   @@index([status, dueDate])
   @@map("press_release_requests")
+}
+
+// ─── EBM: BRAND DEAL PROSPECTS ───────────────────────────
+// EB Management's pipeline: which seller is talking to which brand, for which artist,
+// and where the conversation stands. No money is tracked here (Esther, Sept 2026).
+
+/// One brand conversation (lead) in the EBM pipeline.
+model BrandLead {
+  id             String    @id @default(cuid())
+  brand          String
+  clientId       String?   // the artist/talent the deal is for (optional while prospecting)
+  client         Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  ownerId        String    // the seller working the lead
+  owner          User      @relation("BrandLeadOwner", fields: [ownerId], references: [id])
+  /// PROSPECT | CONTACTED | IN_TALKS | PROPOSAL_SENT | NEGOTIATION | WON | LOST | ON_HOLD
+  status         String    @default("PROSPECT")
+  contactName    String?   // who at the brand
+  contactInfo    String?   // email / IG / phone
+  nextStep       String?
+  nextFollowUpAt DateTime?
+  notes          String?
+  closedAt       DateTime?
+  createdById    String
+  createdBy      User      @relation("BrandLeadCreator", fields: [createdById], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  updates BrandLeadUpdate[]
+
+  @@index([status, updatedAt])
+  @@index([ownerId])
+  @@map("brand_leads")
+}
+
+/// The running log of a lead: every touch, reply or status change.
+model BrandLeadUpdate {
+  id        String    @id @default(cuid())
+  leadId    String
+  lead      BrandLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User      @relation("BrandLeadUpdateAuthor", fields: [authorId], references: [id])
+  text      String
+  /// Status the lead moved to with this update, if any.
+  status    String?
+  createdAt DateTime  @default(now())
+
+  @@index([leadId, createdAt])
+  @@map("brand_lead_updates")
 }

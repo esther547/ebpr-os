@@ -65,6 +65,12 @@ export default clerkMiddleware(async (auth, req) => {
     return next(req);
   }
 
+  if (role === "SELLER") {
+    const allowed = url.startsWith("/ebm") || url.startsWith("/api/ebm");
+    if (!allowed) return NextResponse.redirect(new URL("/ebm", req.url));
+    return next(req);
+  }
+
   if (role === "WRITER") {
     const allowed = url.startsWith("/press-releases") || url.startsWith("/api/press-release");
     if (!allowed) return NextResponse.redirect(new URL("/press-releases", req.url));

@@ -38,6 +38,7 @@ const ROLE_LABELS: Record<string, string> = {
   LEGAL: "Legal",
   ASSISTANT: "Assistant",
   WRITER: "Redactor (press releases)",
+  SELLER: "Vendedor EBM (brand deals)",
   CLIENT_ADMIN: "Client Admin",
   CLIENT_VIEWER: "Client Viewer",
 };
@@ -49,6 +50,7 @@ const ROLE_TONES: Record<string, BadgeTone> = {
   LEGAL: "warning",
   ASSISTANT: "outline",
   WRITER: "purple",
+  SELLER: "info",
   CLIENT_ADMIN: "neutral",
   CLIENT_VIEWER: "neutral",
 };
@@ -59,6 +61,7 @@ const ROLE_OPTIONS = [
   ["LEGAL", "Legal"],
   ["ASSISTANT", "Assistant"],
   ["WRITER", "Redactor (press releases)"],
+  ["SELLER", "Vendedor EBM (brand deals)"],
   ["RUNNER", "Runner"],
 ] as const;
 

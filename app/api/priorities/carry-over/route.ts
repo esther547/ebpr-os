@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 const schema = z.object({
   fromWeek: z.string().min(1, "Falta la semana de origen"),
   toWeek: z.string().min(1, "Falta la semana de destino"),
-  list: z.enum(["TEAM", "ESTHER", "CAROLINA", "LEGAL", "EBM"]).optional(),
+  list: z.enum(["TEAM", "ESTHER", "CAROLINA", "LEGAL"]).optional(),
 });
 
 /**

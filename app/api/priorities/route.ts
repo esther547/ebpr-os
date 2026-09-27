@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 
 const createSchema = z.object({
   week: z.string().optional().nullable(),
-  list: z.enum(["TEAM", "ESTHER", "CAROLINA", "LEGAL", "EBM"]).optional(),
+  list: z.enum(["TEAM", "ESTHER", "CAROLINA", "LEGAL"]).optional(),
   category: z.string().trim().max(40).nullable().optional(),
   clientId: z.string().min(1).nullable().optional(),
   title: z.string().trim().min(1, "El título es obligatorio").max(300),
