@@ -165,6 +165,7 @@ model User {
   createdAvailability   ClientAvailability[]       @relation("AvailabilityCreator")
   createdIndustryEvents IndustryEvent[]            @relation("IndustryEventCreator")
   createdSuggestions    ClientSuggestion[]         @relation("SuggestionCreator")
+  createdSocialPosts    SocialPost[]               @relation("SocialPostCreator")
 
   @@map("users")
 }
@@ -233,6 +234,7 @@ model Client {
   weeklyPriorities WeeklyPriority[]
   availability     ClientAvailability[]
   suggestions      ClientSuggestion[]
+  socialPosts      SocialPost[]
 
   @@map("clients")
 }
@@ -982,4 +984,24 @@ model ClientSuggestion {
 
   @@index([clientId, status])
   @@map("client_suggestions")
+}
+
+/// "Redes sociales" board: a planned post with its 3 ideas. Ready once all 3 ideas are done; then posted.
+model SocialPost {
+  id          String    @id @default(cuid())
+  clientId    String?
+  client      Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title       String
+  /// Three slots: [{ text, done }, { text, done }, { text, done }]
+  ideas       Json
+  notes       String?
+  postedAt    DateTime?
+  order       Int       @default(0)
+  createdById String
+  createdBy   User      @relation("SocialPostCreator", fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([postedAt])
+  @@map("social_posts")
 }

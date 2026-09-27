@@ -180,7 +180,7 @@ export const ROLE_HOME: Record<UserRole, string> = {
 
 const ROLE_PREFIXES: Record<UserRole, string[]> = {
   SUPER_ADMIN: ["/"],
-  STRATEGIST: ["/dashboard", "/priorities", "/todos", "/events", "/clients", "/runners", "/press-releases", "/journalists", "/reports"],
+  STRATEGIST: ["/dashboard", "/priorities", "/todos", "/events", "/social", "/clients", "/runners", "/press-releases", "/journalists", "/reports"],
   LEGAL: ["/legal", "/follow-up", "/paused"],
   ASSISTANT: ["/todos", "/follow-up", "/assistant-portal", "/paused"],
   RUNNER: ["/runner-portal"],
