@@ -40,8 +40,15 @@ export type PriorityList = {
 
 const ESTHER = "esther@ebmanagement.io";
 const CAROLINA = "carolina@ebmanagement.io";
-/** EB Management team (Esther, Sept 27 2026). Add Benjy, Alexa and Clara here once their emails exist in the portal. */
-const EBM_TEAM = [ESTHER, CAROLINA, "ayax@ebmanagement.io"];
+/** EB Management team (Esther, Sept 27 2026). */
+const EBM_TEAM = [
+  ESTHER,
+  CAROLINA,
+  "ayax@ebmanagement.io",
+  "benjy@ebmanagement.io",
+  "clara@ebmanagement.io",
+  "aevans@ebmanagement.io", // Alexa
+];
 
 export const PRIORITY_LISTS: Record<PriorityListKey, PriorityList> = {
   TEAM: {

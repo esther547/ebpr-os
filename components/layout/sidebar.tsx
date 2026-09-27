@@ -50,7 +50,7 @@ const navGroups: NavGroup[] = [
       { href: "/todos/esther", label: "Esther to dos", icon: <ListTodo />, roles: [], emails: ["esther@ebmanagement.io"] },
       { href: "/todos/carolina", label: "Carolina's to dos", icon: <ListTodo />, roles: [], emails: ["esther@ebmanagement.io", "carolina@ebmanagement.io"] },
       { href: "/todos/legal", label: "Legal to dos", icon: <Scale />, roles: [], emails: ["esther@ebmanagement.io", "carolina@ebmanagement.io"] },
-      { href: "/todos/ebm", label: "EBM", icon: <Briefcase />, roles: [], emails: ["esther@ebmanagement.io", "carolina@ebmanagement.io", "ayax@ebmanagement.io"] },
+      { href: "/todos/ebm", label: "EBM", icon: <Briefcase />, roles: [], emails: ["esther@ebmanagement.io", "carolina@ebmanagement.io", "ayax@ebmanagement.io", "benjy@ebmanagement.io", "clara@ebmanagement.io", "aevans@ebmanagement.io"] },
       { href: "/events", label: "Calendario de eventos", icon: <CalendarRange />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
       { href: "/social", label: "Redes sociales", icon: <Megaphone />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
       { href: "/clients", label: "Clients", icon: <Users />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
