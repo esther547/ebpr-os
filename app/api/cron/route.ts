@@ -11,6 +11,7 @@ import {
 } from "@/components/runners/miami-time";
 import { syncAllAgendaDocs, type AgendaDocSyncReport } from "@/lib/google-docs-writer";
 import { runEventReminders, type EventReminderSummary } from "@/lib/industry-events";
+import { reminderModeForToday, sendPitchReminders, type PitchReminderResult } from "@/lib/pitch-reminders";
 
 /**
  * Cron endpoint — called daily (8am Miami) to generate notifications:
@@ -228,6 +229,16 @@ export async function GET(req: NextRequest) {
     events = { error: err instanceof Error ? err.message : String(err) };
   }
 
+  // ── 4c. Pitch reminders for the strategists: Monday = full, Thursday = urgent only ──
+  let pitch: PitchReminderResult | { skipped: string } | { error: string };
+  try {
+    const mode = reminderModeForToday(now);
+    pitch = mode ? await sendPitchReminders(mode, now) : { skipped: "not a reminder day (Mon/Thu Miami)" };
+  } catch (err) {
+    console.error("Cron: pitch reminders failed:", err);
+    pitch = { error: err instanceof Error ? err.message : String(err) };
+  }
+
   // ── 5. Mirror every active client's agenda into its Google Doc ────
   // The portal is the source of truth: each "Agenda 2026" doc is regenerated
   // from the RunnerAssignment rows every night. This rides along with the daily
@@ -243,7 +254,7 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json(
-    { message: "Cron completed", timestamp: now.toISOString(), today: todayKey, results, events, agendaDocs },
+    { message: "Cron completed", timestamp: now.toISOString(), today: todayKey, results, events, pitch, agendaDocs },
     { headers: NO_STORE }
   );
 }
