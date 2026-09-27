@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Briefcase, CalendarClock, ChevronDown, Handshake, MessageSquarePlus, Pencil, Plus, Trash2, Trophy } from "lucide-react";
+import { Briefcase, CalendarClock, Handshake, History, MessageSquarePlus, Pencil, Plus, Trash2, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/header";
 import { Card } from "@/components/ui/card";
+import { Table, TableWrap, Td, Th } from "@/components/ui/table";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button, FormActions, FormGroup, Input, Select, Textarea } from "@/components/ui/form-field";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -29,6 +30,8 @@ const TONES: Record<LeadStatus, BadgeTone> = {
   ON_HOLD: "outline",
 };
 
+const STATUS_DOT: Partial<Record<BadgeTone, string>> = { neutral: "bg-ink-muted", info: "bg-blue-500", purple: "bg-purple-500", warning: "bg-amber-500", success: "bg-green-600", danger: "bg-red-600", outline: "bg-ink-muted/50" };
+
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("es-ES", { day: "numeric", month: "short", timeZone: "America/New_York" }) : "");
 const fmtTime = (iso: string) => new Date(iso).toLocaleString("es-ES", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
 const daysFrom = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000) : null);
@@ -44,7 +47,7 @@ export function EbmBoard({ initialLeads, members, clients, currentUserId }: Prop
   const [showCreate, setShowCreate] = useState(false);
   const [editLead, setEditLead] = useState<BrandLeadItem | null>(null);
   const [deleteLead, setDeleteLead] = useState<BrandLeadItem | null>(null);
-  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [historyLead, setHistoryLead] = useState<BrandLeadItem | null>(null);
 
   async function request<T>(url: string, init: RequestInit): Promise<T> {
     const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...init });
@@ -123,6 +126,16 @@ export function EbmBoard({ initialLeads, members, clients, currentUserId }: Prop
       });
   }, [leads, owner, status, q]);
 
+  const bySeller = useMemo(() => {
+    const groups = new Map<string, { owner: { id: string; name: string }; leads: BrandLeadItem[] }>();
+    for (const l of visible) {
+      const g = groups.get(l.ownerId) ?? { owner: l.owner, leads: [] };
+      g.leads.push(l);
+      groups.set(l.ownerId, g);
+    }
+    return [...groups.values()].sort((a, b) => a.owner.name.localeCompare(b.owner.name, "es"));
+  }, [visible]);
+
   return (
     <>
       <PageHeader
@@ -164,18 +177,41 @@ export function EbmBoard({ initialLeads, members, clients, currentUserId }: Prop
           action={leads.length === 0 ? <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)}>Nuevo lead</Button> : undefined}
         />
       ) : (
-        <div className="space-y-3">
-          {visible.map((l) => (
-            <LeadCard
-              key={l.id}
-              lead={l}
-              open={!!open[l.id]}
-              onToggle={() => setOpen((o) => ({ ...o, [l.id]: !o[l.id] }))}
-              onStatus={(s) => void patch(l, { status: s })}
-              onEdit={() => setEditLead(l)}
-              onDelete={() => setDeleteLead(l)}
-              onUpdate={(text) => addUpdate(l, text)}
-            />
+        <div className="space-y-6">
+          {bySeller.map((g) => (
+            <section key={g.owner.id}>
+              <div className="mb-2 flex items-baseline gap-2">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-primary">Vendedor: {g.owner.name}</h2>
+                <span className="text-xs text-ink-muted">{g.leads.length} {g.leads.length === 1 ? "lead" : "leads"}</span>
+              </div>
+              <TableWrap>
+                <Table>
+                  <thead>
+                    <tr>
+                      <Th>Lead / Marca</Th>
+                      <Th>Artista</Th>
+                      <Th>Contacto</Th>
+                      <Th>Siguiente paso</Th>
+                      <Th>Notas</Th>
+                      <Th>Status</Th>
+                      <Th className="w-28" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {g.leads.map((l) => (
+                      <LeadRow
+                        key={l.id}
+                        lead={l}
+                        onStatus={(st) => void patch(l, { status: st })}
+                        onEdit={() => setEditLead(l)}
+                        onDelete={() => setDeleteLead(l)}
+                        onHistory={() => setHistoryLead(l)}
+                      />
+                    ))}
+                  </tbody>
+                </Table>
+              </TableWrap>
+            </section>
           ))}
         </div>
       )}
@@ -192,6 +228,11 @@ export function EbmBoard({ initialLeads, members, clients, currentUserId }: Prop
           if (editLead) await patch(editLead, draft, "Lead actualizado");
         }}
       />
+      <HistoryModal
+        lead={historyLead ? leads.find((l) => l.id === historyLead.id) ?? null : null}
+        onClose={() => setHistoryLead(null)}
+        onUpdate={(lead, text) => addUpdate(lead, text)}
+      />
       <ConfirmModal
         open={deleteLead !== null}
         onOpenChange={(o) => !o && setDeleteLead(null)}
@@ -205,77 +246,90 @@ export function EbmBoard({ initialLeads, members, clients, currentUserId }: Prop
   );
 }
 
-function LeadCard({ lead, open, onToggle, onStatus, onEdit, onDelete, onUpdate }: {
+function LeadRow({ lead, onStatus, onEdit, onDelete, onHistory }: {
   lead: BrandLeadItem;
-  open: boolean;
-  onToggle: () => void;
   onStatus: (s: LeadStatus) => void;
   onEdit: () => void;
   onDelete: () => void;
-  onUpdate: (text: string) => Promise<void>;
+  onHistory: () => void;
 }) {
+  const days = daysFrom(lead.nextFollowUpAt);
+  const isOpen = OPEN_STATUSES.includes(lead.status as LeadStatus);
+  const overdue = isOpen && days !== null && days < 0;
+  const dueToday = isOpen && days === 0;
+  const s = lead.status as LeadStatus;
+  const lastNote = lead.updates.find((u) => !/^Pasó a |^Lead creado$/.test(u.text));
+  return (
+    <tr className={cn(overdue && "bg-red-50/60")}>
+      <Td>
+        <div className="font-semibold text-ink-primary">{lead.brand}</div>
+        <div className="text-2xs text-ink-muted">Actualizado {fmt(lead.updatedAt)}</div>
+      </Td>
+      <Td>{lead.client ? lead.client.name : <span className="text-ink-muted">Por definir</span>}</Td>
+      <Td>
+        {lead.contactName ? <div>{lead.contactName}</div> : <span className="text-ink-muted">—</span>}
+        {lead.contactInfo && <div className="text-2xs text-ink-muted">{lead.contactInfo}</div>}
+      </Td>
+      <Td>
+        {lead.nextStep ? <div>{lead.nextStep}</div> : <span className="text-ink-muted">—</span>}
+        {lead.nextFollowUpAt && (
+          <div className={cn("text-2xs", overdue ? "font-semibold text-red-700" : dueToday ? "font-semibold text-amber-700" : "text-ink-muted")}>
+            <CalendarClock className="mr-1 inline h-3 w-3" />
+            {overdue ? `Vencido · ${fmt(lead.nextFollowUpAt)}` : dueToday ? "Hoy" : fmt(lead.nextFollowUpAt)}
+          </div>
+        )}
+      </Td>
+      <Td className="max-w-[260px]">
+        {lastNote ? (
+          <div className="line-clamp-2 text-xs text-ink-secondary" title={lastNote.text}>{lastNote.text}</div>
+        ) : lead.notes ? (
+          <div className="line-clamp-2 text-xs text-ink-secondary" title={lead.notes}>{lead.notes}</div>
+        ) : (
+          <span className="text-ink-muted">—</span>
+        )}
+      </Td>
+      <Td>
+        <div className="flex items-center gap-2">
+          <span className={cn("h-2 w-2 shrink-0 rounded-full", STATUS_DOT[TONES[s]] ?? "bg-ink-muted")} aria-hidden />
+          <Select value={s} onChange={(e) => onStatus(e.target.value as LeadStatus)} className="h-7 w-auto text-xs font-medium" aria-label="Cambiar status">
+            {LEAD_STATUSES.map((st) => <option key={st} value={st}>{LEAD_STATUS_LABELS[st]}</option>)}
+          </Select>
+        </div>
+      </Td>
+      <Td>
+        <div className="flex items-center justify-end gap-0.5">
+          <Button size="icon-sm" variant="ghost" aria-label="Historial y notas" title={`Historial (${lead.updates.length})`} onClick={onHistory}><History className="h-4 w-4" /></Button>
+          <Button size="icon-sm" variant="ghost" aria-label="Editar" onClick={onEdit}><Pencil className="h-4 w-4" /></Button>
+          <Button size="icon-sm" variant="ghost" aria-label="Eliminar" onClick={onDelete}><Trash2 className="h-4 w-4" /></Button>
+        </div>
+      </Td>
+    </tr>
+  );
+}
+
+function HistoryModal({ lead, onClose, onUpdate }: { lead: BrandLeadItem | null; onClose: () => void; onUpdate: (lead: BrandLeadItem, text: string) => Promise<void> }) {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const days = daysFrom(lead.nextFollowUpAt);
-  const overdue = days !== null && days < 0 && OPEN_STATUSES.includes(lead.status as LeadStatus);
-  const dueToday = days === 0;
-  const s = lead.status as LeadStatus;
-
-  async function submitNote(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!note.trim() || saving) return;
+    if (!lead || !note.trim() || saving) return;
     setSaving(true);
     try {
-      await onUpdate(note.trim());
+      await onUpdate(lead, note.trim());
       setNote("");
     } finally {
       setSaving(false);
     }
   }
-
   return (
-    <Card padding="md" className={cn(overdue && "border-red-200 bg-red-50/40")}>
-      <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold text-ink-primary">{lead.brand}</h3>
-            {lead.client && <Badge tone="info" size="xs">{lead.client.name}</Badge>}
-            <Badge tone="outline" size="xs">{lead.owner.name}</Badge>
-          </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-secondary">
-            {lead.contactName && <span>Contacto: <span className="text-ink-primary">{lead.contactName}</span>{lead.contactInfo ? ` · ${lead.contactInfo}` : ""}</span>}
-            {lead.nextStep && <span>Siguiente: <span className="text-ink-primary">{lead.nextStep}</span></span>}
-            {lead.nextFollowUpAt && (
-              <span className={cn(overdue && "font-semibold text-red-700", dueToday && "font-semibold text-amber-700")}>
-                <CalendarClock className="mr-1 inline h-3.5 w-3.5" />
-                {overdue ? `Seguimiento vencido (${fmt(lead.nextFollowUpAt)})` : dueToday ? "Seguimiento hoy" : `Seguimiento ${fmt(lead.nextFollowUpAt)}`}
-              </span>
-            )}
-            <span className="text-ink-muted">Actualizado {fmt(lead.updatedAt)}</span>
-          </div>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-          <Select value={s} onChange={(e) => onStatus(e.target.value as LeadStatus)} className={cn("h-8 w-auto text-xs font-medium")} aria-label="Estatus">
-            {LEAD_STATUSES.map((st) => <option key={st} value={st}>{LEAD_STATUS_LABELS[st]}</option>)}
-          </Select>
-          <Badge tone={TONES[s]} size="xs" dot>{LEAD_STATUS_LABELS[s]}</Badge>
-          <Button size="icon-sm" variant="ghost" aria-label="Editar" onClick={onEdit}><Pencil className="h-4 w-4" /></Button>
-          <Button size="icon-sm" variant="ghost" aria-label="Eliminar" onClick={onDelete}><Trash2 className="h-4 w-4" /></Button>
-          <Button size="sm" variant="ghost" onClick={onToggle} aria-expanded={open}>
-            Historial ({lead.updates.length}) <ChevronDown className={cn("ml-1 h-4 w-4 transition-transform", open && "rotate-180")} />
-          </Button>
-        </div>
-      </div>
-
-      {lead.notes && <p className="mt-2 whitespace-pre-line text-xs text-ink-muted">{lead.notes}</p>}
-
-      {open && (
-        <div className="mt-3 border-t border-border pt-3">
-          <form onSubmit={submitNote} className="mb-3 flex items-start gap-2">
-            <Textarea rows={1} value={note} onChange={(e) => setNote(e.target.value)} placeholder="¿Qué pasó? p. ej. Llamé a la marca, piden propuesta para el 15…" className="min-h-[38px] flex-1 text-sm" />
+    <Modal open={lead !== null} onOpenChange={(o) => !o && onClose()} title={lead ? `${lead.brand}${lead.client ? ` · ${lead.client.name}` : ""}` : ""} description={lead ? `Vendedor: ${lead.owner.name}${lead.notes ? ` · ${lead.notes}` : ""}` : undefined} size="lg">
+      {lead && (
+        <div>
+          <form onSubmit={submit} className="mb-4 flex items-start gap-2">
+            <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="¿Qué pasó? p. ej. Llamé a la marca, piden propuesta para el 15…" className="flex-1 text-sm" autoFocus />
             <Button type="submit" size="sm" variant="secondary" loading={saving} disabled={!note.trim()} leftIcon={<MessageSquarePlus className="h-4 w-4" />}>Anotar</Button>
           </form>
-          <ol className="space-y-2">
+          <ol className="max-h-80 space-y-3 overflow-y-auto">
             {lead.updates.map((u) => (
               <li key={u.id} className="text-xs">
                 <span className="text-ink-muted">{fmtTime(u.createdAt)} · {u.author.name}</span>
@@ -286,7 +340,7 @@ function LeadCard({ lead, open, onToggle, onStatus, onEdit, onDelete, onUpdate }
           </ol>
         </div>
       )}
-    </Card>
+    </Modal>
   );
 }
 
