@@ -37,10 +37,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   const body = await req.json().catch(() => null);
   const parsed = updateSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid data" }, { status: 400 });
   const d = parsed.data;
   const existing = await db.brandLead.findUnique({ where: { id }, select: { status: true } });
-  if (!existing) return NextResponse.json({ error: "Lead no encontrado" }, { status: 404 });
+  if (!existing) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
 
   const data: Prisma.BrandLeadUncheckedUpdateInput = {};
   if (d.brand !== undefined) data.brand = d.brand;
@@ -53,13 +53,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const clientId = d.clientId || null;
     if (clientId) {
       const client = await db.client.findUnique({ where: { id: clientId }, select: { id: true } });
-      if (!client) return NextResponse.json({ error: "Artista no encontrado" }, { status: 400 });
+      if (!client) return NextResponse.json({ error: "Artist not found" }, { status: 400 });
     }
     data.clientId = clientId;
   }
   if (d.ownerId !== undefined) {
     const owner = await db.user.findUnique({ where: { id: d.ownerId }, select: { id: true } });
-    if (!owner) return NextResponse.json({ error: "Vendedor no encontrado" }, { status: 400 });
+    if (!owner) return NextResponse.json({ error: "Seller not found" }, { status: 400 });
     data.ownerId = d.ownerId;
   }
   const statusChanged = d.status !== undefined && d.status !== existing.status;
@@ -71,19 +71,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data.updates = {
       create: {
         authorId: auth.user.id,
-        text: d.note || `Pasó a ${LEAD_STATUS_LABELS[d.status!]}`,
+        text: d.note || `Moved to ${LEAD_STATUS_LABELS[d.status!]}`,
         status: statusChanged ? d.status : null,
       },
     };
   }
-  if (Object.keys(data).length === 0) return NextResponse.json({ error: "No hay nada que actualizar" }, { status: 400 });
+  if (Object.keys(data).length === 0) return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   try {
     const lead = await db.brandLead.update({ where: { id }, data, select: leadSelect });
     return NextResponse.json({ data: lead });
   } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") return NextResponse.json({ error: "Lead no encontrado" }, { status: 404 });
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") return NextResponse.json({ error: "Lead not found" }, { status: 404 });
     console.error("PATCH /api/ebm/leads/[id]", err);
-    return NextResponse.json({ error: "No se pudo guardar" }, { status: 500 });
+    return NextResponse.json({ error: "Could not save" }, { status: 500 });
   }
 }
 
@@ -95,6 +95,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     await db.brandLead.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch {
-    return NextResponse.json({ error: "Lead no encontrado" }, { status: 404 });
+    return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
 }

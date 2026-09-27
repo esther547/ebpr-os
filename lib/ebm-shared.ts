@@ -13,14 +13,14 @@ export const LEAD_STATUSES = [
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
 export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
-  PROSPECT: "Prospecto",
-  CONTACTED: "Contactado",
-  IN_TALKS: "En conversación",
-  PROPOSAL_SENT: "Propuesta enviada",
-  NEGOTIATION: "Negociación",
-  WON: "Cerrado ✓",
-  LOST: "Perdido",
-  ON_HOLD: "En pausa",
+  PROSPECT: "Prospect",
+  CONTACTED: "Contacted",
+  IN_TALKS: "In talks",
+  PROPOSAL_SENT: "Proposal sent",
+  NEGOTIATION: "Negotiating",
+  WON: "Closed ✓",
+  LOST: "Lost",
+  ON_HOLD: "On hold",
 };
 
 export const OPEN_STATUSES: LeadStatus[] = ["PROSPECT", "CONTACTED", "IN_TALKS", "PROPOSAL_SENT", "NEGOTIATION", "ON_HOLD"];

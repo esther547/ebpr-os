@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { canAccessEbm, ebmMembers, leadSelect, type BrandLeadItem } from "@/lib/ebm";
 import { EbmBoard } from "@/components/ebm/ebm-board";
 
-export const metadata = { title: "EBM — Brand deals" };
+export const metadata = { title: "EBM — Brand Deals" };
 export const dynamic = "force-dynamic";
 
 export default async function EbmPage() {

@@ -32,8 +32,8 @@ const TONES: Record<LeadStatus, BadgeTone> = {
 
 const STATUS_DOT: Partial<Record<BadgeTone, string>> = { neutral: "bg-ink-muted", info: "bg-blue-500", purple: "bg-purple-500", warning: "bg-amber-500", success: "bg-green-600", danger: "bg-red-600", outline: "bg-ink-muted/50" };
 
-const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("es-ES", { day: "numeric", month: "short", timeZone: "America/New_York" }) : "");
-const fmtTime = (iso: string) => new Date(iso).toLocaleString("es-ES", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
+const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" }) : "");
+const fmtTime = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
 const daysFrom = (iso: string | null) => (iso ? Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000) : null);
 const todayKey = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
@@ -52,7 +52,7 @@ export function EbmBoard({ initialLeads, members, clients, currentUserId }: Prop
   async function request<T>(url: string, init: RequestInit): Promise<T> {
     const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...init });
     const payload = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(apiErrorMessage(payload, "No se pudo completar la acción"));
+    if (!res.ok) throw new Error(apiErrorMessage(payload, "Could not complete the action"));
     return payload.data as T;
   }
   const fail = (err: unknown, title: string) => toast({ title, description: err instanceof Error ? err.message : undefined, variant: "error" });
@@ -63,7 +63,7 @@ export function EbmBoard({ initialLeads, members, clients, currentUserId }: Prop
       setLeads((prev) => [created, ...prev]);
       router.refresh();
     } catch (err) {
-      fail(err, "No se pudo crear el lead");
+      fail(err, "Could not create the lead");
     }
   }
   async function patch(lead: BrandLeadItem, body: Record<string, unknown>, okTitle?: string) {
@@ -73,7 +73,7 @@ export function EbmBoard({ initialLeads, members, clients, currentUserId }: Prop
       if (okTitle) toast({ title: okTitle, variant: "success" });
       router.refresh();
     } catch (err) {
-      fail(err, "No se pudo guardar");
+      fail(err, "Could not save");
     }
   }
   async function addUpdate(lead: BrandLeadItem, text: string) {
@@ -82,7 +82,7 @@ export function EbmBoard({ initialLeads, members, clients, currentUserId }: Prop
       setLeads((prev) => prev.map((l) => (l.id === lead.id ? updated : l)));
       router.refresh();
     } catch (err) {
-      fail(err, "No se pudo guardar la actualización");
+      fail(err, "Could not save the update");
     }
   }
   async function remove(lead: BrandLeadItem) {
@@ -92,7 +92,7 @@ export function EbmBoard({ initialLeads, members, clients, currentUserId }: Prop
       setLeads((prev) => prev.filter((l) => l.id !== lead.id));
       router.refresh();
     } catch (err) {
-      fail(err, "No se pudo eliminar");
+      fail(err, "Could not delete");
     }
   }
 
@@ -133,66 +133,66 @@ export function EbmBoard({ initialLeads, members, clients, currentUserId }: Prop
       g.leads.push(l);
       groups.set(l.ownerId, g);
     }
-    return [...groups.values()].sort((a, b) => a.owner.name.localeCompare(b.owner.name, "es"));
+    return [...groups.values()].sort((a, b) => a.owner.name.localeCompare(b.owner.name, "en"));
   }, [visible]);
 
   return (
     <>
       <PageHeader
         eyebrow="EB Management"
-        title="EBM · Brand deals"
-        subtitle="Quién está hablando con qué marca, para qué artista, y en qué va cada lead."
+        title="EBM · Brand Deals"
+        subtitle="Who is talking to which brand, for which artist, and where each lead stands."
         actions={
           <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)}>
-            Nuevo lead
+            New lead
           </Button>
         }
       >
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={owner} onChange={(e) => setOwner(e.target.value)} className="h-9 w-auto min-w-[160px] text-sm" aria-label="Vendedor">
-            <option value="">Todos los vendedores</option>
+          <Select value={owner} onChange={(e) => setOwner(e.target.value)} className="h-9 w-auto min-w-[160px] text-sm" aria-label="Seller">
+            <option value="">All sellers</option>
             {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </Select>
-          <Select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className="h-9 w-auto min-w-[160px] text-sm" aria-label="Estatus">
-            <option value="OPEN">Abiertos</option>
-            <option value="ALL">Todos</option>
+          <Select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className="h-9 w-auto min-w-[160px] text-sm" aria-label="Status">
+            <option value="OPEN">Open</option>
+            <option value="ALL">All</option>
             {LEAD_STATUSES.map((s) => <option key={s} value={s}>{LEAD_STATUS_LABELS[s]}</option>)}
           </Select>
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar marca, artista, contacto…" className="h-9 w-full text-sm sm:w-64" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search brand, artist, contact…" className="h-9 w-full text-sm sm:w-64" />
         </div>
       </PageHeader>
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Leads abiertos" value={stats.open} icon={<Briefcase />} />
-        <StatTile label="En propuesta / negociación" value={stats.negotiating} icon={<Handshake />} tone="warning" />
-        <StatTile label="Cerrados" value={stats.won} icon={<Trophy />} tone="success" />
-        <StatTile label="Seguimientos vencidos" value={stats.dueSoon} icon={<CalendarClock />} tone={stats.dueSoon ? "danger" : "neutral"} />
+        <StatTile label="Open leads" value={stats.open} icon={<Briefcase />} />
+        <StatTile label="Proposal / negotiating" value={stats.negotiating} icon={<Handshake />} tone="warning" />
+        <StatTile label="Closed" value={stats.won} icon={<Trophy />} tone="success" />
+        <StatTile label="Overdue follow-ups" value={stats.dueSoon} icon={<CalendarClock />} tone={stats.dueSoon ? "danger" : "neutral"} />
       </div>
 
       {visible.length === 0 ? (
         <EmptyState
           icon={<Briefcase />}
-          title={leads.length === 0 ? "Todavía no hay leads" : "Nada con esos filtros"}
-          description={leads.length === 0 ? "Crea el primero: la marca, para qué artista y quién lo está trabajando." : "Prueba con otro vendedor o estatus."}
-          action={leads.length === 0 ? <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)}>Nuevo lead</Button> : undefined}
+          title={leads.length === 0 ? "No leads yet" : "Nothing matches those filters"}
+          description={leads.length === 0 ? "Create the first one: the brand, which artist it is for, and who is working it." : "Try another seller or status."}
+          action={leads.length === 0 ? <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)}>New lead</Button> : undefined}
         />
       ) : (
         <div className="space-y-6">
           {bySeller.map((g) => (
             <section key={g.owner.id}>
               <div className="mb-2 flex items-baseline gap-2">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-primary">Vendedor: {g.owner.name}</h2>
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-primary">Seller: {g.owner.name}</h2>
                 <span className="text-xs text-ink-muted">{g.leads.length} {g.leads.length === 1 ? "lead" : "leads"}</span>
               </div>
               <TableWrap>
                 <Table>
                   <thead>
                     <tr>
-                      <Th>Lead / Marca</Th>
-                      <Th>Artista</Th>
-                      <Th>Contacto</Th>
-                      <Th>Siguiente paso</Th>
-                      <Th>Notas</Th>
+                      <Th>Lead / Brand</Th>
+                      <Th>Artist</Th>
+                      <Th>Contact</Th>
+                      <Th>Next step</Th>
+                      <Th>Notes</Th>
                       <Th>Status</Th>
                       <Th className="w-28" />
                     </tr>
@@ -225,7 +225,7 @@ export function EbmBoard({ initialLeads, members, clients, currentUserId }: Prop
         clients={clients}
         defaultOwnerId={currentUserId}
         onSubmit={async (draft) => {
-          if (editLead) await patch(editLead, draft, "Lead actualizado");
+          if (editLead) await patch(editLead, draft, "Lead updated");
         }}
       />
       <HistoryModal
@@ -236,9 +236,9 @@ export function EbmBoard({ initialLeads, members, clients, currentUserId }: Prop
       <ConfirmModal
         open={deleteLead !== null}
         onOpenChange={(o) => !o && setDeleteLead(null)}
-        title="Eliminar lead"
+        title="Delete lead"
         description={deleteLead ? `${deleteLead.brand}${deleteLead.client ? ` · ${deleteLead.client.name}` : ""}` : undefined}
-        confirmLabel="Eliminar"
+        confirmLabel="Delete"
         destructive
         onConfirm={() => { if (deleteLead) void remove(deleteLead); }}
       />
@@ -258,14 +258,14 @@ function LeadRow({ lead, onStatus, onEdit, onDelete, onHistory }: {
   const overdue = isOpen && days !== null && days < 0;
   const dueToday = isOpen && days === 0;
   const s = lead.status as LeadStatus;
-  const lastNote = lead.updates.find((u) => !/^Pasó a |^Lead creado$/.test(u.text));
+  const lastNote = lead.updates.find((u) => !/^Moved to |^Pasó a |^Lead created$|^Lead creado$/.test(u.text));
   return (
     <tr className={cn(overdue && "bg-red-50/60")}>
       <Td>
         <div className="font-semibold text-ink-primary">{lead.brand}</div>
-        <div className="text-2xs text-ink-muted">Actualizado {fmt(lead.updatedAt)}</div>
+        <div className="text-2xs text-ink-muted">Updated {fmt(lead.updatedAt)}</div>
       </Td>
-      <Td>{lead.client ? lead.client.name : <span className="text-ink-muted">Por definir</span>}</Td>
+      <Td>{lead.client ? lead.client.name : <span className="text-ink-muted">TBD</span>}</Td>
       <Td>
         {lead.contactName ? <div>{lead.contactName}</div> : <span className="text-ink-muted">—</span>}
         {lead.contactInfo && <div className="text-2xs text-ink-muted">{lead.contactInfo}</div>}
@@ -275,7 +275,7 @@ function LeadRow({ lead, onStatus, onEdit, onDelete, onHistory }: {
         {lead.nextFollowUpAt && (
           <div className={cn("text-2xs", overdue ? "font-semibold text-red-700" : dueToday ? "font-semibold text-amber-700" : "text-ink-muted")}>
             <CalendarClock className="mr-1 inline h-3 w-3" />
-            {overdue ? `Vencido · ${fmt(lead.nextFollowUpAt)}` : dueToday ? "Hoy" : fmt(lead.nextFollowUpAt)}
+            {overdue ? `Overdue · ${fmt(lead.nextFollowUpAt)}` : dueToday ? "Today" : fmt(lead.nextFollowUpAt)}
           </div>
         )}
       </Td>
@@ -291,16 +291,16 @@ function LeadRow({ lead, onStatus, onEdit, onDelete, onHistory }: {
       <Td>
         <div className="flex items-center gap-2">
           <span className={cn("h-2 w-2 shrink-0 rounded-full", STATUS_DOT[TONES[s]] ?? "bg-ink-muted")} aria-hidden />
-          <Select value={s} onChange={(e) => onStatus(e.target.value as LeadStatus)} className="h-7 w-auto text-xs font-medium" aria-label="Cambiar status">
+          <Select value={s} onChange={(e) => onStatus(e.target.value as LeadStatus)} className="h-7 w-auto text-xs font-medium" aria-label="Change status">
             {LEAD_STATUSES.map((st) => <option key={st} value={st}>{LEAD_STATUS_LABELS[st]}</option>)}
           </Select>
         </div>
       </Td>
       <Td>
         <div className="flex items-center justify-end gap-0.5">
-          <Button size="icon-sm" variant="ghost" aria-label="Historial y notas" title={`Historial (${lead.updates.length})`} onClick={onHistory}><History className="h-4 w-4" /></Button>
-          <Button size="icon-sm" variant="ghost" aria-label="Editar" onClick={onEdit}><Pencil className="h-4 w-4" /></Button>
-          <Button size="icon-sm" variant="ghost" aria-label="Eliminar" onClick={onDelete}><Trash2 className="h-4 w-4" /></Button>
+          <Button size="icon-sm" variant="ghost" aria-label="History and notes" title={`History (${lead.updates.length})`} onClick={onHistory}><History className="h-4 w-4" /></Button>
+          <Button size="icon-sm" variant="ghost" aria-label="Edit" onClick={onEdit}><Pencil className="h-4 w-4" /></Button>
+          <Button size="icon-sm" variant="ghost" aria-label="Delete" onClick={onDelete}><Trash2 className="h-4 w-4" /></Button>
         </div>
       </Td>
     </tr>
@@ -322,12 +322,12 @@ function HistoryModal({ lead, onClose, onUpdate }: { lead: BrandLeadItem | null;
     }
   }
   return (
-    <Modal open={lead !== null} onOpenChange={(o) => !o && onClose()} title={lead ? `${lead.brand}${lead.client ? ` · ${lead.client.name}` : ""}` : ""} description={lead ? `Vendedor: ${lead.owner.name}${lead.notes ? ` · ${lead.notes}` : ""}` : undefined} size="lg">
+    <Modal open={lead !== null} onOpenChange={(o) => !o && onClose()} title={lead ? `${lead.brand}${lead.client ? ` · ${lead.client.name}` : ""}` : ""} description={lead ? `Seller: ${lead.owner.name}${lead.notes ? ` · ${lead.notes}` : ""}` : undefined} size="lg">
       {lead && (
         <div>
           <form onSubmit={submit} className="mb-4 flex items-start gap-2">
-            <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="¿Qué pasó? p. ej. Llamé a la marca, piden propuesta para el 15…" className="flex-1 text-sm" autoFocus />
-            <Button type="submit" size="sm" variant="secondary" loading={saving} disabled={!note.trim()} leftIcon={<MessageSquarePlus className="h-4 w-4" />}>Anotar</Button>
+            <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="What happened? e.g. Called the brand, they want a proposal by the 15th…" className="flex-1 text-sm" autoFocus />
+            <Button type="submit" size="sm" variant="secondary" loading={saving} disabled={!note.trim()} leftIcon={<MessageSquarePlus className="h-4 w-4" />}>Add note</Button>
           </form>
           <ol className="max-h-80 space-y-3 overflow-y-auto">
             {lead.updates.map((u) => (
@@ -413,47 +413,47 @@ function LeadModal({ open, onOpenChange, lead, members, clients, defaultOwnerId,
   }
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title={lead ? "Editar lead" : "Nuevo lead"} description={lead ? undefined : "La marca con la que estamos hablando, para qué artista y quién lo lleva."} size="lg">
+    <Modal open={open} onOpenChange={onOpenChange} title={lead ? "Edit lead" : "New lead"} description={lead ? undefined : "The brand we are talking to, which artist it is for, and who owns it."} size="lg">
       <form onSubmit={submit} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
-          <FormGroup label="Marca" htmlFor="lead-brand" required>
-            <Input id="lead-brand" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="p. ej. Adidas" autoFocus required />
+          <FormGroup label="Brand" htmlFor="lead-brand" required>
+            <Input id="lead-brand" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Adidas" autoFocus required />
           </FormGroup>
-          <FormGroup label="Artista" htmlFor="lead-client">
+          <FormGroup label="Artist" htmlFor="lead-client">
             <Select id="lead-client" value={clientId} onChange={(e) => setClientId(e.target.value)}>
-              <option value="">Por definir</option>
+              <option value="">TBD</option>
               {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
           </FormGroup>
-          <FormGroup label="Vendedor" htmlFor="lead-owner">
+          <FormGroup label="Seller" htmlFor="lead-owner">
             <Select id="lead-owner" value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
               {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
             </Select>
           </FormGroup>
-          <FormGroup label="Estatus" htmlFor="lead-status">
+          <FormGroup label="Status" htmlFor="lead-status">
             <Select id="lead-status" value={status} onChange={(e) => setStatus(e.target.value as LeadStatus)}>
               {LEAD_STATUSES.map((s) => <option key={s} value={s}>{LEAD_STATUS_LABELS[s]}</option>)}
             </Select>
           </FormGroup>
-          <FormGroup label="Contacto en la marca" htmlFor="lead-contact">
-            <Input id="lead-contact" value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="Nombre y cargo" />
+          <FormGroup label="Contact at the brand" htmlFor="lead-contact">
+            <Input id="lead-contact" value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="Name and title" />
           </FormGroup>
-          <FormGroup label="Email / IG / teléfono" htmlFor="lead-contact-info">
+          <FormGroup label="Email / IG / phone" htmlFor="lead-contact-info">
             <Input id="lead-contact-info" value={contactInfo} onChange={(e) => setContactInfo(e.target.value)} />
           </FormGroup>
-          <FormGroup label="Siguiente paso" htmlFor="lead-next">
-            <Input id="lead-next" value={nextStep} onChange={(e) => setNextStep(e.target.value)} placeholder="p. ej. Enviar propuesta" />
+          <FormGroup label="Next step" htmlFor="lead-next">
+            <Input id="lead-next" value={nextStep} onChange={(e) => setNextStep(e.target.value)} placeholder="e.g. Send proposal" />
           </FormGroup>
-          <FormGroup label="Fecha de seguimiento" htmlFor="lead-followup">
+          <FormGroup label="Follow-up date" htmlFor="lead-followup">
             <Input id="lead-followup" type="date" value={nextFollowUpAt} min={lead ? undefined : todayKey()} onChange={(e) => setNextFollowUpAt(e.target.value)} />
           </FormGroup>
         </div>
-        <FormGroup label="Notas" htmlFor="lead-notes">
-          <Textarea id="lead-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Contexto del deal, qué busca la marca, condiciones…" />
+        <FormGroup label="Notes" htmlFor="lead-notes">
+          <Textarea id="lead-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Deal context, what the brand is looking for, terms…" />
         </FormGroup>
         <FormActions>
-          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
-          <Button type="submit" loading={saving} disabled={!brand.trim()}>{lead ? "Guardar" : "Crear lead"}</Button>
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
+          <Button type="submit" loading={saving} disabled={!brand.trim()}>{lead ? "Save" : "Create lead"}</Button>
         </FormActions>
       </form>
     </Modal>

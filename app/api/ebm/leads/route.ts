@@ -7,7 +7,7 @@ import { LEAD_STATUSES, canAccessEbm, leadSelect } from "@/lib/ebm";
 export const dynamic = "force-dynamic";
 
 const createSchema = z.object({
-  brand: z.string().trim().min(1, "Escribe la marca").max(200),
+  brand: z.string().trim().min(1, "Enter the brand").max(200),
   clientId: z.string().min(1).nullable().optional(),
   ownerId: z.string().min(1).optional(),
   status: z.enum(LEAD_STATUSES).optional(),
@@ -40,14 +40,14 @@ export async function POST(req: NextRequest) {
   if (auth.error) return auth.error;
   const body = await req.json().catch(() => null);
   const parsed = createSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid data" }, { status: 400 });
   const d = parsed.data;
   const ownerId = d.ownerId ?? auth.user.id;
   const owner = await db.user.findUnique({ where: { id: ownerId }, select: { id: true } });
-  if (!owner) return NextResponse.json({ error: "Vendedor no encontrado" }, { status: 400 });
+  if (!owner) return NextResponse.json({ error: "Seller not found" }, { status: 400 });
   if (d.clientId) {
     const client = await db.client.findUnique({ where: { id: d.clientId }, select: { id: true } });
-    if (!client) return NextResponse.json({ error: "Artista no encontrado" }, { status: 400 });
+    if (!client) return NextResponse.json({ error: "Artist not found" }, { status: 400 });
   }
   const status = d.status ?? "PROSPECT";
   const lead = await db.brandLead.create({
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
       notes: d.notes || null,
       closedAt: status === "WON" || status === "LOST" ? new Date() : null,
       createdById: auth.user.id,
-      updates: { create: { authorId: auth.user.id, text: "Lead creado", status } },
+      updates: { create: { authorId: auth.user.id, text: "Lead created", status } },
     },
     select: leadSelect,
   });
