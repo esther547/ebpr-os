@@ -5,6 +5,8 @@
 export type PriorityItem = {
   id: string;
   clientId: string | null;
+  /** Personal boards with categories (e.g. "EBPR"); null elsewhere. */
+  category: string | null;
   title: string;
   notes: string | null;
   assigneeId: string | null;

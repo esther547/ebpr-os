@@ -14,6 +14,7 @@ import type { ClientOption, PriorityItem, TeamMember } from "./helpers";
 
 export type PriorityDraft = {
   clientId: string | null;
+  category?: string | null;
   title: string;
   notes: string | null;
   assigneeId: string | null;
@@ -26,6 +27,8 @@ type Props = {
   item: PriorityItem | null;
   clients: ClientOption[];
   teamMembers: TeamMember[];
+  /** Boards grouped by category show a category select instead of the client one. */
+  categories?: string[];
   /** Preselected client for a new line. */
   defaultClientId?: string | null;
   onSubmit: (draft: PriorityDraft) => Promise<void>;
@@ -39,10 +42,12 @@ export function PriorityModal({
   item,
   clients,
   teamMembers,
+  categories,
   defaultClientId = null,
   onSubmit,
 }: Props) {
   const [clientId, setClientId] = useState(GENERAL);
+  const [category, setCategory] = useState("");
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
@@ -51,6 +56,7 @@ export function PriorityModal({
   useEffect(() => {
     if (!open) return;
     setClientId(item?.clientId ?? defaultClientId ?? GENERAL);
+    setCategory(item?.category ?? categories?.[0] ?? "");
     setTitle(item?.title ?? "");
     setNotes(item?.notes ?? "");
     setAssigneeId(item?.assigneeId ?? "");
@@ -63,7 +69,8 @@ export function PriorityModal({
     setSaving(true);
     try {
       await onSubmit({
-        clientId: clientId === GENERAL ? null : clientId,
+        clientId: categories ? null : clientId === GENERAL ? null : clientId,
+        category: categories ? category || null : undefined,
         title: title.trim(),
         notes: notes.trim() || null,
         assigneeId: assigneeId || null,
@@ -78,12 +85,24 @@ export function PriorityModal({
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      title={item ? "Editar prioridad" : "Nueva prioridad"}
+      title={item ? (categories ? "Editar to do" : "Editar prioridad") : categories ? "Nuevo to do" : "Nueva prioridad"}
       description={
-        item ? undefined : "Una línea por prioridad, como en la reunión de los lunes."
+        item || categories ? undefined : "Una línea por prioridad, como en la reunión de los lunes."
       }
     >
       <form onSubmit={submit} className="space-y-4">
+        {categories ? (
+        <FormGroup label="Categoría" htmlFor="priority-category">
+          <Select id="priority-category" value={category} onChange={(e) => setCategory(e.target.value)}>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+            <option value="">Sin categoría</option>
+          </Select>
+        </FormGroup>
+        ) : (
         <FormGroup label="Cliente" htmlFor="priority-client">
           <Select
             id="priority-client"
@@ -98,8 +117,9 @@ export function PriorityModal({
             ))}
           </Select>
         </FormGroup>
+        )}
 
-        <FormGroup label="Prioridad" htmlFor="priority-title" required>
+        <FormGroup label={categories ? "To do" : "Prioridad"} htmlFor="priority-title" required>
           <Input
             id="priority-title"
             value={title}
@@ -152,20 +172,25 @@ export function PriorityModal({
 export function MovePriorityModal({
   item,
   clients,
+  categories,
   onClose,
   onMove,
 }: {
   item: PriorityItem | null;
   clients: ClientOption[];
+  /** Boards grouped by category move between categories instead of clients. */
+  categories?: string[];
   onClose: () => void;
-  onMove: (item: PriorityItem, clientId: string | null) => Promise<void>;
+  onMove: (item: PriorityItem, clientId: string | null, category?: string | null) => Promise<void>;
 }) {
   const [clientId, setClientId] = useState(GENERAL);
+  const [category, setCategory] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (item) {
       setClientId(item.clientId ?? GENERAL);
+      setCategory(item.category ?? "");
       setSaving(false);
     }
   }, [item]);
@@ -175,7 +200,8 @@ export function MovePriorityModal({
     if (!item || saving) return;
     setSaving(true);
     try {
-      await onMove(item, clientId === GENERAL ? null : clientId);
+      if (categories) await onMove(item, null, category || null);
+      else await onMove(item, clientId === GENERAL ? null : clientId);
       onClose();
     } finally {
       setSaving(false);
@@ -186,11 +212,23 @@ export function MovePriorityModal({
     <Modal
       open={item !== null}
       onOpenChange={(open) => !open && onClose()}
-      title="Mover a otro cliente"
+      title={categories ? "Mover a otra categoría" : "Mover a otro cliente"}
       description={item?.title}
       size="sm"
     >
       <form onSubmit={submit} className="space-y-4">
+        {categories ? (
+        <FormGroup label="Categoría" htmlFor="move-priority-category">
+          <Select id="move-priority-category" value={category} onChange={(e) => setCategory(e.target.value)}>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+            <option value="">Sin categoría</option>
+          </Select>
+        </FormGroup>
+        ) : (
         <FormGroup label="Cliente" htmlFor="move-priority-client">
           <Select
             id="move-priority-client"
@@ -205,6 +243,7 @@ export function MovePriorityModal({
             ))}
           </Select>
         </FormGroup>
+        )}
         <FormActions>
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar

@@ -11,13 +11,15 @@ import { countLabel, sortPriorities, type PriorityItem } from "./helpers";
 type Props = {
   /** Null for the agency-wide "General" list. */
   clientId: string | null;
+  /** Category of this section on boards grouped by category. */
+  category?: string | null;
   title: string;
   /** Client page link, when this card belongs to a client. */
   href?: string;
   items: PriorityItem[];
   /** Personal to-do boards: no assignees, simpler wording. */
   personal?: boolean;
-  onAdd: (clientId: string | null, raw: string) => Promise<void>;
+  onAdd: (clientId: string | null, raw: string, category?: string | null) => Promise<void>;
   onToggle: (item: PriorityItem) => void;
   onRename: (item: PriorityItem, title: string) => void;
   onEdit: (item: PriorityItem) => void;
@@ -27,6 +29,7 @@ type Props = {
 
 export function PrioritySectionCard({
   clientId,
+  category = null,
   title,
   href,
   items,
@@ -47,7 +50,7 @@ export function PrioritySectionCard({
     if (!raw || saving) return;
     setSaving(true);
     try {
-      await onAdd(clientId, raw);
+      await onAdd(clientId, raw, category);
       setDraft("");
     } finally {
       setSaving(false);
@@ -108,7 +111,7 @@ export function PrioritySectionCard({
       </form>
 
       {sorted.length === 0 ? (
-        <p className="px-2 py-3 text-xs text-ink-muted">Sin prioridades todavía.</p>
+        <p className="px-2 py-3 text-xs text-ink-muted">{personal ? "Sin to dos todavía." : "Sin prioridades todavía."}</p>
       ) : (
         <ul className="-mx-2 divide-y divide-border/70">
           {sorted.map((item) => (

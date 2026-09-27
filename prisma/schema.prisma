@@ -857,6 +857,8 @@ model WeeklyPriority {
   order       Int       @default(0)
   /// Which board the line belongs to: "TEAM" (Prioridades), "ESTHER" or "CAROLINA" (personal to-dos).
   list        String    @default("TEAM")
+  /// Personal boards group by category instead of client (e.g. PERSONAL / LEGAL / EBM / EBPR).
+  category    String?
   createdById String
   createdBy   User      @relation("PriorityCreator", fields: [createdById], references: [id])
   createdAt   DateTime  @default(now())

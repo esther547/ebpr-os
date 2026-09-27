@@ -7,6 +7,7 @@ import {
   authorizePriorities,
   badRequest,
   isPriorityListKey,
+  normalizeCategory,
   prioritySelect,
   readJsonBody,
   zodMessage,
@@ -20,6 +21,7 @@ const updateSchema = z.object({
   assigneeId: z.string().nullable().optional(),
   isDone: z.boolean().optional(),
   clientId: z.string().nullable().optional(),
+  category: z.string().trim().max(40).nullable().optional(),
   order: z.number().int().min(0).max(100_000).optional(),
 });
 
@@ -58,6 +60,7 @@ export async function PATCH(
   if (d.title !== undefined) data.title = d.title;
   if (d.notes !== undefined) data.notes = d.notes || null;
   if (d.order !== undefined) data.order = d.order;
+  if (d.category !== undefined) data.category = normalizeCategory(isPriorityListKey(existing.list) ? existing.list : "TEAM", d.category);
 
   if (d.assigneeId !== undefined) {
     const assigneeId = d.assigneeId || null;

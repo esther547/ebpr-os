@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 const schema = z.object({
   fromWeek: z.string().min(1, "Falta la semana de origen"),
   toWeek: z.string().min(1, "Falta la semana de destino"),
-  list: z.enum(["TEAM", "ESTHER", "CAROLINA"]).optional(),
+  list: z.enum(["TEAM", "ESTHER", "CAROLINA", "LEGAL"]).optional(),
 });
 
 /**
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   const [pending, target] = await Promise.all([
     db.weeklyPriority.findMany({
       where: { weekOf: fromWeekOf, isDone: false, list },
-      select: { clientId: true, title: true, notes: true, assigneeId: true, order: true },
+      select: { clientId: true, category: true, title: true, notes: true, assigneeId: true, order: true },
       orderBy: [{ order: "asc" }, { createdAt: "asc" }],
     }),
     db.weeklyPriority.findMany({
@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
     weekOf: Date;
     list: string;
     clientId: string | null;
+    category: string | null;
     title: string;
     notes: string | null;
     assigneeId: string | null;
@@ -96,6 +97,7 @@ export async function POST(req: NextRequest) {
       weekOf: toWeekOf,
       list,
       clientId: item.clientId,
+      category: item.category,
       title: item.title,
       notes: item.notes,
       assigneeId: item.assigneeId,

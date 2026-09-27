@@ -13,6 +13,7 @@ import {
   Plus,
   Users,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/header";
 import { Button } from "@/components/ui/form-field";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -32,11 +33,13 @@ import {
 } from "./helpers";
 
 export type BoardInfo = {
-  key: "TEAM" | "ESTHER" | "CAROLINA";
+  key: "TEAM" | "ESTHER" | "CAROLINA" | "LEGAL";
   path: string;
   title: string;
   subtitle: string;
   personal: boolean;
+  /** Group by these categories instead of by client. */
+  categories?: string[];
 };
 
 type Props = {
@@ -84,7 +87,11 @@ export function PrioritiesPageClient({
   }, [items]);
 
   const visible = onlyPending ? items.filter((i) => !i.isDone) : items;
-  const general = visible.filter((i) => !i.clientId);
+  const general = visible.filter((i) => (board.categories ? !i.category : !i.clientId));
+  const categorySections = useMemo(() => {
+    if (!board.categories) return [];
+    return board.categories.map((c) => ({ key: c, items: visible.filter((i) => i.category === c) }));
+  }, [board.categories, visible]);
   const clientSections = useMemo(() => {
     const groups = new Map<string, { id: string; name: string; items: PriorityItem[] }>();
     for (const item of visible) {
@@ -117,13 +124,13 @@ export function PrioritiesPageClient({
     });
   }
 
-  async function addPriority(clientId: string | null, raw: string) {
+  async function addPriority(clientId: string | null, raw: string, category?: string | null) {
     const { title, assigneeId } = parseQuickAdd(raw, teamMembers);
     if (!title) return;
     try {
       const created = await request<PriorityItem>("/api/priorities", {
         method: "POST",
-        body: JSON.stringify({ week: weekKey, list: board.key, clientId, title, assigneeId }),
+        body: JSON.stringify({ week: weekKey, list: board.key, clientId, category: category ?? null, title, assigneeId }),
       });
       setItems((prev) => [...prev, created]);
       router.refresh();
@@ -173,8 +180,8 @@ export function PrioritiesPageClient({
     await patch(editItem, draft);
   }
 
-  async function movePriority(item: PriorityItem, clientId: string | null) {
-    await patch(item, { clientId });
+  async function movePriority(item: PriorityItem, clientId: string | null, category?: string | null) {
+    await patch(item, board.categories ? { category: category ?? null } : { clientId });
   }
 
   async function removePriority(item: PriorityItem) {
@@ -275,14 +282,14 @@ export function PrioritiesPageClient({
         </div>
       </PageHeader>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className={cn("mb-6 grid grid-cols-2 gap-3", board.categories ? "lg:grid-cols-3" : "lg:grid-cols-4")}>
         <StatTile label="Total" value={stats.total} icon={<ListChecks />} />
         <StatTile label="Hechas" value={stats.done} icon={<CheckCircle2 />} tone="success" />
         <StatTile label="Pendientes" value={stats.pending} icon={<CalendarDays />} />
-        <StatTile label="Clientes" value={stats.clients} icon={<Users />} />
+        {!board.categories && <StatTile label="Clientes" value={stats.clients} icon={<Users />} />}
       </div>
 
-      {items.length === 0 ? (
+      {items.length === 0 && !board.categories ? (
         <EmptyState
           icon={<ListChecks />}
           title={board.personal ? "Todavía no hay to dos para esta semana" : "Todavía no hay prioridades para esta semana"}
@@ -305,13 +312,25 @@ export function PrioritiesPageClient({
         />
       ) : (
         <div className="space-y-4">
-          <PrioritySectionCard
-            clientId={null}
-            title="General"
-            items={general}
-            {...rowProps}
-          />
-          {clientSections.map((section) => (
+          {categorySections.map((section) => (
+            <PrioritySectionCard
+              key={section.key}
+              clientId={null}
+              category={section.key}
+              title={section.key}
+              items={section.items}
+              {...rowProps}
+            />
+          ))}
+          {(!board.categories || general.length > 0) && (
+            <PrioritySectionCard
+              clientId={null}
+              title={board.categories ? "Sin categoría" : "General"}
+              items={general}
+              {...rowProps}
+            />
+          )}
+          {!board.categories && clientSections.map((section) => (
             <PrioritySectionCard
               key={section.id}
               clientId={section.id}
@@ -330,6 +349,7 @@ export function PrioritiesPageClient({
         item={null}
         clients={clients}
         teamMembers={teamMembers}
+        categories={board.categories}
         onSubmit={savePriority}
       />
       <PriorityModal
@@ -338,11 +358,13 @@ export function PrioritiesPageClient({
         item={editItem}
         clients={clients}
         teamMembers={teamMembers}
+        categories={board.categories}
         onSubmit={savePriority}
       />
       <MovePriorityModal
         item={moveItem}
         clients={clients}
+        categories={board.categories}
         onClose={() => setMoveItem(null)}
         onMove={movePriority}
       />

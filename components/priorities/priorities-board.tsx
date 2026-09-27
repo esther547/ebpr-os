@@ -48,6 +48,7 @@ export async function PrioritiesBoard({
   const items = rows.map((r) => ({
     id: r.id,
     clientId: r.clientId,
+    category: r.category,
     title: r.title,
     notes: r.notes,
     assigneeId: r.assigneeId,
@@ -70,7 +71,7 @@ export async function PrioritiesBoard({
 
   return (
     <PrioritiesPageClient
-      board={{ key: list.key, path: list.path, title: list.title, subtitle: list.subtitle, personal: list.personal }}
+      board={{ key: list.key, path: list.path, title: list.title, subtitle: list.subtitle, personal: list.personal, categories: list.categories ? [...list.categories] : undefined }}
       initialItems={items}
       clients={clients}
       teamMembers={teamMembers}

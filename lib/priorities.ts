@@ -22,7 +22,7 @@ export function canManagePriorities(user: SessionUser): boolean {
 // The same weekly list machinery powers three boards: the team's "Prioridades"
 // and two personal to-do pages. Personal boards are locked by email, not role.
 
-export type PriorityListKey = "TEAM" | "ESTHER" | "CAROLINA";
+export type PriorityListKey = "TEAM" | "ESTHER" | "CAROLINA" | "LEGAL";
 
 export type PriorityList = {
   key: PriorityListKey;
@@ -34,6 +34,8 @@ export type PriorityList = {
   viewers: string[];
   /** Personal boards have no assignees. */
   personal: boolean;
+  /** When set, the board is grouped by these categories instead of by client. */
+  categories?: readonly string[];
 };
 
 const ESTHER = "esther@ebmanagement.io";
@@ -55,12 +57,21 @@ export const PRIORITY_LISTS: Record<PriorityListKey, PriorityList> = {
     subtitle: "Solo tú ves esta lista.",
     viewers: [ESTHER],
     personal: true,
+    categories: ["PERSONAL", "EBM", "EBPR"],
   },
   CAROLINA: {
     key: "CAROLINA",
     path: "/todos/carolina",
     title: "Carolina's to dos",
     subtitle: "Solo Carolina y Esther ven esta lista.",
+    viewers: [ESTHER, CAROLINA],
+    personal: true,
+  },
+  LEGAL: {
+    key: "LEGAL",
+    path: "/todos/legal",
+    title: "Legal to dos",
+    subtitle: "Pendientes legales. Solo Esther y Carolina ven esta lista.",
     viewers: [ESTHER, CAROLINA],
     personal: true,
   },
@@ -110,6 +121,7 @@ export const prioritySelect = {
   id: true,
   weekOf: true,
   list: true,
+  category: true,
   clientId: true,
   title: true,
   notes: true,
@@ -166,6 +178,14 @@ export function zodMessage(issues: { path: (string | number)[]; message: string 
   return issues
     .map((i) => (i.path.length ? `${i.path.join(".")}: ` : "") + i.message)
     .join("; ");
+}
+
+/** Uppercased category when the board has categories and it is one of them; null otherwise. */
+export function normalizeCategory(list: PriorityListKey, raw: string | null | undefined): string | null {
+  const cats = PRIORITY_LISTS[list].categories;
+  if (!cats || !raw) return null;
+  const up = raw.trim().toUpperCase();
+  return cats.includes(up) ? up : null;
 }
 
 /** Comparison key used to detect an item that already exists in a week. */

@@ -7,6 +7,7 @@ import {
   badRequest,
   isPriorityListKey,
   isValidDayKey,
+  normalizeCategory,
   priorityOrderBy,
   prioritySelect,
   readJsonBody,
@@ -19,7 +20,8 @@ export const dynamic = "force-dynamic";
 
 const createSchema = z.object({
   week: z.string().optional().nullable(),
-  list: z.enum(["TEAM", "ESTHER", "CAROLINA"]).optional(),
+  list: z.enum(["TEAM", "ESTHER", "CAROLINA", "LEGAL"]).optional(),
+  category: z.string().trim().max(40).nullable().optional(),
   clientId: z.string().min(1).nullable().optional(),
   title: z.string().trim().min(1, "El título es obligatorio").max(300),
   notes: z.string().trim().max(2000).nullable().optional(),
@@ -92,6 +94,7 @@ export async function POST(req: NextRequest) {
     data: {
       weekOf,
       list,
+      category: normalizeCategory(list, parsed.data.category),
       clientId,
       title,
       notes: parsed.data.notes || null,
