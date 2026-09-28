@@ -536,7 +536,7 @@ function SendModal({
               ? "Could not load the recipient count."
               : count === null
                 ? "Counting active journalists…"
-                : `active journalist${count === 1 ? "" : "s"} will be recorded as recipients`
+                : `active journalist${count === 1 ? "" : "s"} will receive it by email from press@ebmanagement.io`
           }
         />
 

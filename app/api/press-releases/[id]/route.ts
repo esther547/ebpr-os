@@ -5,6 +5,7 @@ import { canManagePressReleases } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { journalistWhere } from "@/app/api/journalists/_shared";
+import { distributePressRelease } from "@/lib/press-release-send";
 
 const STATUSES = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "SCHEDULED", "SENT", "CANCELLED"] as const;
 
@@ -168,10 +169,15 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }
 
     if (nextStatus === "SENT") {
+      // Really send it: BCC batches to the matching journalists from press@ (lib/press-release-send.ts).
+      if (parsed.data.tags !== undefined) {
+        await db.pressRelease.update({ where: { id }, data: { tags: parsed.data.tags } });
+      }
+      const result = await distributePressRelease(id);
+      if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
       data.sentAt = new Date();
-      // Recipients = active journalists whose beat or tags match the release tags (all journalists if untagged)
-      const tags = parsed.data.tags ?? existing.tags;
-      data.recipientCount = await db.journalist.count({ where: journalistWhere({ tags }) });
+      data.recipientCount = result.recipients;
+      void journalistWhere; // targeting lives in distributePressRelease
     }
 
     if (nextStatus === "DRAFT") {

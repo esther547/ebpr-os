@@ -27,11 +27,16 @@ export function isEmailConfigured(): boolean {
 
 export async function sendEmail({
   to,
+  bcc,
+  replyTo,
   subject,
   html,
   text,
 }: {
   to: string | string[];
+  /** Hidden recipients (press-release distribution). */
+  bcc?: string[];
+  replyTo?: string;
   subject: string;
   html: string;
   text?: string;
@@ -51,6 +56,8 @@ export async function sendEmail({
     await transporter.sendMail({
       from: `"EB Public Relations" <${process.env.GMAIL_USER}>`,
       to: recipients.join(", "),
+      bcc: bcc && bcc.length ? bcc.join(", ") : undefined,
+      replyTo,
       subject,
       html,
       text: text || subject,
