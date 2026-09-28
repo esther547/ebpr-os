@@ -11,18 +11,27 @@ import { Plus } from "lucide-react";
 const ITEM_TYPES = ["TV", "Podcast", "Red Carpet", "Event", "Interview", "Photoshoot", "Radio", "Digital", "Press", "Award Show"];
 
 interface Props {
-  clientId: string;
+  /** Fixed client (client agenda page). Omit to show a client selector (runner schedule). */
+  clientId?: string;
   clientStatus?: string;
   runners: { id: string; name: string; role?: string }[];
   deliverables: { id: string; title: string }[];
+  /** Clients to choose from when `clientId` is not fixed. "Sin cliente" = agency event. */
+  clients?: { id: string; name: string }[];
+  /** Button label (default "Add Item"). */
+  label?: string;
+  /** Pre-filled date "yyyy-MM-dd". */
+  defaultDate?: string;
 }
 
 /** "+ Add Item" button for the agenda page, with its creation modal. */
-export function AgendaAddItemButton({ clientId, clientStatus = "ACTIVE", runners, deliverables }: Props) {
+export function AgendaAddItemButton({ clientId: fixedClientId, clientStatus = "ACTIVE", runners, deliverables, clients, label = "Add Item", defaultDate }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [pickedClient, setPickedClient] = useState("");
   const { toast } = useToast();
+  const clientId = fixedClientId ?? (pickedClient || null);
   const paused = clientStatus === "PAUSED" || clientStatus === "CHURNED";
 
   function toInstant(date: string, time: FormDataEntryValue | null): string | undefined {
@@ -58,7 +67,8 @@ export function AgendaAddItemButton({ clientId, clientStatus = "ACTIVE", runners
     };
 
     try {
-      const res = await fetch(`/api/clients/${clientId}/agenda`, {
+      // With a client → its agenda (creates the goal too). Without one → agency event on the schedule.
+      const res = await fetch(clientId ? `/api/clients/${clientId}/agenda` : "/api/runner-assignments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -101,11 +111,21 @@ export function AgendaAddItemButton({ clientId, clientStatus = "ACTIVE", runners
         leftIcon={<Plus className="h-4 w-4" />}
         title={paused ? `Client is ${clientStatus.toLowerCase()} — reactivate it to schedule runners.` : undefined}
       >
-        Add Item
+        {label}
       </Button>
 
-      <Modal open={open} onOpenChange={setOpen} title="Add Agenda Item" description="Schedule an appearance and assign a runner" size="lg">
+      <Modal open={open} onOpenChange={setOpen} title={fixedClientId ? "Add Agenda Item" : "Agregar evento al horario"} description={fixedClientId ? "Schedule an appearance and assign a runner" : "Un evento de estos días: de un cliente (queda en su agenda y cuenta como meta) o de la agencia."} size="lg">
         <form onSubmit={handleSubmit} className="space-y-4">
+          {!fixedClientId && clients && (
+            <FormGroup label="Cliente" htmlFor="ag-client" hint="opcional">
+              <Select id="ag-client" value={pickedClient} onChange={(e) => setPickedClient(e.target.value)}>
+                <option value="">Sin cliente (evento de la agencia)</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </Select>
+            </FormGroup>
+          )}
           {runners.length === 0 && (
             <Card padding="sm" className="border-amber-200 bg-amber-50/60">
               <p className="text-sm text-amber-800">No active runners found. Add a runner in Settings first.</p>
@@ -128,7 +148,7 @@ export function AgendaAddItemButton({ clientId, clientStatus = "ACTIVE", runners
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <FormGroup label="Date" htmlFor="ag-date" required>
-              <Input id="ag-date" name="eventDate" type="date" required />
+              <Input id="ag-date" name="eventDate" type="date" required defaultValue={defaultDate} />
             </FormGroup>
             <FormGroup label="Arrival (Llegada)" htmlFor="ag-arrival">
               <Input id="ag-arrival" name="arrivalTime" type="time" />

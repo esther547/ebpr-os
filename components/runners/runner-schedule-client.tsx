@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/header";
+import { AgendaAddItemButton } from "@/components/agenda/create-agenda-item-modal";
 import { RunnerScheduleView, type ScheduleAssignment } from "./runner-schedule-view";
 import { CreateAssignmentModal } from "./create-assignment-modal";
 import { AutoAssignButton } from "./auto-assign-button";
@@ -76,6 +77,7 @@ export function RunnerScheduleClient({
               <Button onClick={() => setShowAssign(true)} leftIcon={<Plus className="h-4 w-4" />}>
                 Assign Runner
               </Button>
+              <AgendaAddItemButton clients={clients} runners={runners} deliverables={[]} label="Agregar evento" defaultDate={isViewingCurrent ? todayKey : weekStartKey} />
             </>
           ) : undefined
         }
