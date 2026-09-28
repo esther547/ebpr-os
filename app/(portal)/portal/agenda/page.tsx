@@ -49,9 +49,13 @@ export default async function PortalAgendaPage() {
       },
     }),
   ]);
+  const goalIds = items.map((i) => i.deliverableId).filter((id): id is string => !!id);
+  const goalMonths = new Map(
+    (await db.deliverable.findMany({ where: { id: { in: goalIds } }, select: { id: true, month: true, year: true } })).map((g) => [g.id, { month: g.month, year: g.year }])
+  );
 
   // Report months: MES 1 = the first `monthlyTarget` goals, MES 2 the next… (lib/agenda-months.ts)
-  const months = allocateAgendaMonths(items, {
+  const months = allocateAgendaMonths(items.map((i) => ({ ...i, reportMonth: i.deliverableId ? goalMonths.get(i.deliverableId) ?? null : null })), {
     monthlyTarget: client?.monthlyTarget ?? 0,
     cycleDay: client?.cycleDay ?? null,
   });

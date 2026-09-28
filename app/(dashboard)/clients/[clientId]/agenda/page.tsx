@@ -34,6 +34,11 @@ export default async function AgendaPage({ params }: Props) {
       runner: { select: { id: true, name: true } },
     },
   });
+  // Each pauta is listed under its goal's REPORT month (the month the goal was closed).
+  const goalIds = rawItems.map((i) => i.deliverableId).filter((id): id is string => !!id);
+  const goalMonths = new Map(
+    (await db.deliverable.findMany({ where: { id: { in: goalIds } }, select: { id: true, month: true, year: true } })).map((g) => [g.id, { month: g.month, year: g.year }])
+  );
 
   const runners = await db.user.findMany({
     where: companionWhere,
@@ -64,6 +69,7 @@ export default async function AgendaPage({ params }: Props) {
     agendaSequence: item.agendaSequence,
     monthNumber: item.monthNumber,
     createdAt: item.createdAt,
+    reportMonth: item.deliverableId ? goalMonths.get(item.deliverableId) ?? null : null,
     runner: item.runner ? { id: item.runner.id, name: item.runner.name } : null,
   }));
 

@@ -52,6 +52,8 @@ type Pauta = {
   status: string;
   runnerId: string | null;
   createdAt: Date;
+  deliverableId?: string | null;
+  deliverable?: { month: number; year: number } | null;
 };
 
 /** A "MES N (…)" block inside the doc's single agenda table. */
@@ -163,14 +165,18 @@ export async function appendNewPautasToDoc(clientId: string, opts: { dryRun?: bo
   const documentId = extractDocId(client.agendaDocUrl);
   if (!documentId) return { ok: false, kind: "bad_url", error: "El link del Google Doc no es válido." };
 
-  const pautas: Pauta[] = await db.runnerAssignment.findMany({
+  const rawPautas = await db.runnerAssignment.findMany({
     where: { clientId },
     orderBy: [{ eventDate: "asc" }, { createdAt: "asc" }],
     select: {
       id: true, eventDate: true, eventTime: true, eventName: true, venueName: true, venueAddress: true,
-      notes: true, status: true, runnerId: true, createdAt: true,
+      notes: true, status: true, runnerId: true, createdAt: true, deliverableId: true,
     },
   });
+
+  const goalIds = rawPautas.map((p) => p.deliverableId).filter((id): id is string => !!id);
+  const goalMonths = new Map((await db.deliverable.findMany({ where: { id: { in: goalIds } }, select: { id: true, month: true, year: true } })).map((g) => [g.id, { month: g.month, year: g.year }]));
+  const pautas: Pauta[] = rawPautas.map((p) => ({ ...p, deliverable: p.deliverableId ? goalMonths.get(p.deliverableId) ?? null : null }));
 
   let docs: docs_v1.Docs;
   try {
@@ -204,7 +210,8 @@ export async function appendNewPautasToDoc(clientId: string, opts: { dryRun?: bo
     const newBlocks: NewBlock[] = [];
     let nextNumber = Math.max(...blocks.map((b) => b.number)) + 1;
     for (const p of toAdd) {
-      const [, m] = dayKeyInTz(p.eventDate).split("-").map(Number);
+      // Block = the goal's report month when linked, else the pauta's calendar month.
+      const m = p.deliverable?.month ?? Number(dayKeyInTz(p.eventDate).split("-")[1]);
       const monthName = MONTH_NAMES_ES[m - 1];
       const target = [...blocks].reverse().find((b) => b.monthName === norm(monthName));
       if (target) {

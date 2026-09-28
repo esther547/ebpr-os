@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { closingReportMonth } from "@/lib/report-month";
 import { requireUser } from "@/lib/auth";
 import { canManageDeliverables } from "@/lib/permissions";
 import { recordStatusTransition } from "../../_lib/status-transition";
@@ -97,6 +98,8 @@ export async function POST(req: NextRequest, { params }: Params) {
         ...(to === "COMPLETED"
           ? setCloser && { closedById: closer?.id ?? null, closedAt: existing.closedAt ?? new Date() }
           : { closedById: null }),
+        // Closing for the first time: the goal counts in THIS cycle month (Esther, Sept 28 2026).
+        ...(to === "COMPLETED" && setCloser && !existing.closedAt ? await closingReportMonth(existing.clientId) : {}),
       },
       include: { closedBy: { select: { id: true, name: true } } },
     });

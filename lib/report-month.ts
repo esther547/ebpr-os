@@ -8,7 +8,7 @@
  * a goal to another report month by hand ("Mes del reporte").
  */
 import { db } from "@/lib/db";
-import { currentCycle } from "@/lib/cycles";
+import { currentCycle, cycleForDate } from "@/lib/cycles";
 
 const COUNTS_TOWARD_QUOTA = { notIn: ["CANCELLED", "IDEA"] as const };
 /** Goal accounting in the portal starts here (the restart); older months are history and never filled. */
@@ -20,6 +20,17 @@ function addMonths(year: number, month: number, delta: number) {
   return { year: Math.floor(idx / 12), month: (idx % 12) + 1 };
 }
 
+/**
+ * THE rule (Esther, Sept 28 2026): a goal counts in the client's cycle month in which it was
+ * CLOSED (secured), whatever the pauta's date. This is the default on creation and on closing.
+ */
+export async function closingReportMonth(clientId: string, closedAt: Date = new Date()): Promise<{ month: number; year: number }> {
+  const client = await db.client.findUnique({ where: { id: clientId }, select: { cycleDay: true } });
+  const c = cycleForDate(client?.cycleDay, closedAt);
+  return { month: c.month, year: c.year };
+}
+
+/** Earlier "fill the first month with room" rule; kept for reference, no longer the default. */
 export async function defaultReportMonth(
   clientId: string,
   now: Date = new Date()

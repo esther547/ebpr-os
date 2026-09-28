@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canManageDeliverables } from "@/lib/permissions";
-import { defaultReportMonth } from "@/lib/report-month";
+import { closingReportMonth } from "@/lib/report-month";
 import { parseDateInput } from "./_lib/status-transition";
 import { activityInstant, ensureAgendaItemForDeliverable } from "./_lib/agenda-sync";
 import { resolveCloser } from "./_lib/closer";
@@ -92,10 +92,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Report month: the earliest month of the client's report that still has room for a goal
-    // (never the month the pauta airs). Explicit body values (the "Mes del reporte" picker) win.
+    // Report month = the cycle month in which the goal is CLOSED (today, or the "Fecha de cierre"
+    // given), never the month the pauta airs. Explicit body values (the "Mes del reporte" picker) win.
     const dueDate = dueDateStr ? parseDateInput(dueDateStr) : undefined;
-    const fallback = await defaultReportMonth(client.id);
+    const closingDate = closer && closedAtStr ? new Date(`${closedAtStr}T12:00:00.000Z`) : new Date();
+    const fallback = await closingReportMonth(client.id, closingDate);
 
     // Client availability: never book on a day the client is OFF; warn on TRAVEL.
     const availability = await checkClientDate(client.id, dueDate);

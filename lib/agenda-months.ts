@@ -17,6 +17,8 @@ export const MONTH_NAMES_ES = [
 
 export type AgendaMonthItem = {
   eventDate: Date;
+  /** The linked goal's report month (month it was closed): the pauta is listed under it. */
+  reportMonth?: { month: number; year: number } | null;
   monthNumber?: number | null;
   agendaSequence?: number | null;
   createdAt?: Date;
@@ -62,17 +64,19 @@ export function allocateAgendaMonths<T extends AgendaMonthItem>(
   if (sorted.length === 0) return [];
   const target = Math.max(0, client.monthlyTarget ?? 0);
   // Calendar month in Miami (the docs never used the cut-off cycle for their MES blocks).
-  const cycleOf = (d: Date) => {
+  const calendarOf = (d: Date) => {
     const [y, m] = dayKeyInTz(d).split("-").map(Number);
     return { year: y, month: m };
   };
+  // A pauta sits under its goal's REPORT month (the month the goal was closed) when it has one.
+  const cycleOf = (d: Date, it?: T) => (it?.reportMonth ? { year: it.reportMonth.year, month: it.reportMonth.month } : calendarOf(d));
 
   // One section per calendar month that has items (no redistribution — see header note).
   const pinnedAway = sorted.some((it) => it.monthNumber && it.monthNumber >= 1);
   if (!pinnedAway) {
     const groups = new Map<string, { month: number; year: number; items: T[] }>();
     for (const it of sorted) {
-      const c = cycleOf(it.eventDate);
+      const c = cycleOf(it.eventDate, it);
       const key = `${c.year}-${c.month}`;
       const g = groups.get(key) ?? { month: c.month, year: c.year, items: [] };
       g.items.push(it);
@@ -84,14 +88,14 @@ export function allocateAgendaMonths<T extends AgendaMonthItem>(
   }
 
   // With pins: MES k = k-th calendar month from the first pauta; unpinned items go to their own month.
-  const first = cycleOf(sorted[0].eventDate);
+  const first = cycleOf(sorted[0].eventDate, sorted[0]);
   const buckets = new Map<number, T[]>();
   const put = (k: number, it: T) => buckets.set(k, [...(buckets.get(k) ?? []), it]);
-  const monthIndex = (d: Date) => {
-    const c = cycleOf(d);
+  const monthIndex = (d: Date, it?: T) => {
+    const c = cycleOf(d, it);
     return (c.year * 12 + c.month) - (first.year * 12 + first.month) + 1;
   };
-  for (const it of sorted) put(it.monthNumber && it.monthNumber >= 1 ? it.monthNumber : monthIndex(it.eventDate), it);
+  for (const it of sorted) put(it.monthNumber && it.monthNumber >= 1 ? it.monthNumber : monthIndex(it.eventDate, it), it);
 
   const last = Math.max(...buckets.keys());
   const out: AgendaMonth<T>[] = [];

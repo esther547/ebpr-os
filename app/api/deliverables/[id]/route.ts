@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { closingReportMonth } from "@/lib/report-month";
 import { requireUser } from "@/lib/auth";
 import { canManageDeliverables } from "@/lib/permissions";
 import { parseDateInput, recordStatusTransition } from "../_lib/status-transition";
@@ -152,7 +153,15 @@ export async function PUT(
       }
       closer = resolved.closer;
       data.closedById = closer?.id ?? null;
-      if (closer && !existing.closedAt) data.closedAt = new Date();
+      if (closer && !existing.closedAt) {
+        data.closedAt = new Date();
+        // Closing now: the goal counts in this cycle month (Esther, Sept 28 2026), unless a month was chosen.
+        if (d.month === undefined && d.year === undefined) {
+          const rm = await closingReportMonth(existing.clientId, data.closedAt);
+          data.month = rm.month;
+          data.year = rm.year;
+        }
+      }
       if (!statusChanged && !existing.completedAt) data.completedAt = new Date();
     }
     if (d.assigneeId !== undefined) data.assigneeId = d.assigneeId || null;
