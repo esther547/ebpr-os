@@ -159,7 +159,7 @@ export async function PUT(
         data.closedAt = new Date();
         // Closing now: the goal counts in this cycle month (Esther, Sept 28 2026), unless a month was chosen.
         if (d.month === undefined && d.year === undefined) {
-          const rm = await closingReportMonth(existing.clientId, data.closedAt);
+          const rm = await closingReportMonth(existing.clientId, data.closedAt, { excludeId: existing.id });
           data.month = rm.month;
           data.year = rm.year;
         }

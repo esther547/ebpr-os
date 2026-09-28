@@ -102,7 +102,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           ? setCloser && { closedById: closer?.id ?? null, closedAt: existing.closedAt ?? new Date() }
           : { closedById: null, closedAt: null }),
         // Closing for the first time: the goal counts in THIS cycle month (Esther, Sept 28 2026).
-        ...(closing ? await closingReportMonth(existing.clientId) : {}),
+        ...(closing ? await closingReportMonth(existing.clientId, new Date(), { excludeId: existing.id }) : {}),
       },
       include: { closedBy: { select: { id: true, name: true } } },
     });
