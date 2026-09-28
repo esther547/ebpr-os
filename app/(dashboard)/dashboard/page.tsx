@@ -9,6 +9,7 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DeliverablePacingBar } from "@/components/deliverables/pacing-bar";
+import { MonthCompleteToggle } from "@/components/dashboard/month-complete-toggle";
 import { currentCycle, cycleLabel } from "@/lib/cycles";
 import { dayKeyInTz } from "@/components/runners/miami-time";
 
@@ -46,6 +47,13 @@ export default async function DashboardPage() {
       })
     : [];
 
+  // Manual "month complete" marks (e.g. a client that doubled up the month before).
+  const overrides = await db.clientMonthOverride.findMany({
+    where: { clientId: { in: clients.map((c) => c.id) }, isComplete: true },
+    select: { clientId: true, year: true, month: true, note: true },
+  });
+  const overrideOf = (clientId: string, year: number, month: number) => overrides.find((o) => o.clientId === clientId && o.year === year && o.month === month) ?? null;
+
   const pacing = new Map<string, { completed: number; inProgress: number }>();
   for (const d of deliverables) {
     const p = pacing.get(d.clientId) ?? { completed: 0, inProgress: 0 };
@@ -65,11 +73,12 @@ export default async function DashboardPage() {
     const cycle = cycleByClient.get(c.id)!;
     const p = pacing.get(c.id) ?? { completed: 0, inProgress: 0 };
     const target = c.monthlyTarget + (c.goalsOwed ?? 0);
-    const remaining = Math.max(0, target - p.completed);
+    const override = overrideOf(c.id, cycle.year, cycle.month);
+    const remaining = override ? 0 : Math.max(0, target - p.completed);
     const left = daysLeft(cycle.endKey);
     // Urgency: goals still missing per day left (more missing + fewer days = more urgent).
     const urgency = remaining === 0 ? -1 : remaining / Math.max(left, 1);
-    return { ...c, cycle, completed: p.completed, inProgress: p.inProgress, target, remaining, left, urgency };
+    return { ...c, cycle, completed: p.completed, inProgress: p.inProgress, target, remaining, left, urgency, override };
   });
 
   const active = rows.filter((r) => r.target > 0).sort((a, b) => b.urgency - a.urgency || a.left - b.left || a.name.localeCompare(b.name, "es"));
@@ -117,9 +126,12 @@ export default async function DashboardPage() {
                   </div>
                   {r.goalsOwed ? <span className="text-xs text-ink-muted">incl. {r.goalsOwed} {r.goalsOwed === 1 ? "debida" : "debidas"}</span> : null}
                   <Badge tone={done ? "success" : critical ? "danger" : warn ? "warning" : "neutral"} size="xs" dot>
-                    {done ? "Al día" : `Faltan ${r.remaining} · ${r.left} ${r.left === 1 ? "día" : "días"}`}
+                    {done ? (r.override ? `Al día · marcado${r.override.note ? `: ${r.override.note}` : ""}` : "Al día") : `Faltan ${r.remaining} · ${r.left} ${r.left === 1 ? "día" : "días"}`}
                   </Badge>
-                  <span className="ml-auto text-2xs text-ink-muted">{cycleLabel(r.cycle, r.cycleDay)}</span>
+                  <span className="ml-auto flex items-center gap-2 text-2xs text-ink-muted">
+                    {cycleLabel(r.cycle, r.cycleDay)}
+                    <MonthCompleteToggle clientId={r.id} clientName={r.name} year={r.cycle.year} month={r.cycle.month} isComplete={!!r.override} note={r.override?.note ?? null} />
+                  </span>
                 </div>
               </li>
             );

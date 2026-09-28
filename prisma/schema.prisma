@@ -245,6 +245,7 @@ model Client {
   socialPosts      SocialPost[]
   pressReleaseRequests PressReleaseRequest[]
   brandLeads       BrandLead[]
+  monthOverrides   ClientMonthOverride[]
 
   @@map("clients")
 }
@@ -1087,4 +1088,21 @@ model BrandLeadUpdate {
 
   @@index([leadId, createdAt])
   @@map("brand_lead_updates")
+}
+
+/// Manual "this month is complete" mark on the dashboard (e.g. the client doubled up last month).
+model ClientMonthOverride {
+  id         String   @id @default(cuid())
+  clientId   String
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  year       Int
+  month      Int
+  isComplete Boolean  @default(true)
+  note       String?
+  setById    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([clientId, year, month])
+  @@map("client_month_overrides")
 }
