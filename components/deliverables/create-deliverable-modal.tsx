@@ -13,9 +13,11 @@ interface Props {
   clientId: string;
   teamMembers: { id: string; name: string }[];
   currentUserId?: string;
+  /** Report months the strategist can pick (server-computed for the client's cycle). */
+  reportMonths?: { month: number; year: number; label: string }[];
 }
 
-export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembers, currentUserId }: Props) {
+export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembers, currentUserId, reportMonths = [] }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -26,8 +28,12 @@ export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembe
 
     const form = new FormData(e.currentTarget);
     const dueDate = (form.get("dueDate") as string) || undefined;
+    const reportMonth = (form.get("reportMonth") as string) || "";
+    const [rmYear, rmMonth] = reportMonth ? reportMonth.split("-").map(Number) : [undefined, undefined];
 
     const body = {
+      month: rmMonth,
+      year: rmYear,
       clientId,
       title: (form.get("title") as string).trim(),
       type: form.get("type") as string,
@@ -147,6 +153,19 @@ export function CreateDeliverableModal({ open, onOpenChange, clientId, teamMembe
             Ya está confirmada (crear pauta y asignar runner ahora)
           </label>
         </div>
+
+        {reportMonths.length > 0 && (
+          <FormGroup label="Mes del reporte" htmlFor="del-report-month" description="A qué mes de la cuota del cliente cuenta esta meta. Automático = el primer mes que aún tiene cupo, aunque la pauta salga después.">
+            <Select id="del-report-month" name="reportMonth" defaultValue="">
+              <option value="">Automático (primer mes con cupo)</option>
+              {reportMonths.map((m) => (
+                <option key={`${m.year}-${m.month}`} value={`${m.year}-${m.month}`}>
+                  {m.label}
+                </option>
+              ))}
+            </Select>
+          </FormGroup>
+        )}
 
         <FormGroup label="Notes" htmlFor="del-notes">
           <Textarea id="del-notes" name="notes" rows={3} placeholder="Additional context..." />

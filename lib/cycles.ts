@@ -81,6 +81,13 @@ export function shiftCycle(cycleDay: number | null | undefined, cycle: Cycle, n:
   return cycleForDayKey(cycleDay, key(s.year, s.month, cd));
 }
 
+/** The cycle whose LABEL is (year, month) — e.g. "September 2026" for a client with cut-off 25 is Aug 25 – Sep 24. */
+export function cycleForLabel(cycleDay: number | null | undefined, year: number, month1to12: number): Cycle {
+  const cd = cycleDay && cycleDay >= 1 && cycleDay <= 31 ? cycleDay : 1;
+  const start = cd <= 15 ? { year, month: month1to12 } : addMonths(year, month1to12, -1);
+  return cycleForDayKey(cycleDay, key(start.year, start.month, cd));
+}
+
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 /** "September 2026" plus the day range when the cycle is not a calendar month. */

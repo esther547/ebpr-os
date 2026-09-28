@@ -83,9 +83,10 @@ interface Props {
   teamMembers: { id: string; name: string }[];
   runners: { id: string; name: string }[];
   currentUserId: string;
+  reportMonths?: { month: number; year: number; label: string }[];
 }
 
-export function DeliverableDetailClient({ deliverable, teamMembers, runners, currentUserId }: Props) {
+export function DeliverableDetailClient({ deliverable, teamMembers, runners, currentUserId, reportMonths = [] }: Props) {
   const router = useRouter();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
@@ -547,9 +548,45 @@ export function DeliverableDetailClient({ deliverable, teamMembers, runners, cur
                 <dd className="mt-0.5 text-ink-secondary">{deliverable.campaign?.name ?? "—"}</dd>
               </div>
               <div>
-                <dt className="eyebrow">Counts toward</dt>
-                <dd className="tabular mt-0.5 text-ink-secondary">
-                  {deliverable.month}/{deliverable.year}
+                <dt className="eyebrow">Mes del reporte</dt>
+                <dd className="mt-0.5">
+                  {reportMonths.length > 0 ? (
+                    <select
+                      value={`${deliverable.year}-${deliverable.month}`}
+                      disabled={saving}
+                      onChange={async (e) => {
+                        const [y, m] = e.target.value.split("-").map(Number);
+                        setSaving(true);
+                        try {
+                          const res = await fetch(`/api/deliverables/${deliverable.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ month: m, year: y }),
+                          });
+                          if (!res.ok) throw new Error();
+                          toast({ title: "Mes del reporte actualizado", variant: "success" });
+                          router.refresh();
+                        } catch {
+                          toast({ title: "No se pudo cambiar el mes", variant: "error" });
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                      className="h-8 w-full rounded-md border border-border bg-white px-2 text-sm text-ink-primary focus:outline-none focus:ring-2 focus:ring-ink-primary/20"
+                    >
+                      {!reportMonths.some((o) => o.month === deliverable.month && o.year === deliverable.year) && (
+                        <option value={`${deliverable.year}-${deliverable.month}`}>{deliverable.month}/{deliverable.year}</option>
+                      )}
+                      {reportMonths.map((o) => (
+                        <option key={`${o.year}-${o.month}`} value={`${o.year}-${o.month}`}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="tabular text-ink-secondary">{deliverable.month}/{deliverable.year}</span>
+                  )}
+                  <p className="mt-1 text-2xs text-ink-muted">A qué mes de la cuota cuenta esta meta (no cambia con la fecha de la pauta).</p>
                 </dd>
               </div>
               <div>

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { cycleForDate } from "@/lib/cycles";
 import { requireUser } from "@/lib/auth";
 import { canManageDeliverables } from "@/lib/permissions";
 import { parseDateInput, recordStatusTransition } from "../_lib/status-transition";
@@ -28,6 +27,8 @@ const updateDeliverableSchema = z.object({
   needsRunner: z.boolean().optional(),
   /** Strategist who closed the goal; used when the goal is (or becomes) COMPLETED. */
   closedById: z.string().min(1).nullable().optional(),
+  month: z.number().int().min(1).max(12).optional(),
+  year: z.number().int().min(2020).max(2100).optional(),
 });
 
 function zodMessage(err: z.ZodError) {
@@ -156,15 +157,11 @@ export async function PUT(
     }
     if (d.assigneeId !== undefined) data.assigneeId = d.assigneeId || null;
     if (d.dueDate !== undefined) {
+      // The pauta date moves; the REPORT month stays (Esther, Sept 28 2026). Change it with month/year.
       data.dueDate = d.dueDate ? parseDateInput(d.dueDate) : null;
-      // Re-tag the goal cycle when the due date moves (per-client fecha de corte).
-      if (data.dueDate instanceof Date) {
-        const owner = await db.client.findUnique({ where: { id: existing.clientId }, select: { cycleDay: true } });
-        const cycle = cycleForDate(owner?.cycleDay, data.dueDate);
-        data.month = cycle.month;
-        data.year = cycle.year;
-      }
     }
+    if (d.month !== undefined) data.month = d.month;
+    if (d.year !== undefined) data.year = d.year;
 
     // Client availability. Moving the due date into an OFF window is refused; a date
     // inside a TRAVEL window (or an unchanged date that is now inside OFF) saves with a warning.

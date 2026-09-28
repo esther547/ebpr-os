@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, AlertTriangle } from "lucide-react";
+import Link from "next/link";
+import { Plus, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { DeliverableBoard } from "./deliverable-board";
 import { CreateDeliverableModal } from "./create-deliverable-modal";
 import { Button } from "@/components/ui/form-field";
@@ -17,6 +18,9 @@ interface Props {
   runnerNeededIds?: string[];
   clientStatus?: string;
   monthLabel?: string;
+  reportMonths?: { month: number; year: number; label: string }[];
+  /** Links to browse other report months. */
+  nav?: { prev: string; next: string; current: string; isCurrent: boolean };
 }
 
 export function DeliverablesPageClient({
@@ -28,6 +32,8 @@ export function DeliverablesPageClient({
   runnerNeededIds = [],
   clientStatus = "ACTIVE",
   monthLabel,
+  reportMonths = [],
+  nav,
 }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const paused = clientStatus === "PAUSED" || clientStatus === "CHURNED";
@@ -42,9 +48,26 @@ export function DeliverablesPageClient({
             : `${deliverables.length} this month · target ${target}`
         }
         actions={
-          <Button onClick={() => setShowCreate(true)} disabled={paused} leftIcon={<Plus className="h-4 w-4" />}>
-            New Deliverable
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {nav && (
+              <>
+                <Button asChild variant="secondary" size="icon-sm" aria-label="Mes anterior">
+                  <Link href={nav.prev}><ChevronLeft className="h-4 w-4" /></Link>
+                </Button>
+                <Button asChild variant="secondary" size="icon-sm" aria-label="Mes siguiente">
+                  <Link href={nav.next}><ChevronRight className="h-4 w-4" /></Link>
+                </Button>
+                {!nav.isCurrent && (
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href={nav.current}>Ciclo actual</Link>
+                  </Button>
+                )}
+              </>
+            )}
+            <Button onClick={() => setShowCreate(true)} disabled={paused} leftIcon={<Plus className="h-4 w-4" />}>
+              New Deliverable
+            </Button>
+          </div>
         }
       />
 
@@ -70,6 +93,7 @@ export function DeliverablesPageClient({
       />
 
       <CreateDeliverableModal
+        reportMonths={reportMonths}
         open={showCreate}
         onOpenChange={setShowCreate}
         clientId={clientId}

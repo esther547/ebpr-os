@@ -11,10 +11,13 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { initials, type PriorityItem } from "./helpers";
+import { initials, type PriorityItem, type TeamMember } from "./helpers";
 
 type Props = {
   item: PriorityItem;
+  /** Team board: who can be put in charge. Empty on personal boards (no selector). */
+  teamMembers?: TeamMember[];
+  onAssign?: (item: PriorityItem, assigneeId: string | null) => void;
   onToggle: (item: PriorityItem) => void;
   onRename: (item: PriorityItem, title: string) => void;
   onEdit: (item: PriorityItem) => void;
@@ -32,7 +35,7 @@ export function splitPriorityNotes(notes: string | null | undefined): { text: st
   return { text: notes.slice(0, idx).trim(), contacts: notes.slice(idx + CONTACTS_MARKER.length).trim() };
 }
 
-export function PriorityRow({ item, onToggle, onRename, onEdit, onMove, onDelete }: Props) {
+export function PriorityRow({ item, teamMembers = [], onAssign, onToggle, onRename, onEdit, onMove, onDelete }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.title);
   const [showContacts, setShowContacts] = useState(false);
@@ -116,12 +119,33 @@ export function PriorityRow({ item, onToggle, onRename, onEdit, onMove, onDelete
         )}
       </div>
 
-      {item.assignee && (
-        <span title={item.assignee.name} className="mt-0.5 shrink-0">
-          <Badge tone="outline" size="xs">
-            {initials(item.assignee.name)}
-          </Badge>
-        </span>
+      {teamMembers.length > 0 && onAssign ? (
+        <label className="shrink-0" title="Quién se hace cargo">
+          <span className="sr-only">Responsable</span>
+          <select
+            value={item.assigneeId ?? ""}
+            onChange={(e) => onAssign(item, e.target.value || null)}
+            className={cn(
+              "h-7 max-w-[150px] rounded-md border bg-white px-1.5 text-xs transition-colors focus:outline-none focus:ring-2 focus:ring-ink-primary/20",
+              item.assigneeId ? "border-border font-medium text-ink-primary" : "border-dashed border-border text-ink-muted"
+            )}
+          >
+            <option value="">Sin responsable</option>
+            {teamMembers.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        item.assignee && (
+          <span title={item.assignee.name} className="mt-0.5 shrink-0">
+            <Badge tone="outline" size="xs">
+              {initials(item.assignee.name)}
+            </Badge>
+          </span>
+        )
       )}
 
       <DropdownMenu>

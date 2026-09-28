@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { companionWhere } from "@/lib/companions";
 import { DeliverableDetailClient } from "@/components/deliverables/deliverable-detail-client";
+import { reportMonthOptions } from "@/lib/report-month";
 
 export const metadata = { title: "Deliverable" };
 export const dynamic = "force-dynamic";
@@ -47,6 +48,8 @@ export default async function DeliverableDetailPage({
     where: companionWhere,
     select: { id: true, name: true },
   });
+  const owner = await db.client.findUnique({ where: { id: clientId }, select: { cycleDay: true } });
+  const reportMonths = reportMonthOptions(owner?.cycleDay);
 
   const deliverableWithRunner = {
     ...deliverable,
@@ -59,6 +62,7 @@ export default async function DeliverableDetailPage({
       teamMembers={teamMembers}
       runners={runners}
       currentUserId={user.id}
+      reportMonths={reportMonths}
     />
   );
 }

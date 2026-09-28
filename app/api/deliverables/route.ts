@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canManageDeliverables } from "@/lib/permissions";
-import { cycleForDate, currentCycle } from "@/lib/cycles";
+import { defaultReportMonth } from "@/lib/report-month";
 import { parseDateInput } from "./_lib/status-transition";
 import { activityInstant, ensureAgendaItemForDeliverable } from "./_lib/agenda-sync";
 import { resolveCloser } from "./_lib/closer";
@@ -92,11 +92,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Month/year = the client's goal cycle (fecha de corte) that the due date falls in,
-    // or the client's current cycle when there is no due date. Explicit body values win.
+    // Report month: the earliest month of the client's report that still has room for a goal
+    // (never the month the pauta airs). Explicit body values (the "Mes del reporte" picker) win.
     const dueDate = dueDateStr ? parseDateInput(dueDateStr) : undefined;
-    const cycle = dueDate ? cycleForDate(client.cycleDay, dueDate) : currentCycle(client.cycleDay);
-    const fallback = { month: cycle.month, year: cycle.year };
+    const fallback = await defaultReportMonth(client.id);
 
     // Client availability: never book on a day the client is OFF; warn on TRAVEL.
     const availability = await checkClientDate(client.id, dueDate);

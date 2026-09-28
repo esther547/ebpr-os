@@ -6,7 +6,7 @@ import { ArrowUpRight, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button, Input } from "@/components/ui/form-field";
 import { PriorityRow } from "./priority-row";
-import { countLabel, sortPriorities, type PriorityItem } from "./helpers";
+import { countLabel, sortPriorities, type PriorityItem, type TeamMember } from "./helpers";
 
 type Props = {
   /** Null for the agency-wide "General" list. */
@@ -19,6 +19,8 @@ type Props = {
   items: PriorityItem[];
   /** Personal to-do boards: no assignees, simpler wording. */
   personal?: boolean;
+  teamMembers?: TeamMember[];
+  onAssign?: (item: PriorityItem, assigneeId: string | null) => void;
   onAdd: (clientId: string | null, raw: string, category?: string | null) => Promise<void>;
   onToggle: (item: PriorityItem) => void;
   onRename: (item: PriorityItem, title: string) => void;
@@ -34,6 +36,8 @@ export function PrioritySectionCard({
   href,
   items,
   personal = false,
+  teamMembers = [],
+  onAssign,
   onAdd,
   onToggle,
   onRename,
@@ -118,6 +122,8 @@ export function PrioritySectionCard({
             <PriorityRow
               key={item.id}
               item={item}
+              teamMembers={teamMembers}
+              onAssign={onAssign}
               onToggle={onToggle}
               onRename={onRename}
               onEdit={onEdit}

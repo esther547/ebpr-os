@@ -222,8 +222,13 @@ export function PrioritiesPageClient({
 
   // ─── Render ────────────────────────────────────────────
 
+  const assignPriority = (item: PriorityItem, assigneeId: string | null) =>
+    void patch(item, { assigneeId }, { assigneeId, assignee: teamMembers.find((m) => m.id === assigneeId) ?? null });
+
   const rowProps = {
     personal: board.personal,
+    teamMembers: board.personal ? [] : teamMembers,
+    onAssign: assignPriority,
     onAdd: addPriority,
     onToggle: toggleDone,
     onRename: renamePriority,

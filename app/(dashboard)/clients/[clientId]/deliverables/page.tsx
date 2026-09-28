@@ -5,16 +5,17 @@ import { ClientHeader } from "@/components/clients/client-header";
 import { availabilityNowFor, currentAndUpcoming, windowShortLabel } from "@/lib/client-availability";
 import { addDaysKey, dayKeyInTz } from "@/components/runners/miami-time";
 import { DeliverablesPageClient } from "@/components/deliverables/deliverables-page-client";
-import { currentCycle, cycleLabel } from "@/lib/cycles";
+import { currentCycle, cycleForLabel, cycleLabel } from "@/lib/cycles";
+import { reportMonthOptions } from "@/lib/report-month";
 import { StrategyContextCard } from "@/components/strategy/strategy-context-card";
 import { ClientWeekPriorities } from "@/components/priorities/client-week-priorities";
 
-type Props = { params: Promise<{ clientId: string }> };
+type Props = { params: Promise<{ clientId: string }>; searchParams?: Promise<{ month?: string }> };
 
 export const metadata = { title: "Deliverables" };
 export const dynamic = "force-dynamic";
 
-export default async function DeliverablesPage({ params }: Props) {
+export default async function DeliverablesPage({ params, searchParams }: Props) {
   const user = await requireUser();
   const { clientId } = await params;
 
@@ -28,8 +29,22 @@ export default async function DeliverablesPage({ params }: Props) {
   const horizonKey = addDaysKey(dayKeyInTz(new Date()), 60);
   const upcomingWindows = (await currentAndUpcoming(client.id)).filter((w) => w.startKey <= horizonKey);
 
-  const cycle = currentCycle(client.cycleDay);
+  // Which report month to show: ?month=YYYY-MM, default the current cycle.
+  const nowCycle = currentCycle(client.cycleDay);
+  const sp = searchParams ? await searchParams : undefined;
+  const requested = sp?.month?.match(/^(\d{4})-(\d{2})$/);
+  const cycle = requested ? cycleForLabel(client.cycleDay, Number(requested[1]), Number(requested[2])) : nowCycle;
   const { month, year } = cycle;
+  const monthKey = (y: number, m: number) => `${y}-${String(m).padStart(2, "0")}`;
+  const shift = (y: number, m: number, d: number) => { const i = y * 12 + (m - 1) + d; return { y: Math.floor(i / 12), m: (i % 12) + 1 }; };
+  const prev = shift(year, month, -1);
+  const next = shift(year, month, 1);
+  const nav = {
+    prev: `/clients/${clientId}/deliverables?month=${monthKey(prev.y, prev.m)}`,
+    next: `/clients/${clientId}/deliverables?month=${monthKey(next.y, next.m)}`,
+    current: `/clients/${clientId}/deliverables`,
+    isCurrent: month === nowCycle.month && year === nowCycle.year,
+  };
 
   const deliverables = await db.deliverable.findMany({
     where: { clientId, month, year },
@@ -97,6 +112,8 @@ export default async function DeliverablesPage({ params }: Props) {
         runnerNeededIds={runnerNeededIds}
         clientStatus={client.status}
         monthLabel={cycleLabel(cycle, client.cycleDay)}
+        reportMonths={reportMonthOptions(client.cycleDay)}
+        nav={nav}
       />
     </>
   );

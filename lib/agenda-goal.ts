@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import type { DeliverableType, UserRole } from "@prisma/client";
-import { cycleForDate } from "@/lib/cycles";
+import { defaultReportMonth } from "@/lib/report-month";
 import { CLOSER_ROLES } from "@/app/api/deliverables/_lib/closer";
 
 /**
@@ -34,11 +34,10 @@ export async function ensureGoalForAgendaItem(
     },
   });
   if (!a || a.deliverableId || !a.clientId || a.status === "CANCELLED") return a?.deliverableId ?? null;
-  const client = await db.client.findUnique({ where: { id: a.clientId }, select: { cycleDay: true } });
-
   const isPast = a.eventDate.getTime() < Date.now();
   const isStrategist = CLOSER_ROLES.includes(creator.role);
-  const cycle = cycleForDate(client?.cycleDay, a.eventDate);
+  // The goal counts toward the earliest report month with room, not the pauta's own month.
+  const cycle = await defaultReportMonth(a.clientId);
 
   const goal = await db.deliverable.create({
     data: {
