@@ -202,11 +202,6 @@ export function zodMessage(issues: { path: (string | number)[]; message: string 
  * bottom of its list. Idempotent; runs from the daily cron and when a board is opened.
  */
 /**
- * Done lines do not pile up (Esther, Sept 28 2026): ticking a line deletes it from the board
- * right away (with an undo toast). This nightly sweep removes anything still marked done
- * (older data, API edits) so no board accumulates crossed-out lines.
- */
-/**
  * Client order on Prioridades (Esther, Sept 28 2026: "dejame mover los clientes para
  * organizarlos yo por lo más urgente de esta semana"; later that day: strategists too). Per week; a week without its own
  * order inherits the most recent earlier one. Clients not in the list go after, A–Z.
@@ -228,8 +223,15 @@ export function clientRank(order: string[]): (id: string | null) => number {
   return (id) => (id && idx.has(id) ? (idx.get(id) as number) : Number.MAX_SAFE_INTEGER);
 }
 
-export async function purgeDonePriorities(): Promise<number> {
-  const res = await db.weeklyPriority.deleteMany({ where: { isDone: true } });
+/** Done lines stay crossed out for a while and then disappear (Esther, Sept 28 2026: "se eliminen 20 días después de hacerse"). */
+export const DONE_RETENTION_DAYS = 20;
+
+/** Nightly sweep: delete lines marked done more than DONE_RETENTION_DAYS ago (doneAt; updatedAt for legacy rows). */
+export async function purgeDonePriorities(now: Date = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - DONE_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  const res = await db.weeklyPriority.deleteMany({
+    where: { isDone: true, OR: [{ doneAt: { lt: cutoff } }, { doneAt: null, updatedAt: { lt: cutoff } }] },
+  });
   return res.count;
 }
 

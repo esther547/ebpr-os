@@ -180,47 +180,8 @@ export function PrioritiesPageClient({
     }
   }
 
-  // Ticking a line = done: it leaves the board and is deleted (Esther: "lo que se vaya
-  // tachando, borremos para que no se acumule"). The toast offers a few seconds to undo.
-  async function completePriority(item: PriorityItem) {
-    const before = items;
-    setItems((prev) => prev.filter((i) => i.id !== item.id));
-    try {
-      await request(`/api/priorities/${item.id}`, { method: "DELETE" });
-      router.refresh();
-      toast({
-        title: "Hecha ✓",
-        description: item.title,
-        variant: "success",
-        duration: 6000,
-        action: { label: "Deshacer", onClick: () => void restorePriority(item) },
-      });
-    } catch (err) {
-      setItems(before);
-      failed(err, "No se pudo marcar como hecha");
-    }
-  }
-  async function restorePriority(item: PriorityItem) {
-    try {
-      const created = await request<PriorityItem>("/api/priorities", {
-        method: "POST",
-        body: JSON.stringify({
-          week: weekKey,
-          list: board.key,
-          title: item.title,
-          notes: item.notes,
-          clientId: item.clientId,
-          category: item.category,
-          assigneeId: item.assigneeId,
-        }),
-      });
-      setItems((prev) => [...prev, created]);
-      router.refresh();
-    } catch (err) {
-      failed(err, "No se pudo deshacer");
-    }
-  }
-  const toggleDone = (item: PriorityItem) => void completePriority(item);
+  // Ticking a line marks it done: it stays crossed out and the nightly cron removes it 20 days later.
+  const toggleDone = (item: PriorityItem) => void patch(item, { isDone: !item.isDone }, { isDone: !item.isDone });
 
   const renamePriority = (item: PriorityItem, title: string) =>
     void patch(item, { title }, { title });
@@ -304,7 +265,7 @@ export function PrioritiesPageClient({
       <PageHeader
         eyebrow={weekRangeLabel(weekKey)}
         title={board.title}
-        subtitle={`${stats.pending} pendiente${stats.pending === 1 ? "" : "s"}${board.categories ? "" : ` · ${stats.clients} cliente${stats.clients === 1 ? "" : "s"}`}${isCurrentWeek ? "" : " · semana distinta a la actual"}`}
+        subtitle={`${stats.pending} pendiente${stats.pending === 1 ? "" : "s"}${stats.done ? ` · ${stats.done} hecha${stats.done === 1 ? "" : "s"}` : ""}${board.categories ? "" : ` · ${stats.clients} cliente${stats.clients === 1 ? "" : "s"}`}${isCurrentWeek ? "" : " · semana distinta a la actual"}`}
         actions={
           <>
             <Button
