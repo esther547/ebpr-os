@@ -528,7 +528,8 @@ model RunnerAssignment {
   clientId      String?
   deliverableId String?
   location      String? // city/country (short)
-  notes         String?
+  notes         String? // CLIENT-VISIBLE: portal agenda + Google Doc agenda (filtered by lib/client-safe-notes)
+  internalNotes String? // team + runner only (contacts, logistics, post-event notes). NEVER shown to clients.
   status        AssignmentStatus @default(SCHEDULED)
   weekOf        DateTime // Monday of the week
 

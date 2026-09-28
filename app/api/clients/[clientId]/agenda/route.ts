@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { canManageRunners } from "@/lib/permissions";
 import { db } from "@/lib/db";
+import { mergeInternalNotes, splitClientNotes } from "@/lib/client-safe-notes";
 import { notifyRunnerAssigned, notifyRunnersOpenActivity } from "@/lib/runner-notify";
 import { COMPANION_ROLES } from "@/lib/companions";
 import { z } from "zod";
@@ -24,6 +25,7 @@ const agendaItemSchema = z.object({
   location: z.string().optional(),
   itemType: z.string().optional(),
   notes: z.string().optional(),
+  internalNotes: z.string().optional(),
   accompanistCount: z.number().int().min(0).optional().default(0),
   monthNumber: z.number().int().min(1).optional().nullable(),
   agendaSequence: z.number().int().min(1).optional().nullable(),
@@ -180,6 +182,10 @@ export async function POST(
   }
 
   try {
+    // Contact-looking lines never stay client-visible: they move to internalNotes.
+    const split = splitClientNotes(data.notes);
+    const clientNotes = split.client ?? undefined;
+    const internalNotes = mergeInternalNotes(data.internalNotes, split.internal);
     const item = await db.runnerAssignment.create({
       data: {
         clientId,
@@ -195,7 +201,8 @@ export async function POST(
         venueName: data.venueName,
         venueAddress: data.venueAddress,
         itemType: data.itemType,
-        notes: data.notes,
+        notes: clientNotes,
+        internalNotes,
         accompanistCount: data.accompanistCount,
         monthNumber: data.monthNumber ?? null,
         agendaSequence: data.agendaSequence ?? null,

@@ -26,6 +26,7 @@ type AgendaItem = {
   agendaSequence: number | null;
   status: string;
   notes: string | null;
+  internalNotes?: string | null;
   runner: { id: string; name: string } | null;
 };
 
@@ -158,6 +159,9 @@ function AgendaItemRow({ item, seq, clientId, runners }: { item: AgendaItem; seq
           )}
           <p className="text-xs font-medium text-ink-primary">{item.eventName || item.notes || "—"}</p>
           {item.eventName && item.notes && <p className="text-2xs text-ink-muted">{item.notes}</p>}
+          {item.internalNotes && (
+            <p className="text-2xs text-amber-800" title="Notas internas · el cliente nunca las ve">🔒 {item.internalNotes}</p>
+          )}
           {(item.accompanistCount ?? 0) > 0 && (
             <p className="text-2xs text-ink-muted">Acompañante +{item.accompanistCount}</p>
           )}

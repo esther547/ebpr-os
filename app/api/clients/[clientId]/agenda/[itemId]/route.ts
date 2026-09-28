@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { mergeInternalNotes, splitClientNotes } from "@/lib/client-safe-notes";
 import { miamiWeekOf } from "@/app/api/deliverables/_lib/agenda-sync";
 import { z } from "zod";
 import { reassignAfterTimeChange } from "@/lib/runner-assign";
@@ -26,6 +27,7 @@ const patchSchema = z.object({
   venueAddress: z.string().optional(),
   itemType: z.string().optional(),
   notes: z.string().optional(),
+  internalNotes: z.string().nullable().optional(),
   accompanistCount: z.number().int().min(0).optional(),
   monthNumber: z.number().int().min(1).optional().nullable(),
   agendaSequence: z.number().int().min(1).optional().nullable(),
@@ -98,7 +100,13 @@ export async function PATCH(
   if (d.venueName !== undefined) updateData.venueName = d.venueName;
   if (d.venueAddress !== undefined) updateData.venueAddress = d.venueAddress;
   if (d.itemType !== undefined) updateData.itemType = d.itemType;
-  if (d.notes !== undefined) updateData.notes = d.notes;
+  if (d.notes !== undefined || d.internalNotes !== undefined) {
+    // Contact-looking lines typed into the client-visible field move to internal notes.
+    const split = d.notes !== undefined ? splitClientNotes(d.notes) : null;
+    if (split) updateData.notes = split.client ?? "";
+    const baseInternal = d.internalNotes !== undefined ? d.internalNotes : (await db.runnerAssignment.findUnique({ where: { id: itemId }, select: { internalNotes: true } }))?.internalNotes ?? null;
+    updateData.internalNotes = mergeInternalNotes(baseInternal, split?.internal);
+  }
   if (d.accompanistCount !== undefined) updateData.accompanistCount = d.accompanistCount;
   if (d.monthNumber !== undefined) updateData.monthNumber = d.monthNumber;
   if (d.agendaSequence !== undefined) updateData.agendaSequence = d.agendaSequence;

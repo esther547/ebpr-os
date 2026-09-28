@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { mergeInternalNotes, splitClientNotes } from "@/lib/client-safe-notes";
 import { requireUser } from "@/lib/auth";
 import { canManageRunners } from "@/lib/permissions";
 import { miamiWeekOf } from "@/app/api/deliverables/_lib/agenda-sync";
@@ -19,6 +20,7 @@ const schema = z.object({
   location: z.string().optional(),
   itemType: z.string().optional(),
   notes: z.string().optional(),
+  internalNotes: z.string().optional(),
   accompanistCount: z.number().int().min(0).optional().default(0),
   status: z.enum(["SCHEDULED", "CONFIRMED", "COMPLETED", "CANCELLED"]).optional().default("SCHEDULED"),
 });
@@ -38,6 +40,7 @@ export async function POST(req: NextRequest) {
     const runner = await db.user.findUnique({ where: { id: d.runnerId }, select: { id: true } });
     if (!runner) return NextResponse.json({ error: "Runner no encontrado" }, { status: 400 });
   }
+  const split = splitClientNotes(d.notes);
   const item = await db.runnerAssignment.create({
     data: {
       clientId: null,
@@ -52,7 +55,8 @@ export async function POST(req: NextRequest) {
       venueAddress: d.venueAddress || null,
       location: d.location || d.venueName || null,
       itemType: d.itemType || null,
-      notes: d.notes || null,
+      notes: split.client,
+      internalNotes: mergeInternalNotes(d.internalNotes, split.internal),
       accompanistCount: d.accompanistCount,
       status: d.status,
     },

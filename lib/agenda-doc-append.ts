@@ -11,6 +11,7 @@
  */
 import type { docs_v1 } from "googleapis";
 import { db } from "@/lib/db";
+import { clientSafeNotes } from "@/lib/client-safe-notes";
 import { dayKeyInTz } from "@/components/runners/miami-time";
 import { extractDocId } from "@/lib/google-docs";
 import {
@@ -319,7 +320,7 @@ export async function appendNewPautasToDoc(clientId: string, opts: { dryRun?: bo
 
 function dataFills(p: Pauta, number: number, row: number, cellIdx: (r: number, c: number) => number, now: Date): CellFill[] {
   const hora = formatHora(p.eventTime);
-  const values = [String(number), formatFecha(dayKeyInTz(p.eventDate)), hora, joinLines(p.venueName, p.venueAddress), joinLines(p.eventName, p.notes), estadoFor(p, now)];
+  const values = [String(number), formatFecha(dayKeyInTz(p.eventDate)), hora, joinLines(p.venueName, p.venueAddress), joinLines(p.eventName, clientSafeNotes(p.notes)), estadoFor(p, now)];
   return values.map((text, c) => ({
     index: cellIdx(row, c),
     text,

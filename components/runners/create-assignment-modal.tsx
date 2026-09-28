@@ -60,6 +60,7 @@ export function CreateAssignmentModal({ open, onOpenChange, clientId, clients = 
       location: (form.get("location") as string) || undefined,
       itemType: (form.get("itemType") as string) || undefined,
       notes: (form.get("notes") as string) || undefined,
+      internalNotes: (form.get("internalNotes") as string) || undefined,
     };
 
     try {
@@ -181,8 +182,11 @@ export function CreateAssignmentModal({ open, onOpenChange, clientId, clients = 
           <Input id="ra-address" name="venueAddress" placeholder="Full address..." />
         </FormGroup>
 
-        <FormGroup label="Notes" htmlFor="ra-notes">
-          <Textarea id="ra-notes" name="notes" rows={2} placeholder="Logistics details..." />
+        <FormGroup label="Notas internas · runner y equipo (el cliente NUNCA las ve)" htmlFor="ra-internal-notes">
+          <Textarea id="ra-internal-notes" name="internalNotes" rows={2} placeholder="Contactos, teléfonos, logística…" />
+        </FormGroup>
+        <FormGroup label="Notas para el cliente (salen en su portal y en su agenda)" htmlFor="ra-notes">
+          <Textarea id="ra-notes" name="notes" rows={2} />
         </FormGroup>
 
         <FormActions>

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { canManageRunners } from "@/lib/permissions";
 import { db } from "@/lib/db";
+import { mergeInternalNotes, splitClientNotes } from "@/lib/client-safe-notes";
 import { isEmailConfigured, sendEmail } from "@/lib/email";
 import { COMPANION_ROLES } from "@/lib/companions";
 import { reassignAfterTimeChange } from "@/lib/runner-assign";
@@ -30,6 +31,7 @@ const updateSchema = z.object({
   location: z.string().nullable().optional(),
   itemType: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
+  internalNotes: z.string().nullable().optional(),
   status: z.enum(["SCHEDULED", "CONFIRMED", "COMPLETED", "CANCELLED"]).optional(),
 });
 
@@ -108,8 +110,15 @@ async function handleUpdate(req: NextRequest, { params }: Params) {
       }
     }
   }
-  for (const key of ["eventName", "venueName", "venueAddress", "location", "itemType", "notes", "status"] as const) {
+  for (const key of ["eventName", "venueName", "venueAddress", "location", "itemType", "status"] as const) {
     if (d[key] !== undefined) data[key] = d[key];
+  }
+  if (d.notes !== undefined || d.internalNotes !== undefined) {
+    // Contact-looking lines typed into the client-visible field move to internal notes.
+    const split = d.notes !== undefined ? splitClientNotes(d.notes) : null;
+    if (split) data.notes = split.client;
+    const baseInternal = d.internalNotes !== undefined ? d.internalNotes : (await db.runnerAssignment.findUnique({ where: { id: params.id }, select: { internalNotes: true } }))?.internalNotes ?? null;
+    data.internalNotes = mergeInternalNotes(baseInternal, split?.internal);
   }
 
   await db.runnerAssignment.update({ where: { id: params.id }, data });

@@ -18,6 +18,7 @@ export type EditableAgendaItem = {
   itemType: string | null;
   status: string;
   notes: string | null;
+  internalNotes?: string | null;
   runner: { id: string; name: string } | null;
 };
 
@@ -77,6 +78,7 @@ export function EditAgendaItemModal({
       venueAddress: ((f.get("venueAddress") as string) || "").trim(),
       itemType: ((f.get("itemType") as string) || "").trim(),
       notes: ((f.get("notes") as string) || "").trim(),
+      internalNotes: ((f.get("internalNotes") as string) || "").trim() || null,
       status: f.get("status") as string,
     };
     // Only send runnerId when the user changed it, so an unchanged auto-assignment stays automatic.
@@ -154,7 +156,10 @@ export function EditAgendaItemModal({
             </Select>
           </FormGroup>
         </div>
-        <FormGroup label="Notas" htmlFor="ea-notes">
+        <FormGroup label="Notas internas · runner y equipo (el cliente NUNCA las ve)" htmlFor="ea-internal-notes">
+          <Textarea id="ea-internal-notes" name="internalNotes" rows={2} defaultValue={item.internalNotes ?? ""} placeholder="Contactos, teléfonos, logística…" />
+        </FormGroup>
+        <FormGroup label="Notas para el cliente (salen en su portal y en su agenda)" htmlFor="ea-notes">
           <Textarea id="ea-notes" name="notes" rows={2} defaultValue={item.notes ?? ""} />
         </FormGroup>
         <FormActions>

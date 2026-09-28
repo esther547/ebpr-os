@@ -29,6 +29,7 @@ export type ScheduleAssignment = {
   eventTime?: string | null;
   itemType?: string | null;
   notes?: string | null;
+  internalNotes?: string | null;
   status: string;
   autoAssigned: boolean;
   runner: { id: string; name: string; avatar: string | null } | null;

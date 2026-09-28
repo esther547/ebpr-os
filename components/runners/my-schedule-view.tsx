@@ -24,6 +24,7 @@ export type ScheduleItem = {
   itemType: string | null;
   location: string | null;
   notes: string | null;
+  internalNotes: string | null;
   status: string;
   accompanistCount: number;
   /** Display name only — runners never receive client IDs. */
@@ -193,10 +194,10 @@ export function MyScheduleView({
                           <p className="mt-1.5 text-xs text-ink-muted">{a.venueAddress}</p>
                         )}
 
-                        {a.notes && (
+                        {(a.internalNotes || a.notes) && (
                           <div className="mt-3 flex items-start gap-2 rounded-lg bg-surface-1 p-3 text-xs text-ink-secondary">
                             <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-muted" />
-                            <span className="whitespace-pre-line">{a.notes}</span>
+                            <span className="whitespace-pre-line">{[a.internalNotes, a.notes].filter(Boolean).join("\n")}</span>
                           </div>
                         )}
                       </div>

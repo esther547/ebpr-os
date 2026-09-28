@@ -23,11 +23,12 @@ export type AssignmentSnapshot = {
   location: string | null;
   status: string;
   notes: string | null;
+  internalNotes: string | null;
 };
 
 export const snapshotSelect = {
   id: true, runnerId: true, clientId: true, eventName: true, eventDate: true, arrivalTime: true, eventTime: true,
-  venueName: true, venueAddress: true, location: true, status: true, notes: true,
+  venueName: true, venueAddress: true, location: true, status: true, notes: true, internalNotes: true,
 } as const;
 
 const TZ = "America/New_York";
@@ -54,6 +55,7 @@ export function describeChanges(before: AssignmentSnapshot, after: AssignmentSna
   if ((before.venueAddress ?? "") !== (after.venueAddress ?? "")) out.push(`Dirección: ${before.venueAddress || "—"} → ${after.venueAddress || "—"}`);
   if ((before.location ?? "") !== (after.location ?? "") && (before.venueName ?? "") === (after.venueName ?? "")) out.push(`Ubicación: ${before.location || "—"} → ${after.location || "—"}`);
   if (before.status !== after.status) out.push(`Estado: ${STATUS_ES[before.status] ?? before.status} → ${STATUS_ES[after.status] ?? after.status}`);
+  if ((before.internalNotes ?? "") !== (after.internalNotes ?? "")) out.push(`Notas internas: ${after.internalNotes || "—"}`);
   return out;
 }
 
@@ -71,6 +73,7 @@ function detailsHtml(a: AssignmentSnapshot, client: string): string {
     ["Hora", fmtTime(a.eventTime)],
     ["Llegada", fmtTime(a.arrivalTime)],
     ["Lugar", [a.venueName, a.venueAddress].filter(Boolean).join(" · ") || a.location || "—"],
+    ...(a.internalNotes ? ([["Notas internas", a.internalNotes]] as [string, string][]) : []),
   ];
   return `<table cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse">${rows
     .filter(([, v]) => v)

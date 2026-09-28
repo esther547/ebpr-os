@@ -43,11 +43,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     where: { id },
     data: {
       status: "COMPLETED",
-      notes: notes
-        ? assignment.notes
-          ? `${assignment.notes}\n\n--- Post-Event Notes ---\n${notes}`
+      // Post-event notes are internal (team + runner): never on the client's agenda.
+      internalNotes: notes
+        ? assignment.internalNotes
+          ? `${assignment.internalNotes}\n\n--- Post-Event Notes ---\n${notes}`
           : `Post-Event Notes: ${notes}`
-        : assignment.notes,
+        : assignment.internalNotes,
     },
   });
 

@@ -61,6 +61,7 @@ export function AgendaAddItemButton({ clientId: fixedClientId, clientStatus = "A
       venueAddress: (form.get("venueAddress") as string) || undefined,
       location: (form.get("location") as string) || undefined,
       notes: (form.get("notes") as string) || undefined,
+      internalNotes: (form.get("internalNotes") as string) || undefined,
       accompanistCount: parseInt((form.get("accompanistCount") as string) || "0", 10) || 0,
       monthNumber: monthRaw ? parseInt(monthRaw, 10) : undefined,
       status: (form.get("status") as string) || "SCHEDULED",
@@ -219,8 +220,11 @@ export function AgendaAddItemButton({ clientId: fixedClientId, clientStatus = "A
             </FormGroup>
           </div>
 
-          <FormGroup label="Notes for Runner" htmlFor="ag-notes">
-            <Textarea id="ag-notes" name="notes" rows={2} placeholder="Logistics details..." />
+          <FormGroup label="Notas internas · runner y equipo (el cliente NUNCA las ve)" htmlFor="ag-internal-notes">
+            <Textarea id="ag-internal-notes" name="internalNotes" rows={2} placeholder="Contactos, teléfonos, logística…" />
+          </FormGroup>
+          <FormGroup label="Notas para el cliente (salen en su portal y en su agenda)" htmlFor="ag-notes">
+            <Textarea id="ag-notes" name="notes" rows={2} placeholder="Link de la publicación, descripción…" />
           </FormGroup>
 
           <FormActions>

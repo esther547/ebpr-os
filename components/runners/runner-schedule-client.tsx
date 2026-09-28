@@ -132,6 +132,7 @@ export function RunnerScheduleClient({
             itemType: editTarget.itemType ?? null,
             status: editTarget.status,
             notes: editTarget.notes ?? null,
+            internalNotes: editTarget.internalNotes ?? null,
             runner: editTarget.runner ? { id: editTarget.runner.id, name: editTarget.runner.name } : null,
           }}
           runners={runners}

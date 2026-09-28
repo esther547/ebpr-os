@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentClientUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { clientSafeNotes } from "@/lib/client-safe-notes";
 import { cn } from "@/lib/utils";
 import { CalendarDays } from "lucide-react";
 import { PageHeader, SectionHeader } from "@/components/layout/header";
@@ -164,8 +165,8 @@ function AgendaRow({
         {item.venueAddress && (
           <p className="mt-0.5 text-xs text-ink-muted">{item.venueAddress}</p>
         )}
-        {item.notes && (
-          <p className="mt-1 max-w-prose text-xs text-ink-secondary">{item.notes}</p>
+        {clientSafeNotes(item.notes) && (
+          <p className="mt-1 max-w-prose text-xs text-ink-secondary">{clientSafeNotes(item.notes)}</p>
         )}
         {item.itemType && (
           <Badge tone="outline" size="xs" className="mt-1.5">
