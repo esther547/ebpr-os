@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { PageHeader } from "@/components/layout/header";
+import { PageHeader, SectionHeader } from "@/components/layout/header";
 import { AgendaAddItemButton } from "@/components/agenda/create-agenda-item-modal";
 import { RunnerScheduleView, type ScheduleAssignment } from "./runner-schedule-view";
 import { CreateAssignmentModal } from "./create-assignment-modal";
@@ -31,6 +31,9 @@ interface Props {
   /** Today, "yyyy-MM-dd" (Miami). */
   todayKey: string;
   isRunner: boolean;
+  /** Runner portal: no page header, week links stay on the portal. */
+  embedded?: boolean;
+  basePath?: string;
 }
 
 export function RunnerScheduleClient({
@@ -43,6 +46,8 @@ export function RunnerScheduleClient({
   nextWeekEndKey,
   todayKey,
   isRunner,
+  embedded = false,
+  basePath,
 }: Props) {
   const [showAssign, setShowAssign] = useState(false);
   const [assignTarget, setAssignTarget] = useState<ScheduleAssignment | null>(null);
@@ -76,6 +81,13 @@ export function RunnerScheduleClient({
 
   return (
     <>
+      {embedded ? (
+        <SectionHeader
+          title="Runner Schedule"
+          description={needsRunner > 0 ? `${assignments.length} activities this week · ${needsRunner} still need a runner` : `${assignments.length} activities this week`}
+          className="mb-0"
+        />
+      ) : (
       <PageHeader
         title="Runner Schedule"
         subtitle={
@@ -106,6 +118,7 @@ export function RunnerScheduleClient({
           ) : undefined
         }
       />
+      )}
       <RunnerScheduleView
         assignments={assignments}
         runners={runners}
@@ -113,6 +126,7 @@ export function RunnerScheduleClient({
         currentWeekKey={currentWeekKey}
         todayKey={todayKey}
         isReadOnly={isRunner}
+        basePath={basePath}
         onAssign={setAssignTarget}
         onEdit={setEditTarget}
         onDelete={setDeleteTarget}

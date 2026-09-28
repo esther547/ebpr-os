@@ -45,6 +45,8 @@ type Props = {
   /** Today, "yyyy-MM-dd" (Miami). */
   todayKey: string;
   isReadOnly: boolean;
+  /** Where the week links point (the runner portal embeds this view). */
+  basePath?: string;
   /** Open the "assign a runner" picker for one activity. */
   onAssign?: (assignment: ScheduleAssignment) => void;
   /** Strategists/admins: edit (time, place, runner…) or delete a pauta. */
@@ -73,6 +75,7 @@ export function RunnerScheduleView({
   currentWeekKey,
   todayKey,
   isReadOnly,
+  basePath = "/runners/schedule",
   onAssign,
   onEdit,
   onDelete,
@@ -104,12 +107,12 @@ export function RunnerScheduleView({
             size="icon-sm"
             aria-label="Previous week"
           >
-            <Link href={`/runners/schedule?week=${addDaysKey(weekStartKey, -7)}`}>
+            <Link href={`${basePath}?week=${addDaysKey(weekStartKey, -7)}`}>
               <ChevronLeft className="h-4 w-4" />
             </Link>
           </Button>
           <Button asChild variant="secondary" size="icon-sm" aria-label="Next week">
-            <Link href={`/runners/schedule?week=${addDaysKey(weekStartKey, 7)}`}>
+            <Link href={`${basePath}?week=${addDaysKey(weekStartKey, 7)}`}>
               <ChevronRight className="h-4 w-4" />
             </Link>
           </Button>
@@ -122,7 +125,7 @@ export function RunnerScheduleView({
               <span className="ml-2 text-xs text-ink-muted">(this week)</span>
             ) : (
               <Link
-                href="/runners/schedule"
+                href={basePath}
                 className="ml-2 text-xs font-medium text-ink-secondary underline-offset-2 hover:underline"
               >
                 Back to this week
@@ -182,7 +185,7 @@ export function RunnerScheduleView({
                 key={key}
                 padding="none"
                 className={cn(
-                  "flex min-h-[160px] flex-col overflow-hidden",
+                  "flex min-h-0 flex-col overflow-hidden sm:min-h-[160px]",
                   isToday && "border-ink-primary ring-1 ring-ink-primary/10"
                 )}
               >

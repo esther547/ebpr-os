@@ -12,6 +12,9 @@ import {
   tzMidnight,
 } from "@/components/runners/miami-time";
 import { loadScheduleItems } from "@/components/runners/load-schedule";
+import { RunnerScheduleClient } from "@/components/runners/runner-schedule-client";
+import { companionWhere } from "@/lib/companions";
+import { weekStartKey } from "@/components/runners/miami-time";
 import {
   WeeklyAvailabilityEditor,
   type DateOverride,
@@ -22,12 +25,41 @@ import { formatHHmm } from "@/components/runners/miami-time";
 export const metadata = { title: "My Schedule — EBPR" };
 export const dynamic = "force-dynamic";
 
-export default async function RunnerPortalPage() {
+const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
+
+export default async function RunnerPortalPage({ searchParams }: { searchParams?: { week?: string } }) {
   const user = await requireUser();
 
   const now = new Date();
   const todayKey = dayKeyInTz(now);
   const todayStart = tzMidnight(todayKey);
+
+  // The whole team's week (Esther, Sept 28 2026: every runner sees everyone's pautas — Valen sees
+  // Juan's, Julieta's, all). Read-only for runners; ?week= browses other weeks.
+  const currentWeekKey = weekStartKey(todayKey);
+  const requested = searchParams?.week;
+  const weekStartDay = requested && DAY_KEY.test(requested) ? weekStartKey(requested) : currentWeekKey;
+  const weekRows = await db.runnerAssignment.findMany({
+    where: { eventDate: { gte: tzMidnight(weekStartDay), lt: tzMidnight(addDaysKey(weekStartDay, 7)) }, status: { not: "CANCELLED" } },
+    select: {
+      id: true, runnerId: true, clientId: true, eventName: true, eventDate: true, location: true, venueName: true, venueAddress: true,
+      arrivalTime: true, eventTime: true, itemType: true, notes: true, status: true, autoAssigned: true,
+      runner: { select: { id: true, name: true, avatar: true } },
+    },
+    orderBy: { eventDate: "asc" },
+  });
+  const weekClientIds = Array.from(new Set(weekRows.map((r) => r.clientId).filter((id): id is string => !!id)));
+  const weekClientNames = new Map((weekClientIds.length ? await db.client.findMany({ where: { id: { in: weekClientIds } }, select: { id: true, name: true } }) : []).map((c) => [c.id, c.name]));
+  const weekAssignments = weekRows.map(({ clientId, ...a }) => ({
+    ...a,
+    clientName: clientId ? weekClientNames.get(clientId) ?? null : null,
+    eventDate: a.eventDate.toISOString(),
+    arrivalTime: a.arrivalTime ? a.arrivalTime.toISOString() : null,
+    eventTime: a.eventTime ? a.eventTime.toISOString() : null,
+    dayKey: dayKeyInTz(a.eventDate),
+  }));
+  const teamRunners = await db.user.findMany({ where: companionWhere, select: { id: true, name: true, role: true, avatar: true }, orderBy: { name: "asc" } });
+  const nextWeekKey = addDaysKey(currentWeekKey, 7);
 
   // Only this runner's own assignments. Today's events stay visible for the
   // whole day (and uncompleted ones for a week after) so the runner can mark
@@ -103,6 +135,29 @@ export default async function RunnerPortalPage() {
         </p>
       </header>
 
+      {/* The team's full week, exactly like the internal Runner Schedule (read-only for runners) */}
+      <section className="space-y-4">
+        <RunnerScheduleClient
+          assignments={weekAssignments}
+          runners={teamRunners}
+          clients={[]}
+          weekStartKey={weekStartDay}
+          currentWeekKey={currentWeekKey}
+          nextWeekKey={nextWeekKey}
+          nextWeekEndKey={addDaysKey(nextWeekKey, 6)}
+          todayKey={todayKey}
+          isRunner
+          embedded
+          basePath="/runner-portal"
+        />
+      </section>
+
+      {/* Own pautas with actions (mark complete / can't attend) */}
+      <section className="space-y-4">
+        <SectionHeader title="My assignments" description="Only yours: mark them complete or step down if you can't make it." className="mb-0" />
+        <MyScheduleView assignments={assignments} todayKey={todayKey} />
+      </section>
+
       {/* Hours tracking */}
       <RunnerHoursClient hours={hours} totalHours={totalHours} todayKey={todayKey} />
 
@@ -121,11 +176,6 @@ export default async function RunnerPortalPage() {
         />
       </section>
 
-      {/* Schedule */}
-      <section className="space-y-4">
-        <SectionHeader title="Upcoming assignments" className="mb-0" />
-        <MyScheduleView assignments={assignments} todayKey={todayKey} />
-      </section>
     </div>
   );
 }
