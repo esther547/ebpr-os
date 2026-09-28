@@ -50,9 +50,7 @@ export default async function RunnerSchedulePage({
       ? { runnerId: user.id, eventDate: { gte: weekStart, lt: weekEnd } }
       : { eventDate: { gte: weekStart, lt: weekEnd } };
 
-  const rows = await db.runnerAssignment.findMany({
-    where,
-    select: {
+  const scheduleSelect = {
       id: true,
       runnerId: true,
       clientId: true,
@@ -68,11 +66,17 @@ export default async function RunnerSchedulePage({
       status: true,
       autoAssigned: true,
       runner: { select: { id: true, name: true, avatar: true } },
-    },
-    orderBy: { eventDate: "asc" },
+  } as const;
+  const rows = await db.runnerAssignment.findMany({ where, select: scheduleSelect, orderBy: { eventDate: "asc" } });
+  // Every future pauta with nobody on it (any week) — shown under the week so the team can assign.
+  const openRows = await db.runnerAssignment.findMany({
+    where: { runnerId: null, status: { in: ["SCHEDULED", "CONFIRMED"] }, eventDate: { gte: tzMidnight(todayKey) } },
+    select: scheduleSelect,
+    orderBy: [{ eventDate: "asc" }, { eventTime: "asc" }],
+    take: 200,
   });
 
-  const clientIds = Array.from(new Set(rows.map((r) => r.clientId).filter((id): id is string => !!id)));
+  const clientIds = Array.from(new Set([...rows, ...openRows].map((r) => r.clientId).filter((id): id is string => !!id)));
   const clientNames = new Map(
     (clientIds.length
       ? await db.client.findMany({ where: { id: { in: clientIds } }, select: { id: true, name: true } })
@@ -80,14 +84,16 @@ export default async function RunnerSchedulePage({
     ).map((c) => [c.id, c.name])
   );
 
-  const assignments = rows.map(({ clientId, ...a }) => ({
+  const toAssignment = ({ clientId, ...a }: (typeof rows)[number]) => ({
     ...a,
     clientName: clientId ? clientNames.get(clientId) ?? null : null,
     eventDate: a.eventDate.toISOString(),
     arrivalTime: a.arrivalTime ? a.arrivalTime.toISOString() : null,
     eventTime: a.eventTime ? a.eventTime.toISOString() : null,
     dayKey: dayKeyInTz(a.eventDate),
-  }));
+  });
+  const assignments = rows.map(toAssignment);
+  const openPautas = openRows.map(toAssignment);
 
   const runners = await db.user.findMany({
     where: companionWhere,
@@ -114,6 +120,7 @@ export default async function RunnerSchedulePage({
       nextWeekEndKey={addDaysKey(nextWeekKey, 6)}
       todayKey={todayKey}
       isRunner={user.role === "RUNNER"}
+      openPautas={openPautas}
     />
   );
 }

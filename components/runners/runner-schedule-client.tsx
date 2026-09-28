@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/toast";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/form-field";
 import { addDaysKey } from "@/components/runners/miami-time";
+import { OpenPautas } from "@/components/runners/open-pautas";
 import { CalendarClock, Plus } from "lucide-react";
 
 interface Props {
@@ -33,6 +34,8 @@ interface Props {
   isRunner: boolean;
   /** Runner portal: no page header, week links stay on the portal. */
   embedded?: boolean;
+  /** Internal page: every future pauta with no runner (any week), listed under the week with "Assign runner". */
+  openPautas?: ScheduleAssignment[];
   basePath?: string;
 }
 
@@ -48,6 +51,7 @@ export function RunnerScheduleClient({
   isRunner,
   embedded = false,
   basePath,
+  openPautas,
 }: Props) {
   const [showAssign, setShowAssign] = useState(false);
   const [assignTarget, setAssignTarget] = useState<ScheduleAssignment | null>(null);
@@ -131,6 +135,16 @@ export function RunnerScheduleClient({
         onEdit={setEditTarget}
         onDelete={setDeleteTarget}
       />
+      {!isRunner && openPautas && (
+        <section className="mt-8 space-y-4">
+          <SectionHeader
+            title="Pautas que necesitan runner"
+            description={openPautas.length ? `${openPautas.length} pauta${openPautas.length === 1 ? "" : "s"} futura${openPautas.length === 1 ? "" : "s"} sin runner, de cualquier semana. Los runners también las ven en su portal y pueden tomarlas.` : "Todas las pautas futuras ya tienen runner."}
+            className="mb-0"
+          />
+          <OpenPautas pautas={openPautas} onAssign={(p) => setAssignTarget(p)} />
+        </section>
+      )}
       {!isRunner && editTarget && (
         <EditAgendaItemModal
           open={editTarget !== null}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Clock, MapPin, Hand, CalendarCheck } from "lucide-react";
+import { Clock, MapPin, Hand, CalendarCheck, UserPlus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge, statusTone, humanize } from "@/components/ui/badge";
 import { Button } from "@/components/ui/form-field";
@@ -15,19 +15,22 @@ export type OpenPauta = {
   id: string;
   eventName: string;
   dayKey: string;
-  eventTime: string | null;
-  arrivalTime: string | null;
-  venueName: string | null;
-  location: string | null;
-  itemType: string | null;
+  eventTime?: string | null;
+  arrivalTime?: string | null;
+  venueName?: string | null;
+  location?: string | null;
+  itemType?: string | null;
   status: string;
-  clientName: string | null;
+  clientName?: string | null;
 };
 
 const TIME: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
 
-/** Every future pauta with nobody on it, so a runner can see what they could take — and take it. */
-export function OpenPautas({ pautas }: { pautas: OpenPauta[] }) {
+/**
+ * Every future pauta with nobody on it. Runners see "I can take this" (claim); the internal
+ * Runner Schedule passes `onAssign` and gets an "Assign runner" button instead.
+ */
+export function OpenPautas<T extends OpenPauta>({ pautas, onAssign }: { pautas: T[]; onAssign?: (p: T) => void }) {
   const router = useRouter();
   const { toast } = useToast();
   const [target, setTarget] = useState<OpenPauta | null>(null);
@@ -55,7 +58,7 @@ export function OpenPautas({ pautas }: { pautas: OpenPauta[] }) {
   }
 
   // Group by day, in date order (the server already sorted them).
-  const days = new Map<string, OpenPauta[]>();
+  const days = new Map<string, T[]>();
   for (const p of pautas) days.set(p.dayKey, [...(days.get(p.dayKey) ?? []), p]);
 
   return (
@@ -89,9 +92,15 @@ export function OpenPautas({ pautas }: { pautas: OpenPauta[] }) {
                         )}
                       </div>
                     </div>
-                    <Button size="lg" variant="secondary" leftIcon={<Hand className="h-4 w-4" />} onClick={() => setTarget(p)} className="h-12 w-full shrink-0 sm:h-10 sm:w-auto">
-                      I can take this
-                    </Button>
+                    {onAssign ? (
+                      <Button size="lg" leftIcon={<UserPlus className="h-4 w-4" />} onClick={() => onAssign(p)} className="h-12 w-full shrink-0 sm:h-10 sm:w-auto">
+                        Assign runner
+                      </Button>
+                    ) : (
+                      <Button size="lg" variant="secondary" leftIcon={<Hand className="h-4 w-4" />} onClick={() => setTarget(p)} className="h-12 w-full shrink-0 sm:h-10 sm:w-auto">
+                        I can take this
+                      </Button>
+                    )}
                   </div>
                 </Card>
               ))}
