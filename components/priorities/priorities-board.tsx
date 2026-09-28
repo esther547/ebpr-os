@@ -6,6 +6,7 @@ import {
   priorityOrderBy,
   prioritySelect,
   resolveWeekKey,
+  rollOverPendingPriorities,
   weekOfInstant,
   type PriorityList,
 } from "@/lib/priorities";
@@ -24,6 +25,8 @@ export async function PrioritiesBoard({
   const currentWeekKey = weekStartKey(dayKeyInTz(new Date()));
   const weekKey =
     requestedWeek && isValidDayKey(requestedWeek) ? resolveWeekKey(requestedWeek) : currentWeekKey;
+  // Pending lines from past weeks follow the team into the current week.
+  await rollOverPendingPriorities().catch((err) => console.error("rollOverPendingPriorities failed:", err));
 
   const [rows, activeClients, teamMembers] = await Promise.all([
     db.weeklyPriority.findMany({

@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { companionWhere } from "@/lib/companions";
+import { notifyRunnerAssigned } from "@/lib/runner-notify";
 import {
   addDaysKey,
   dayKeyInTz,
@@ -425,6 +426,10 @@ export async function autoAssignRunners(opts: {
     });
   }
 
+  // Every runner who just got a pauta hears about it (bell + email).
+  for (const a of report.assigned) {
+    try { await notifyRunnerAssigned(a.id); } catch (err) { console.error("notifyRunnerAssigned failed:", err); }
+  }
   return report;
 }
 

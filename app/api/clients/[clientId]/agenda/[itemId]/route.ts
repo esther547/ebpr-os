@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { miamiWeekOf } from "@/app/api/deliverables/_lib/agenda-sync";
 import { z } from "zod";
 import { reassignAfterTimeChange } from "@/lib/runner-assign";
+import { notifyRunnerOfChanges, notifyRunnersOpenActivity, snapshotSelect } from "@/lib/runner-notify";
 import { checkClientDate, dayKeyOf } from "@/lib/client-availability";
 
 /** "YYYY-MM-DD" -> noon UTC so the calendar day is stable in every timezone. */
@@ -47,6 +48,7 @@ export async function PATCH(
   if (!existing) {
     return NextResponse.json({ error: "Agenda item not found" }, { status: 404 });
   }
+  const before = await db.runnerAssignment.findUnique({ where: { id: itemId }, select: snapshotSelect });
 
   const body = await req.json();
   const parsed = patchSchema.safeParse(body);
@@ -115,6 +117,17 @@ export async function PATCH(
     } catch (err) {
       console.error("Re-assignment after time change failed:", err);
     }
+  }
+
+  // The runner on this pauta learns exactly what changed (or the new runner that they got it);
+  // a pauta left without a runner is broadcast to every runner.
+  try {
+    if (before) {
+      const r = await notifyRunnerOfChanges(before, user.name);
+      if (!r.notified && before.runnerId && d.runnerId === null) await notifyRunnersOpenActivity(itemId);
+    }
+  } catch (err) {
+    console.error("Runner notification failed:", err);
   }
 
   const updated = await db.runnerAssignment.findUnique({

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { canManageRunners } from "@/lib/permissions";
 import { db } from "@/lib/db";
+import { notifyRunnerAssigned, notifyRunnersOpenActivity } from "@/lib/runner-notify";
 import { COMPANION_ROLES } from "@/lib/companions";
 import { z } from "zod";
 import { startOfWeek, startOfDay, endOfDay } from "date-fns";
@@ -213,6 +214,14 @@ export async function POST(
       } catch (err) {
         console.error("Could not create the goal for the agenda item:", err);
       }
+    }
+
+    // Runner notifications: the chosen runner is told; with nobody on it, every runner is told.
+    try {
+      if (item.runnerId) await notifyRunnerAssigned(item.id);
+      else if (item.status !== "CANCELLED" && item.notes !== "No requiere runner") await notifyRunnersOpenActivity(item.id);
+    } catch (err) {
+      console.error("Runner notification failed:", err);
     }
 
     await db.activityLog.create({

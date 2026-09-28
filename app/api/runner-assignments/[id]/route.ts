@@ -5,6 +5,7 @@ import { canManageRunners } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { COMPANION_ROLES } from "@/lib/companions";
 import { reassignAfterTimeChange } from "@/lib/runner-assign";
+import { notifyRunnerOfChanges, notifyRunnersOpenActivity, snapshotSelect } from "@/lib/runner-notify";
 import { dayKeyInTz, tzMidnight, weekStartKey } from "@/components/runners/miami-time";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +47,7 @@ async function handleUpdate(req: NextRequest, { params }: Params) {
 
   const existing = await db.runnerAssignment.findUnique({
     where: { id: params.id },
-    select: { id: true },
+    select: snapshotSelect,
   });
   if (!existing) {
     return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
@@ -124,6 +125,13 @@ async function handleUpdate(req: NextRequest, { params }: Params) {
     } catch (err) {
       console.error("Re-assignment after time change failed:", err);
     }
+  }
+
+  try {
+    const r = await notifyRunnerOfChanges(existing, user.name);
+    if (!r.notified && existing.runnerId && d.runnerId === null) await notifyRunnersOpenActivity(params.id);
+  } catch (err) {
+    console.error("Runner notification failed:", err);
   }
 
   const updated = await db.runnerAssignment.findUnique({

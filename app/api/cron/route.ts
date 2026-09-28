@@ -12,6 +12,7 @@ import {
 import { syncAllAgendaDocs, type AgendaDocSyncReport } from "@/lib/google-docs-writer";
 import { runEventReminders, type EventReminderSummary } from "@/lib/industry-events";
 import { reminderModeForToday, sendPitchReminders, type PitchReminderResult } from "@/lib/pitch-reminders";
+import { rollOverPendingPriorities } from "@/lib/priorities";
 
 /**
  * Cron endpoint — called daily (8am Miami) to generate notifications:
@@ -227,6 +228,13 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     console.error("Cron: industry event reminders failed:", err);
     events = { error: err instanceof Error ? err.message : String(err) };
+  }
+
+  // ── 4a. Weekly boards: unfinished lines from past weeks move into the current week ──
+  try {
+    results.prioritiesRolledOver = await rollOverPendingPriorities(now);
+  } catch (err) {
+    console.error("Cron: priorities roll-over failed:", err);
   }
 
   // ── 4c. Pitch reminders for the strategists: Monday = full, Thursday = urgent only ──

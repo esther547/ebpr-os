@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import type { DeliverableType } from "@prisma/client";
 import { dayKeyInTz, tzMidnight, weekStartKey } from "@/components/runners/miami-time";
 import { autoAssignRunners, reassignAfterTimeChange } from "@/lib/runner-assign";
+import { notifyRunnerOfChanges, notifyRunnersOpenActivity, snapshotSelect } from "@/lib/runner-notify";
 import { checkClientDate } from "@/lib/client-availability";
 
 /**
@@ -95,6 +96,10 @@ export async function ensureAgendaItemForDeliverable(
     } catch (err) {
       console.error("Immediate runner assignment failed:", err);
     }
+    // Nobody could take it: every runner hears about the open pauta.
+    if (!runnerName) {
+      try { await notifyRunnersOpenActivity(created.id); } catch (err) { console.error("notifyRunnersOpenActivity failed:", err); }
+    }
   }
   return { created: true, assignmentId: created.id, runnerName };
 }
@@ -116,7 +121,7 @@ export async function syncAgendaItemDetails(
 
   const linked = await db.runnerAssignment.findFirst({
     where: { deliverableId, status: { in: ["SCHEDULED", "CONFIRMED"] } },
-    select: { id: true, eventDate: true, eventTime: true },
+    select: snapshotSelect,
   });
   if (!linked) return null;
 
@@ -144,6 +149,13 @@ export async function syncAgendaItemDetails(
     } catch (err) {
       console.error("Re-assignment after goal time change failed:", err);
     }
+  }
+  // The assigned runner learns what changed on the pauta (date, time, place, title).
+  try {
+    const actor = actorId ? await db.user.findUnique({ where: { id: actorId }, select: { name: true } }) : null;
+    await notifyRunnerOfChanges(linked, actor?.name);
+  } catch (err) {
+    console.error("Runner notification failed:", err);
   }
   return linked.id;
 }

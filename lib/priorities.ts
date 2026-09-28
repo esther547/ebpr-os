@@ -5,6 +5,7 @@
 // is found from a server running in UTC and from a browser in Miami.
 
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import { requireUser, type SessionUser } from "@/lib/auth";
 import {
@@ -178,6 +179,33 @@ export function zodMessage(issues: { path: (string | number)[]; message: string 
   return issues
     .map((i) => (i.path.length ? `${i.path.join(".")}: ` : "") + i.message)
     .join("; ");
+}
+
+/**
+ * Nothing pending is lost when the week turns (Esther, Sept 28 2026): every unfinished line
+ * of ANY board that still sits in a past week is moved into the current Miami week, at the
+ * bottom of its list. Idempotent; runs from the daily cron and when a board is opened.
+ */
+export async function rollOverPendingPriorities(now: Date = new Date()): Promise<number> {
+  const weekOf = weekOfInstant(resolveWeekKey(dayKeyInTz(now)));
+  const stale = await db.weeklyPriority.findMany({
+    where: { isDone: false, weekOf: { lt: weekOf } },
+    select: { id: true, list: true, clientId: true },
+    orderBy: [{ weekOf: "asc" }, { order: "asc" }, { createdAt: "asc" }],
+  });
+  if (!stale.length) return 0;
+  const next = new Map<string, number>();
+  for (const s of stale) {
+    const key = `${s.list}|${s.clientId ?? ""}`;
+    if (!next.has(key)) {
+      const last = await db.weeklyPriority.aggregate({ where: { weekOf, list: s.list, clientId: s.clientId }, _max: { order: true } });
+      next.set(key, (last._max.order ?? -1) + 1);
+    }
+    const order = next.get(key)!;
+    next.set(key, order + 1);
+    await db.weeklyPriority.update({ where: { id: s.id }, data: { weekOf, order } });
+  }
+  return stale.length;
 }
 
 /** Uppercased category when the board has categories and it is one of them; null otherwise. */
