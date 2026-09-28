@@ -37,6 +37,8 @@ type NavItem = {
   roles: UserRole[];
   /** When set, the item is shown only to these emails (personal pages), whatever the role. */
   emails?: string[];
+  /** Never shown to these emails, whatever the role. */
+  excludeEmails?: string[];
 };
 
 type NavGroup = { label: string; items: NavItem[] };
@@ -60,8 +62,8 @@ const navGroups: NavGroup[] = [
   {
     label: "Media",
     items: [
-      { href: "/press-releases", label: "Press Releases", icon: <Newspaper />, roles: ["SUPER_ADMIN", "STRATEGIST", "WRITER"] },
-      { href: "/journalists", label: "Journalists", icon: <BookOpen />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
+      { href: "/press-releases", label: "Press Releases", icon: <Newspaper />, roles: ["SUPER_ADMIN", "STRATEGIST", "WRITER"], excludeEmails: ["diana@ebmanagement.io"] },
+      { href: "/journalists", label: "Journalists", icon: <BookOpen />, roles: ["SUPER_ADMIN", "STRATEGIST"], excludeEmails: ["diana@ebmanagement.io"] },
     ],
   },
   {
@@ -119,6 +121,7 @@ export function Sidebar({ userRole, userName, userEmail }: SidebarProps) {
     .map((g) => ({
       ...g,
       items: g.items.filter((i) => {
+        if (i.excludeEmails?.includes(userEmail.toLowerCase())) return false;
         const allowed = i.roles.includes(userRole) || (i.emails ? i.emails.includes(userEmail.toLowerCase()) : false);
         return allowed && (FEATURES.legal || !["/legal", "/follow-up"].includes(i.href));
       }),

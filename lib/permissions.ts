@@ -49,8 +49,17 @@ export const canManageUsers = (u: SessionUser) => isSuperAdmin(u);
 export const canViewReports = (u: SessionUser) =>
   u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST;
 
+/** People kept out of the press area (journalist contacts + press-release list) — Esther, Sept 28 2026. */
+export const PRESS_EXCLUDED_EMAILS = ["diana@ebmanagement.io"];
+const pressExcluded = (u: SessionUser) => PRESS_EXCLUDED_EMAILS.includes((u.email ?? "").toLowerCase());
+
+/** Press-release list, drafts, approval, distribution: admins + strategists (minus the excluded). */
 export const canManagePressReleases = (u: SessionUser) =>
-  u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST || u.role === UserRole.WRITER;
+  (u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST) && !pressExcluded(u);
+/** Who may open the Press Releases page at all: the above plus the writer (who only sees the requests board). */
+export const canOpenPressPage = (u: SessionUser) => canManagePressReleases(u) || u.role === UserRole.WRITER;
+/** Press-release requests board (Michel's queue): press people + the writer. */
+export const canSeePressRequests = (u: SessionUser) => canOpenPressPage(u);
 
 /** Only Esther may distribute a press release from the portal (Esther, Sept 28 2026). */
 export const PRESS_SENDER_EMAIL = "esther@ebmanagement.io";
@@ -58,13 +67,13 @@ export const canSendPressReleases = (u: SessionUser) => (u.email ?? "").toLowerC
 
 // "Necesitamos un comunicado" requests: strategists ask, the writer (Michel) delivers.
 export const canRequestPressRelease = (u: SessionUser) =>
-  u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST;
+  (u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST) && !pressExcluded(u);
 export const isWriter = (u: SessionUser) => u.role === UserRole.WRITER;
 export const canWorkPressReleaseRequests = (u: SessionUser) =>
   u.role === UserRole.SUPER_ADMIN || u.role === UserRole.WRITER;
 
 export const canManageJournalists = (u: SessionUser) =>
-  u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST;
+  (u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST) && !pressExcluded(u);
 
 export const canViewFollowUp = (u: SessionUser) =>
   u.role === UserRole.SUPER_ADMIN || u.role === UserRole.ASSISTANT || u.role === UserRole.LEGAL;

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { canManagePressReleases, canRequestPressRelease } from "@/lib/permissions";
+import { canRequestPressRelease, canSeePressRequests } from "@/lib/permissions";
 import { notifyWritersOfRequest, requestSelect } from "@/lib/press-release-requests";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ const createSchema = z.object({
 export async function GET() {
   let user;
   try { user = await requireUser(); } catch { return NextResponse.json({ error: "Unauthorized" }, { status: 401 }); }
-  if (!canManagePressReleases(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!canSeePressRequests(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const data = await db.pressReleaseRequest.findMany({ select: requestSelect, orderBy: [{ status: "asc" }, { dueDate: "asc" }] });
   return NextResponse.json({ data });
 }

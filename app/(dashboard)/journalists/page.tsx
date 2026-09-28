@@ -1,4 +1,5 @@
-import { requireUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { ROLE_HOME, requireUser } from "@/lib/auth";
 import { canManageJournalists } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/layout/header";
@@ -18,9 +19,7 @@ export default async function JournalistsPage({
   searchParams: SearchParams;
 }) {
   const user = await requireUser();
-  if (!canManageJournalists(user)) {
-    return <p className="text-ink-muted py-10 text-center">Access restricted.</p>;
-  }
+  if (!canManageJournalists(user)) redirect(ROLE_HOME[user.role]);
 
   const search = (searchParams.search ?? "").trim();
   const beat = (searchParams.beat ?? "").trim();

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { canManagePressReleases, canRequestPressRelease, canWorkPressReleaseRequests } from "@/lib/permissions";
+import { canRequestPressRelease, canSeePressRequests, canWorkPressReleaseRequests } from "@/lib/permissions";
 import { notifyRequesterOfStatus, requestSelect } from "@/lib/press-release-requests";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ const updateSchema = z.object({
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let user;
   try { user = await requireUser(); } catch { return NextResponse.json({ error: "Unauthorized" }, { status: 401 }); }
-  if (!canManagePressReleases(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!canSeePressRequests(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
   const body = await req.json().catch(() => null);
   const parsed = updateSchema.safeParse(body);

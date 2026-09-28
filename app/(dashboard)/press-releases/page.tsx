@@ -1,5 +1,6 @@
-import { requireUser } from "@/lib/auth";
-import { canManagePressReleases, canRequestPressRelease, canSendPressReleases, canWorkPressReleaseRequests, isWriter } from "@/lib/permissions";
+import { redirect } from "next/navigation";
+import { ROLE_HOME, requireUser } from "@/lib/auth";
+import { canManagePressReleases, canOpenPressPage, canRequestPressRelease, canSendPressReleases, canWorkPressReleaseRequests, isWriter } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/layout/header";
 import { PressReleasesClient } from "@/components/press-releases/press-releases-client";
@@ -11,9 +12,8 @@ export const dynamic = "force-dynamic";
 
 export default async function PressReleasesPage({ searchParams }: { searchParams?: { request?: string } }) {
   const user = await requireUser();
-  if (!canManagePressReleases(user)) {
-    return <p className="text-ink-muted py-10 text-center">Access restricted.</p>;
-  }
+  if (!canOpenPressPage(user)) redirect(ROLE_HOME[user.role]);
+  const fullAccess = canManagePressReleases(user);
 
   const releases = await db.pressRelease.findMany({
     orderBy: { createdAt: "desc" },
@@ -55,11 +55,13 @@ export default async function PressReleasesPage({ searchParams }: { searchParams
         writerName={writerName}
         highlightId={searchParams?.request ?? null}
       />
-      <PressReleasesClient
-        releases={JSON.parse(JSON.stringify(releases))}
-        clients={clients}
-        canSend={canSendPressReleases(user)}
-      />
+      {fullAccess && (
+        <PressReleasesClient
+          releases={JSON.parse(JSON.stringify(releases))}
+          clients={clients}
+          canSend={canSendPressReleases(user)}
+        />
+      )}
     </>
   );
 }
