@@ -142,6 +142,31 @@ export async function notifyRunnerOfChanges(before: AssignmentSnapshot, actorNam
   return { notified: true, changes };
 }
 
+/** A runner stepped down from a pauta: admins + strategists hear about it (bell + email), with the reason and whether someone else was found. */
+export async function notifyTeamRunnerReleased(assignmentId: string, runner: { name: string }, reason: string | null, replacement: { name: string } | null): Promise<number> {
+  const a = await snapshotAssignment(assignmentId);
+  if (!a) return 0;
+  const team = await db.user.findMany({ where: { role: { in: ["SUPER_ADMIN", "STRATEGIST"] }, isActive: true }, select: { id: true, email: true } });
+  if (!team.length) return 0;
+  const client = await clientName(a.clientId);
+  const link = a.clientId ? `/clients/${a.clientId}/agenda?assignment=${a.id}` : `/runners/schedule?assignment=${a.id}`;
+  const title = `${runner.name} no puede asistir: ${a.eventName}`;
+  const outcome = replacement ? `Se asignó automáticamente a ${replacement.name}.` : "Nadie disponible: la pauta quedó SIN RUNNER.";
+  const message = `${client ? client + " · " : ""}${fmtDay(a.eventDate)}${reason ? ` · Motivo: ${reason}` : ""} · ${outcome}`;
+  await db.notification.createMany({ data: team.map((t) => ({ userId: t.id, type: replacement ? "runner_released" : "assignment_needs_runner", title, message, link })) }).catch(() => undefined);
+  if (isEmailConfigured()) {
+    const html = wrap(
+      "Un runner se bajó de una pauta",
+      `<p style="font-size:14px;margin:0 0 12px"><strong>${esc(runner.name)}</strong> avisó que no puede asistir a <strong>${esc(a.eventName)}</strong>${client ? ` (${esc(client)})` : ""}.</p>
+       ${reason ? `<p style="font-size:14px;margin:0 0 12px">Motivo: ${esc(reason)}</p>` : ""}
+       <p style="font-size:14px;margin:0 0 16px;${replacement ? "" : "color:#b91c1c;font-weight:600"}">${esc(outcome)}</p>${detailsHtml(a, client)}`,
+      `${APP_URL}${link}`
+    );
+    await sendEmail({ to: team.map((t) => t.email), subject: `${replacement ? "Cambio de runner" : "PAUTA SIN RUNNER"}: ${a.eventName}${client ? ` (${client})` : ""} · ${fmtDay(a.eventDate)}`, html, text: `${title}\n${message}\n${APP_URL}${link}` }).catch(() => undefined);
+  }
+  return team.length;
+}
+
 /** A new pauta has nobody on it: every active runner hears about it (bell + email). */
 export async function notifyRunnersOpenActivity(assignmentId: string): Promise<number> {
   const a = await snapshotAssignment(assignmentId);

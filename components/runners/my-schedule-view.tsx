@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { MapPin, Clock, User, FileText, Check, Briefcase, CalendarCheck } from "lucide-react";
+import { MapPin, Clock, User, FileText, Check, Briefcase, CalendarCheck, UserMinus } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button, Textarea, FormGroup, FormActions } from "@/components/ui/form-field";
 import { Card } from "@/components/ui/card";
@@ -46,8 +46,36 @@ export function MyScheduleView({
   showRunner?: boolean;
 }) {
   const [completeAssignment, setCompleteAssignment] = useState<ScheduleItem | null>(null);
+  const [releaseAssignment, setReleaseAssignment] = useState<ScheduleItem | null>(null);
   const { toast } = useToast();
   const router = useRouter();
+
+  // "I can't attend": the runner steps down; the team is told and another runner is looked for.
+  async function releaseMe(id: string, reason?: string): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/runner-assignments/${id}/release`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({ title: typeof data?.error === "string" ? data.error : "Could not update", variant: "error" });
+        return false;
+      }
+      setReleaseAssignment(null);
+      toast({
+        title: "You're off this activity",
+        description: data?.data?.replacement ? `${data.data.replacement} was assigned instead.` : "The team has been notified to find another runner.",
+        variant: "success",
+      });
+      router.refresh();
+      return true;
+    } catch {
+      toast({ title: "Could not update", variant: "error" });
+      return false;
+    }
+  }
 
   async function markCompleted(id: string, notes?: string): Promise<boolean> {
     try {
@@ -202,9 +230,9 @@ export function MyScheduleView({
                         )}
                       </div>
 
-                      {/* Completion action */}
+                      {/* Completion / step-down actions */}
                       {a.status !== "COMPLETED" && a.status !== "CANCELLED" && (
-                        <div className="shrink-0">
+                        <div className="flex shrink-0 flex-col gap-2 sm:items-end">
                           <Button
                             size="lg"
                             leftIcon={<Check className="h-4 w-4" />}
@@ -213,6 +241,17 @@ export function MyScheduleView({
                           >
                             Mark complete
                           </Button>
+                          {!showRunner && a.dayKey >= todayKey && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              leftIcon={<UserMinus className="h-4 w-4" />}
+                              onClick={() => setReleaseAssignment(a)}
+                              className="w-full text-ink-muted hover:text-red-700 sm:w-auto"
+                            >
+                              I can't attend
+                            </Button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -223,6 +262,17 @@ export function MyScheduleView({
           );
         })}
       </div>
+
+      {releaseAssignment && (
+        <ReleaseModal
+          open={!!releaseAssignment}
+          onOpenChange={(o) => {
+            if (!o) setReleaseAssignment(null);
+          }}
+          assignment={releaseAssignment}
+          onRelease={releaseMe}
+        />
+      )}
 
       {/* Complete Assignment Modal */}
       {completeAssignment && (
@@ -236,6 +286,47 @@ export function MyScheduleView({
         />
       )}
     </>
+  );
+}
+
+function ReleaseModal({
+  open,
+  onOpenChange,
+  assignment,
+  onRelease,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  assignment: ScheduleItem;
+  onRelease: (id: string, reason?: string) => Promise<boolean>;
+}) {
+  const [loading, setLoading] = useState(false);
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+    const reason = ((new FormData(e.currentTarget).get("reason") as string) || "").trim() || undefined;
+    const ok = await onRelease(assignment.id, reason);
+    if (!ok) setLoading(false);
+  }
+  return (
+    <Modal open={open} onOpenChange={onOpenChange} title="I can't attend" description={assignment.eventName}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <p className="text-sm text-ink-secondary">
+          You'll be taken off this activity. The team gets notified right away and another runner is assigned automatically when someone is available.
+        </p>
+        <FormGroup label="Reason" htmlFor="rel-reason" hint="Optional, but it helps the team">
+          <Textarea id="rel-reason" name="reason" rows={3} placeholder="e.g. work conflict, out of town, sick…" />
+        </FormGroup>
+        <FormActions>
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+            Keep it
+          </Button>
+          <Button type="submit" variant="destructive" loading={loading} leftIcon={<UserMinus className="h-4 w-4" />}>
+            Take me off
+          </Button>
+        </FormActions>
+      </form>
+    </Modal>
   );
 }
 

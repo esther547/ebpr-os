@@ -322,6 +322,8 @@ export async function autoAssignRunners(opts: {
   reassignIds?: string[];
   /** Who to attribute the activity log to. Falls back to the chosen runner. */
   actorId?: string;
+  /** Runners never to pick (e.g. the one who just said they cannot attend). */
+  excludeRunnerIds?: string[];
 }): Promise<AutoAssignReport> {
   const fallback = nextWeekRange();
   const fromKey = opts.from ? toDayKey(opts.from) : fallback.from;
@@ -369,6 +371,7 @@ export async function autoAssignRunners(opts: {
     const eligible: Runner[] = [];
 
     for (const runner of ctx.runners) {
+      if (opts.excludeRunnerIds?.includes(runner.id)) continue;
       const verdict = isEligible(target, runner.id, ctx);
       if (verdict.ok) eligible.push(runner);
       else causes[verdict.cause]++;
