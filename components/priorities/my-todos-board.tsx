@@ -71,6 +71,34 @@ export function MyTodosBoard({ items: initial, target, team, viewerId, isAdmin, 
       fail(err, "No se pudo guardar el cambio");
     }
   }
+  // Ticking = done: the line is deleted right away, with a few seconds to undo.
+  async function complete(item: Item) {
+    const before = items;
+    setItems((prev) => prev.filter((i) => i.id !== item.id));
+    try {
+      await request(`/api/priorities/${item.id}`, { method: "DELETE" });
+      router.refresh();
+      toast({
+        title: "Hecha ✓",
+        description: item.title,
+        variant: "success",
+        duration: 6000,
+        action: {
+          label: "Deshacer",
+          onClick: () =>
+            void request<PriorityItem>("/api/priorities", {
+              method: "POST",
+              body: JSON.stringify({ week: weekKey, list: item.list, clientId: item.clientId, title: item.title, notes: item.notes, assigneeId: own }),
+            })
+              .then((created) => { setItems((prev) => [...prev, { ...created, list: item.list }]); router.refresh(); })
+              .catch((err) => fail(err, "No se pudo deshacer")),
+        },
+      });
+    } catch (err) {
+      setItems(before);
+      fail(err, "No se pudo marcar como hecha");
+    }
+  }
   async function remove(item: Item) {
     setDeleteItem(null);
     const before = items;
@@ -87,7 +115,7 @@ export function MyTodosBoard({ items: initial, target, team, viewerId, isAdmin, 
   const find = (p: PriorityItem) => items.find((i) => i.id === p.id);
   const rowProps = {
     personal: true,
-    onToggle: (p: PriorityItem) => { const item = find(p); if (item) void patch(item, { isDone: !item.isDone }, { isDone: !item.isDone }); },
+    onToggle: (p: PriorityItem) => { const item = find(p); if (item) void complete(item); },
     onRename: (p: PriorityItem, title: string) => { const item = find(p); if (item) void patch(item, { title }, { title }); },
     onEdit: (p: PriorityItem) => setEditItem(find(p) ?? null),
     onMove: (p: PriorityItem) => setEditItem(find(p) ?? null),
@@ -117,9 +145,8 @@ export function MyTodosBoard({ items: initial, target, team, viewerId, isAdmin, 
         </div>
       </PageHeader>
 
-      <div className="mb-6 grid grid-cols-3 gap-3">
+      <div className="mb-6 grid grid-cols-2 gap-3">
         <StatTile label="Total" value={items.length} icon={<ListChecks />} />
-        <StatTile label="Hechas" value={done} icon={<CheckCircle2 />} tone="success" />
         <StatTile label="Pendientes" value={items.length - done} icon={<CalendarDays />} />
       </div>
 

@@ -6,7 +6,14 @@ import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type ToastVariant = "default" | "success" | "error";
-type ToastInput = { title: string; description?: string; variant?: ToastVariant; duration?: number };
+type ToastInput = {
+  title: string;
+  description?: string;
+  variant?: ToastVariant;
+  duration?: number;
+  /** Optional inline action, e.g. "Deshacer". */
+  action?: { label: string; onClick: () => void };
+};
 type ToastItem = ToastInput & { id: number };
 
 const ToastContext = createContext<{ toast: (t: ToastInput) => void } | null>(null);
@@ -50,6 +57,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 <ToastPrimitive.Description className="mt-0.5 text-xs text-ink-secondary">{t.description}</ToastPrimitive.Description>
               )}
             </div>
+            {t.action && (
+              <ToastPrimitive.Action
+                altText={t.action.label}
+                onClick={t.action.onClick}
+                className="shrink-0 rounded-md border border-border px-2 py-1 text-xs font-medium text-ink-primary hover:bg-surface-2"
+              >
+                {t.action.label}
+              </ToastPrimitive.Action>
+            )}
             <ToastPrimitive.Close className="rounded-md p-1 text-ink-muted opacity-0 transition-opacity hover:bg-surface-2 hover:text-ink-primary group-hover:opacity-100">
               <X className="h-3.5 w-3.5" />
             </ToastPrimitive.Close>

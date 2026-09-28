@@ -65,7 +65,6 @@ export function PrioritiesPageClient({
   const { toast } = useToast();
 
   const [items, setItems] = useState(initialItems);
-  const [onlyPending, setOnlyPending] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [editItem, setEditItem] = useState<PriorityItem | null>(null);
   const [moveItem, setMoveItem] = useState<PriorityItem | null>(null);
@@ -86,7 +85,7 @@ export function PrioritiesPageClient({
     return { total: items.length, done, pending: items.length - done, clients: clientIds.size };
   }, [items]);
 
-  const visible = onlyPending ? items.filter((i) => !i.isDone) : items;
+  const visible = items;
   const general = visible.filter((i) => (board.categories ? !i.category : !i.clientId));
   const categorySections = useMemo(() => {
     if (!board.categories) return [];
@@ -157,8 +156,47 @@ export function PrioritiesPageClient({
     }
   }
 
-  const toggleDone = (item: PriorityItem) =>
-    void patch(item, { isDone: !item.isDone }, { isDone: !item.isDone });
+  // Ticking a line = done: it leaves the board and is deleted (Esther: "lo que se vaya
+  // tachando, borremos para que no se acumule"). The toast offers a few seconds to undo.
+  async function completePriority(item: PriorityItem) {
+    const before = items;
+    setItems((prev) => prev.filter((i) => i.id !== item.id));
+    try {
+      await request(`/api/priorities/${item.id}`, { method: "DELETE" });
+      router.refresh();
+      toast({
+        title: "Hecha ✓",
+        description: item.title,
+        variant: "success",
+        duration: 6000,
+        action: { label: "Deshacer", onClick: () => void restorePriority(item) },
+      });
+    } catch (err) {
+      setItems(before);
+      failed(err, "No se pudo marcar como hecha");
+    }
+  }
+  async function restorePriority(item: PriorityItem) {
+    try {
+      const created = await request<PriorityItem>("/api/priorities", {
+        method: "POST",
+        body: JSON.stringify({
+          week: weekKey,
+          list: board.key,
+          title: item.title,
+          notes: item.notes,
+          clientId: item.clientId,
+          category: item.category,
+          assigneeId: item.assigneeId,
+        }),
+      });
+      setItems((prev) => [...prev, created]);
+      router.refresh();
+    } catch (err) {
+      failed(err, "No se pudo deshacer");
+    }
+  }
+  const toggleDone = (item: PriorityItem) => void completePriority(item);
 
   const renamePriority = (item: PriorityItem, title: string) =>
     void patch(item, { title }, { title });
@@ -274,22 +312,11 @@ export function PrioritiesPageClient({
               <Link href={board.path}>Esta semana</Link>
             </Button>
           )}
-          <span className="ml-auto">
-            <Button
-              variant={onlyPending ? "primary" : "secondary"}
-              size="sm"
-              aria-pressed={onlyPending}
-              onClick={() => setOnlyPending((v) => !v)}
-            >
-              Solo pendientes
-            </Button>
-          </span>
         </div>
       </PageHeader>
 
-      <div className={cn("mb-6 grid grid-cols-2 gap-3", board.categories ? "lg:grid-cols-3" : "lg:grid-cols-4")}>
+      <div className={cn("mb-6 grid grid-cols-2 gap-3", board.categories ? "lg:grid-cols-2" : "lg:grid-cols-3")}>
         <StatTile label="Total" value={stats.total} icon={<ListChecks />} />
-        <StatTile label="Hechas" value={stats.done} icon={<CheckCircle2 />} tone="success" />
         <StatTile label="Pendientes" value={stats.pending} icon={<CalendarDays />} />
         {!board.categories && <StatTile label="Clientes" value={stats.clients} icon={<Users />} />}
       </div>

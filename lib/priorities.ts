@@ -201,6 +201,16 @@ export function zodMessage(issues: { path: (string | number)[]; message: string 
  * of ANY board that still sits in a past week is moved into the current Miami week, at the
  * bottom of its list. Idempotent; runs from the daily cron and when a board is opened.
  */
+/**
+ * Done lines do not pile up (Esther, Sept 28 2026): ticking a line deletes it from the board
+ * right away (with an undo toast). This nightly sweep removes anything still marked done
+ * (older data, API edits) so no board accumulates crossed-out lines.
+ */
+export async function purgeDonePriorities(): Promise<number> {
+  const res = await db.weeklyPriority.deleteMany({ where: { isDone: true } });
+  return res.count;
+}
+
 export async function rollOverPendingPriorities(now: Date = new Date()): Promise<number> {
   const weekOf = weekOfInstant(resolveWeekKey(dayKeyInTz(now)));
   const stale = await db.weeklyPriority.findMany({
