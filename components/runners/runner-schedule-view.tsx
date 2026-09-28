@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CalendarX2, ChevronLeft, ChevronRight, MapPin, UserPlus } from "lucide-react";
+import { CalendarX2, ChevronLeft, ChevronRight, MapPin, UserPlus, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { addDaysKey, formatDayKey, formatInTz } from "@/components/runners/miami-time";
 import { Badge, statusTone, humanize } from "@/components/ui/badge";
@@ -24,6 +24,11 @@ export type ScheduleAssignment = {
   dayKey: string;
   location: string | null;
   venueName: string | null;
+  venueAddress?: string | null;
+  arrivalTime?: string | null;
+  eventTime?: string | null;
+  itemType?: string | null;
+  notes?: string | null;
   status: string;
   autoAssigned: boolean;
   runner: { id: string; name: string; avatar: string | null } | null;
@@ -41,6 +46,9 @@ type Props = {
   isReadOnly: boolean;
   /** Open the "assign a runner" picker for one activity. */
   onAssign?: (assignment: ScheduleAssignment) => void;
+  /** Strategists/admins: edit (time, place, runner…) or delete a pauta. */
+  onEdit?: (assignment: ScheduleAssignment) => void;
+  onDelete?: (assignment: ScheduleAssignment) => void;
 };
 
 const WEEK_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -65,6 +73,8 @@ export function RunnerScheduleView({
   todayKey,
   isReadOnly,
   onAssign,
+  onEdit,
+  onDelete,
 }: Props) {
   const [runnerFilter, setRunnerFilter] = useState<string>("ALL");
 
@@ -279,6 +289,20 @@ export function RunnerScheduleView({
                                 Assign
                               </Button>
                             )
+                          )}
+                          {!isReadOnly && (onEdit || onDelete) && (
+                            <div className="mt-1.5 flex items-center gap-1">
+                              {onEdit && (
+                                <Button variant="ghost" size="xs" className="flex-1" leftIcon={<Pencil className="h-3 w-3" />} onClick={() => onEdit(a)}>
+                                  Editar
+                                </Button>
+                              )}
+                              {onDelete && (
+                                <Button variant="ghost" size="icon-sm" aria-label="Eliminar" title="Eliminar del horario" onClick={() => onDelete(a)}>
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
                           )}
                         </div>
                       );

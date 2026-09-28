@@ -60,6 +60,11 @@ export default async function RunnerSchedulePage({
       eventDate: true,
       location: true,
       venueName: true,
+      venueAddress: true,
+      arrivalTime: true,
+      eventTime: true,
+      itemType: true,
+      notes: true,
       status: true,
       autoAssigned: true,
       runner: { select: { id: true, name: true, avatar: true } },
@@ -79,6 +84,8 @@ export default async function RunnerSchedulePage({
     ...a,
     clientName: clientId ? clientNames.get(clientId) ?? null : null,
     eventDate: a.eventDate.toISOString(),
+    arrivalTime: a.arrivalTime ? a.arrivalTime.toISOString() : null,
+    eventTime: a.eventTime ? a.eventTime.toISOString() : null,
     dayKey: dayKeyInTz(a.eventDate),
   }));
 

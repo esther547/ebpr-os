@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { canManageRunners } from "@/lib/permissions";
 import { db } from "@/lib/db";
+import { isEmailConfigured, sendEmail } from "@/lib/email";
 import { COMPANION_ROLES } from "@/lib/companions";
 import { reassignAfterTimeChange } from "@/lib/runner-assign";
 import { notifyRunnerOfChanges, notifyRunnersOpenActivity, snapshotSelect } from "@/lib/runner-notify";
@@ -166,4 +167,33 @@ export async function GET(_req: NextRequest, { params }: Params) {
   }
 
   return NextResponse.json({ data: assignment });
+}
+
+/** DELETE — remove a pauta from the schedule (the linked goal, if any, is kept). The runner on it is told. */
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  let user;
+  try {
+    user = await requireUser();
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!canManageRunners(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const existing = await db.runnerAssignment.findUnique({
+    where: { id: params.id },
+    select: { id: true, runnerId: true, eventName: true, eventDate: true, clientId: true },
+  });
+  if (!existing) return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
+  await db.runnerAssignment.delete({ where: { id: params.id } });
+  if (existing.runnerId) {
+    const when = existing.eventDate.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", timeZone: "America/New_York" });
+    await db.notification
+      .create({ data: { userId: existing.runnerId, type: "runner_agenda", title: `Pauta eliminada: ${existing.eventName}`, message: `${when}. ${user.name} la quitó del horario.`, link: "/runner-portal" } })
+      .catch(() => undefined);
+    const runner = await db.user.findUnique({ where: { id: existing.runnerId }, select: { email: true, isActive: true } });
+    if (runner?.isActive && isEmailConfigured()) {
+      await sendEmail({ to: runner.email, subject: `Pauta eliminada: ${existing.eventName} · ${when}`, html: `<p>${user.name} quitó del horario la pauta <strong>${existing.eventName}</strong> (${when}).</p>`, text: `Pauta eliminada: ${existing.eventName} (${when}).` }).catch(() => undefined);
+    }
+  }
+  await db.activityLog.create({ data: { userId: user.id, clientId: existing.clientId, action: "agenda_item_deleted", description: `Eliminó "${existing.eventName}" del horario de runners` } }).catch(() => undefined);
+  return NextResponse.json({ success: true });
 }

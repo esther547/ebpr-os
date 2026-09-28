@@ -49,7 +49,8 @@ export function EditAgendaItemModal({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  clientId: string;
+  /** Client agenda page. Omit on the runner schedule (any pauta, client or agency). */
+  clientId?: string;
   item: EditableAgendaItem;
   runners: Companion[];
 }) {
@@ -81,7 +82,7 @@ export function EditAgendaItemModal({
     // Only send runnerId when the user changed it, so an unchanged auto-assignment stays automatic.
     if (runnerId !== (item.runner?.id ?? "")) body.runnerId = runnerId || null;
     try {
-      const res = await fetch(`/api/clients/${clientId}/agenda/${item.id}`, {
+      const res = await fetch(clientId ? `/api/clients/${clientId}/agenda/${item.id}` : `/api/runner-assignments/${item.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

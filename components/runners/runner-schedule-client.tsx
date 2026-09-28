@@ -8,6 +8,10 @@ import { RunnerScheduleView, type ScheduleAssignment } from "./runner-schedule-v
 import { CreateAssignmentModal } from "./create-assignment-modal";
 import { AutoAssignButton } from "./auto-assign-button";
 import { AssignRunnerModal } from "./assign-runner-modal";
+import { EditAgendaItemModal } from "@/components/agenda/edit-agenda-item-modal";
+import { ConfirmModal } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/form-field";
 import { addDaysKey } from "@/components/runners/miami-time";
 import { CalendarClock, Plus } from "lucide-react";
@@ -42,6 +46,26 @@ export function RunnerScheduleClient({
 }: Props) {
   const [showAssign, setShowAssign] = useState(false);
   const [assignTarget, setAssignTarget] = useState<ScheduleAssignment | null>(null);
+  const [editTarget, setEditTarget] = useState<ScheduleAssignment | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ScheduleAssignment | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const router = useRouter();
+  const { toast } = useToast();
+
+  async function removeAssignment(a: ScheduleAssignment) {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/runner-assignments/${a.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast({ title: "Pauta eliminada del horario", variant: "success" });
+      setDeleteTarget(null);
+      router.refresh();
+    } catch {
+      toast({ title: "No se pudo eliminar la pauta", variant: "error" });
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   const needsRunner = assignments.filter((a) => !a.runnerId).length;
   // The auto-assign button always builds NEXT week unless you are already
@@ -90,7 +114,41 @@ export function RunnerScheduleClient({
         todayKey={todayKey}
         isReadOnly={isRunner}
         onAssign={setAssignTarget}
+        onEdit={setEditTarget}
+        onDelete={setDeleteTarget}
       />
+      {!isRunner && editTarget && (
+        <EditAgendaItemModal
+          open={editTarget !== null}
+          onOpenChange={(o) => !o && setEditTarget(null)}
+          item={{
+            id: editTarget.id,
+            eventName: editTarget.eventName,
+            eventDate: editTarget.eventDate,
+            arrivalTime: editTarget.arrivalTime ?? null,
+            eventTime: editTarget.eventTime ?? null,
+            venueName: editTarget.venueName,
+            venueAddress: editTarget.venueAddress ?? null,
+            itemType: editTarget.itemType ?? null,
+            status: editTarget.status,
+            notes: editTarget.notes ?? null,
+            runner: editTarget.runner ? { id: editTarget.runner.id, name: editTarget.runner.name } : null,
+          }}
+          runners={runners}
+        />
+      )}
+      {!isRunner && (
+        <ConfirmModal
+          open={deleteTarget !== null}
+          onOpenChange={(o) => !o && setDeleteTarget(null)}
+          title="Eliminar pauta del horario"
+          description={deleteTarget ? `${deleteTarget.clientName ? deleteTarget.clientName + " · " : ""}${deleteTarget.eventName}. Si tiene runner asignado, se le avisa.` : undefined}
+          confirmLabel="Eliminar"
+          destructive
+          loading={deleting}
+          onConfirm={() => { if (deleteTarget) void removeAssignment(deleteTarget); }}
+        />
+      )}
       {!isRunner && clients.length > 0 && (
         <CreateAssignmentModal
           open={showAssign}
