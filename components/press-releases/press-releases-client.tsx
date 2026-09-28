@@ -69,6 +69,8 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 interface Props {
+  /** Only Esther can distribute (send) a release. */
+  canSend?: boolean;
   releases: Release[];
   clients: { id: string; name: string }[];
 }
@@ -97,7 +99,7 @@ function nextWeekdayYmd(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function PressReleasesClient({ releases, clients }: Props) {
+export function PressReleasesClient({ releases, clients, canSend = false }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [scheduling, setScheduling] = useState<Release | null>(null);
   const [sending, setSending] = useState<Release | null>(null);
@@ -287,13 +289,15 @@ export function PressReleasesClient({ releases, clients }: Props) {
                                 )}
                                 {r.status === "SCHEDULED" && (
                                   <>
+                                    {canSend && (
                                     <DropdownMenuItem
                                       icon={<Send />}
                                       disabled={busy}
                                       onSelect={() => setSending(r)}
                                     >
-                                      Mark Sent
+                                      Send to journalists
                                     </DropdownMenuItem>
+                                    )}
                                     <DropdownMenuItem
                                       icon={<CalendarClock />}
                                       disabled={busy}

@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth";
-import { canManagePressReleases, canRequestPressRelease, canWorkPressReleaseRequests, isWriter } from "@/lib/permissions";
+import { canManagePressReleases, canRequestPressRelease, canSendPressReleases, canWorkPressReleaseRequests, isWriter } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/layout/header";
 import { PressReleasesClient } from "@/components/press-releases/press-releases-client";
@@ -58,6 +58,7 @@ export default async function PressReleasesPage({ searchParams }: { searchParams
       <PressReleasesClient
         releases={JSON.parse(JSON.stringify(releases))}
         clients={clients}
+        canSend={canSendPressReleases(user)}
       />
     </>
   );
