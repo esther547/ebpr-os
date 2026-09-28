@@ -208,7 +208,7 @@ export function zodMessage(issues: { path: (string | number)[]; message: string 
  */
 /**
  * Client order on Prioridades (Esther, Sept 28 2026: "dejame mover los clientes para
- * organizarlos yo por lo más urgente de esta semana"). Per week; a week without its own
+ * organizarlos yo por lo más urgente de esta semana"; later that day: strategists too). Per week; a week without its own
  * order inherits the most recent earlier one. Clients not in the list go after, A–Z.
  */
 export async function getClientOrder(weekKey: string): Promise<string[]> {
