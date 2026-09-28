@@ -13,6 +13,7 @@ import {
 } from "@/components/runners/miami-time";
 import { loadScheduleItems } from "@/components/runners/load-schedule";
 import { RunnerScheduleClient } from "@/components/runners/runner-schedule-client";
+import { OpenPautas, type OpenPauta } from "@/components/runners/open-pautas";
 import { companionWhere } from "@/lib/companions";
 import { weekStartKey } from "@/components/runners/miami-time";
 import {
@@ -60,6 +61,28 @@ export default async function RunnerPortalPage({ searchParams }: { searchParams?
   }));
   const teamRunners = await db.user.findMany({ where: companionWhere, select: { id: true, name: true, role: true, avatar: true }, orderBy: { name: "asc" } });
   const nextWeekKey = addDaysKey(currentWeekKey, 7);
+
+  // Every future pauta with nobody on it (any week): what a runner could take.
+  const openRows = await db.runnerAssignment.findMany({
+    where: { runnerId: null, status: { in: ["SCHEDULED", "CONFIRMED"] }, eventDate: { gte: todayStart } },
+    select: { id: true, eventName: true, eventDate: true, eventTime: true, arrivalTime: true, venueName: true, location: true, itemType: true, status: true, clientId: true },
+    orderBy: [{ eventDate: "asc" }, { eventTime: "asc" }],
+    take: 200,
+  });
+  const openClientIds = Array.from(new Set(openRows.map((r) => r.clientId).filter((id): id is string => !!id)));
+  const openClientNames = new Map((openClientIds.length ? await db.client.findMany({ where: { id: { in: openClientIds } }, select: { id: true, name: true } }) : []).map((c) => [c.id, c.name]));
+  const openPautas: OpenPauta[] = openRows.map((r) => ({
+    id: r.id,
+    eventName: r.eventName,
+    dayKey: dayKeyInTz(r.eventDate),
+    eventTime: r.eventTime ? r.eventTime.toISOString() : null,
+    arrivalTime: r.arrivalTime ? r.arrivalTime.toISOString() : null,
+    venueName: r.venueName,
+    location: r.location,
+    itemType: r.itemType,
+    status: r.status,
+    clientName: r.clientId ? openClientNames.get(r.clientId) ?? null : null,
+  }));
 
   // Only this runner's own assignments. Today's events stay visible for the
   // whole day (and uncompleted ones for a week after) so the runner can mark
@@ -150,6 +173,16 @@ export default async function RunnerPortalPage({ searchParams }: { searchParams?
           embedded
           basePath="/runner-portal"
         />
+      </section>
+
+      {/* Everything upcoming that still needs a runner — take it from here */}
+      <section className="space-y-4">
+        <SectionHeader
+          title="Pautas that need a runner"
+          description={openPautas.length ? `${openPautas.length} upcoming pauta${openPautas.length === 1 ? "" : "s"} nobody is on yet. If one fits your schedule, take it.` : "Upcoming pautas nobody is on yet."}
+          className="mb-0"
+        />
+        <OpenPautas pautas={openPautas} />
       </section>
 
       {/* Own pautas with actions (mark complete / can't attend) */}

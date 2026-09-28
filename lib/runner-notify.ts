@@ -167,6 +167,24 @@ export async function notifyTeamRunnerReleased(assignmentId: string, runner: { n
   return team.length;
 }
 
+/** A runner took an open pauta from the portal: admins + strategists hear about it (bell + email). */
+export async function notifyTeamRunnerClaimed(assignmentId: string, runner: { name: string }): Promise<number> {
+  const a = await snapshotAssignment(assignmentId);
+  if (!a) return 0;
+  const team = await db.user.findMany({ where: { role: { in: ["SUPER_ADMIN", "STRATEGIST"] }, isActive: true }, select: { id: true, email: true } });
+  if (!team.length) return 0;
+  const client = await clientName(a.clientId);
+  const link = a.clientId ? `/clients/${a.clientId}/agenda?assignment=${a.id}` : `/runners/schedule?assignment=${a.id}`;
+  const title = `${runner.name} tomó la pauta: ${a.eventName}`;
+  const message = `${client ? client + " · " : ""}${fmtDay(a.eventDate)}${a.eventTime ? ` · ${fmtTime(a.eventTime)}` : ""}`;
+  await db.notification.createMany({ data: team.map((t) => ({ userId: t.id, type: "runner_claimed", title, message, link })) }).catch(() => undefined);
+  if (isEmailConfigured()) {
+    const html = wrap("Un runner tomó una pauta abierta", `<p style="font-size:14px;margin:0 0 16px"><strong>${esc(runner.name)}</strong> se asignó desde el portal a <strong>${esc(a.eventName)}</strong>${client ? ` (${esc(client)})` : ""}. Si no corresponde, cámbialo desde el horario de runners.</p>${detailsHtml(a, client)}`, `${APP_URL}${link}`);
+    await sendEmail({ to: team.map((t) => t.email), subject: `Runner asignado: ${a.eventName}${client ? ` (${client})` : ""} · ${fmtDay(a.eventDate)}`, html, text: `${title}\n${message}\n${APP_URL}${link}` }).catch(() => undefined);
+  }
+  return team.length;
+}
+
 /** A new pauta has nobody on it: every active runner hears about it (bell + email). */
 export async function notifyRunnersOpenActivity(assignmentId: string): Promise<number> {
   const a = await snapshotAssignment(assignmentId);
