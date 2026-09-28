@@ -152,12 +152,12 @@ export function MyScheduleView({
                     id={`assignment-${a.id}`}
                     padding="sm"
                     interactive
-                    className="sm:p-5"
+                    className="p-4 sm:p-5"
                   >
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                       <div className="min-w-0 flex-1">
                         <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                          <h4 className="min-w-0 truncate text-base font-semibold text-ink-primary">
+                          <h4 className="min-w-0 break-words text-base font-semibold leading-snug text-ink-primary">
                             {a.eventName}
                           </h4>
                           <Badge tone={statusTone(a.status)} dot>
@@ -232,12 +232,12 @@ export function MyScheduleView({
 
                       {/* Completion / step-down actions */}
                       {a.status !== "COMPLETED" && a.status !== "CANCELLED" && (
-                        <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+                        <div className="flex shrink-0 flex-col gap-2 border-t border-border pt-3 sm:border-0 sm:pt-0 sm:items-end">
                           <Button
                             size="lg"
                             leftIcon={<Check className="h-4 w-4" />}
                             onClick={() => setCompleteAssignment(a)}
-                            className="w-full sm:w-auto"
+                            className="h-12 w-full sm:h-10 sm:w-auto"
                           >
                             Mark complete
                           </Button>
