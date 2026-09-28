@@ -8,6 +8,7 @@ import {
   resolveWeekKey,
   rollOverPendingPriorities,
   weekOfInstant,
+  getClientOrder,
   type PriorityList,
 } from "@/lib/priorities";
 import { dayKeyInTz, weekStartKey } from "@/components/runners/miami-time";
@@ -17,9 +18,12 @@ import type { ClientOption } from "./helpers";
 export async function PrioritiesBoard({
   list,
   requestedWeek,
+  canReorder = false,
 }: {
   list: PriorityList;
   requestedWeek?: string;
+  /** Team board: the viewer may reorder clients by urgency (admin). */
+  canReorder?: boolean;
 }) {
   // Week boundaries in Miami time (weeks start Monday), independent of server TZ.
   const currentWeekKey = weekStartKey(dayKeyInTz(new Date()));
@@ -28,7 +32,7 @@ export async function PrioritiesBoard({
   // Pending lines from past weeks follow the team into the current week.
   await rollOverPendingPriorities().catch((err) => console.error("rollOverPendingPriorities failed:", err));
 
-  const [rows, activeClients, teamMembers] = await Promise.all([
+  const [rows, activeClients, teamMembers, clientOrder] = await Promise.all([
     db.weeklyPriority.findMany({
       where: { weekOf: weekOfInstant(weekKey), list: list.key },
       select: prioritySelect,
@@ -49,6 +53,7 @@ export async function PrioritiesBoard({
           select: { id: true, name: true },
           orderBy: { name: "asc" },
         }),
+    list.key === "TEAM" ? getClientOrder(weekKey) : Promise.resolve([] as string[]),
   ]);
 
   const items = rows.map((r) => ({
@@ -83,6 +88,8 @@ export async function PrioritiesBoard({
       teamMembers={teamMembers}
       weekKey={weekKey}
       currentWeekKey={currentWeekKey}
+      clientOrder={clientOrder}
+      canReorder={canReorder && list.key === "TEAM"}
     />
   );
 }

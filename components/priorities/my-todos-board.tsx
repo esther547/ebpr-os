@@ -16,9 +16,9 @@ import { shiftDayKey, weekRangeLabel, type PriorityItem } from "./helpers";
 
 type Item = PriorityItem & { list: string };
 type Person = { id: string; name: string };
-type Props = { items: Item[]; target: Person; team: Person[]; viewerId: string; isAdmin: boolean; weekKey: string; currentWeekKey: string };
+type Props = { items: Item[]; target: Person; team: Person[]; viewerId: string; isAdmin: boolean; weekKey: string; currentWeekKey: string; clientOrder?: string[] };
 
-export function MyTodosBoard({ items: initial, target, team, viewerId, isAdmin, weekKey, currentWeekKey }: Props) {
+export function MyTodosBoard({ items: initial, target, team, viewerId, isAdmin, weekKey, currentWeekKey, clientOrder = [] }: Props) {
   const router = useRouter();
   const { toast } = useToast();
   const [items, setItems] = useState<Item[]>(initial);
@@ -152,7 +152,7 @@ export function MyTodosBoard({ items: initial, target, team, viewerId, isAdmin, 
       </div>
 
       <div className="space-y-4">
-        <PrioritySectionCard clientId={null} title="Asignado en Prioridades del equipo" href="/priorities" items={fromTeam} showClient onAdd={(_c, raw) => add("TEAM", raw)} {...rowProps} />
+        <PrioritySectionCard clientId={null} title="Asignado en Prioridades del equipo" href="/priorities" items={fromTeam} showClient clientOrder={clientOrder} onAdd={(_c, raw) => add("TEAM", raw)} {...rowProps} />
         <PrioritySectionCard clientId={null} title={viewingOther ? `Pendientes de ${first}` : "Mis pendientes"} items={personal} onAdd={(_c, raw) => add("PERSONAL", raw)} {...rowProps} />
       </div>
 

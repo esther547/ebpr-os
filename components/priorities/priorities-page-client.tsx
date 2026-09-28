@@ -51,6 +51,10 @@ type Props = {
   weekKey: string;
   /** Monday of the current week, "yyyy-MM-dd" (Miami). */
   currentWeekKey: string;
+  /** Team board: Esther's client order for this week (most urgent first). */
+  clientOrder?: string[];
+  /** Whether the viewer may reorder clients (admin). */
+  canReorder?: boolean;
 };
 
 export function PrioritiesPageClient({
@@ -60,9 +64,13 @@ export function PrioritiesPageClient({
   teamMembers,
   weekKey,
   currentWeekKey,
+  clientOrder: initialClientOrder = [],
+  canReorder = false,
 }: Props) {
   const router = useRouter();
   const { toast } = useToast();
+  const [clientOrder, setClientOrder] = useState<string[]>(initialClientOrder);
+  useEffect(() => setClientOrder(initialClientOrder), [initialClientOrder]);
 
   const [items, setItems] = useState(initialItems);
   const [showCreate, setShowCreate] = useState(false);
@@ -100,8 +108,28 @@ export function PrioritiesPageClient({
       group.items.push(item);
       groups.set(item.clientId, group);
     }
-    return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name, "es"));
-  }, [visible]);
+    // Esther's manual order first (most urgent this week); anyone not placed yet goes after, A–Z.
+    const rank = new Map(clientOrder.map((id, i) => [id, i]));
+    const rankOf = (id: string) => (rank.has(id) ? (rank.get(id) as number) : Number.MAX_SAFE_INTEGER);
+    return [...groups.values()].sort((a, b) => rankOf(a.id) - rankOf(b.id) || a.name.localeCompare(b.name, "es"));
+  }, [visible, clientOrder]);
+
+  async function reorderClient(clientId: string, direction: -1 | 1) {
+    const ids = clientSections.map((s) => s.id);
+    const from = ids.indexOf(clientId);
+    const to = from + direction;
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    [ids[from], ids[to]] = [ids[to], ids[from]];
+    const before = clientOrder;
+    setClientOrder(ids);
+    try {
+      await request("/api/priorities/client-order", { method: "PUT", body: JSON.stringify({ week: weekKey, clientIds: ids }) });
+      router.refresh();
+    } catch (err) {
+      setClientOrder(before);
+      failed(err, "No se pudo guardar el orden");
+    }
+  }
 
   // ─── Mutations ─────────────────────────────────────────
 
@@ -362,13 +390,16 @@ export function PrioritiesPageClient({
               {...rowProps}
             />
           )}
-          {!board.categories && clientSections.map((section) => (
+          {!board.categories && clientSections.map((section, i) => (
             <PrioritySectionCard
               key={section.id}
               clientId={section.id}
               title={section.name}
               href={board.personal ? undefined : `/clients/${section.id}/deliverables`}
               items={section.items}
+              onReorder={canReorder && !board.personal ? (dir) => void reorderClient(section.id, dir) : undefined}
+              isFirst={i === 0}
+              isLast={i === clientSections.length - 1}
               {...rowProps}
             />
           ))}

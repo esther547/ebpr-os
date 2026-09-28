@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Plus } from "lucide-react";
+import { ArrowUpRight, ChevronDown, ChevronUp, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button, Input } from "@/components/ui/form-field";
 import { PriorityRow } from "./priority-row";
@@ -23,6 +23,12 @@ type Props = {
   onAssign?: (item: PriorityItem, assigneeId: string | null) => void;
   /** Mixed lists: show each line's client. */
   showClient?: boolean;
+  /** Mixed lists: Esther's client order for the week (most urgent first). */
+  clientOrder?: string[];
+  /** Client sections on the team board: move this client up/down (undefined = cannot). */
+  onReorder?: (direction: -1 | 1) => void;
+  isFirst?: boolean;
+  isLast?: boolean;
   onAdd: (clientId: string | null, raw: string, category?: string | null) => Promise<void>;
   onToggle: (item: PriorityItem) => void;
   onRename: (item: PriorityItem, title: string) => void;
@@ -41,6 +47,10 @@ export function PrioritySectionCard({
   teamMembers = [],
   onAssign,
   showClient = false,
+  clientOrder = [],
+  onReorder,
+  isFirst = false,
+  isLast = false,
   onAdd,
   onToggle,
   onRename,
@@ -50,7 +60,7 @@ export function PrioritySectionCard({
 }: Props) {
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
-  const sorted = sortPriorities(items, showClient);
+  const sorted = sortPriorities(items, showClient, clientOrder);
 
   async function save() {
     const raw = draft.trim();
@@ -81,6 +91,16 @@ export function PrioritySectionCard({
           )}
           <p className="mt-0.5 text-xs text-ink-muted">{countLabel(items)}</p>
         </div>
+        {onReorder && (
+          <div className="flex shrink-0 items-center gap-0.5" title="Ordenar por urgencia">
+            <Button type="button" variant="ghost" size="icon-sm" aria-label={`Subir ${title}`} disabled={isFirst} onClick={() => onReorder(-1)}>
+              <ChevronUp className="h-4 w-4" />
+            </Button>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label={`Bajar ${title}`} disabled={isLast} onClick={() => onReorder(1)}>
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
 
       <form

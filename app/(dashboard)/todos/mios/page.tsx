@@ -9,6 +9,7 @@ import {
   resolveWeekKey,
   rollOverPendingPriorities,
   weekOfInstant,
+  getClientOrder,
 } from "@/lib/priorities";
 import { dayKeyInTz, weekStartKey } from "@/components/runners/miami-time";
 import { MyTodosBoard } from "@/components/priorities/my-todos-board";
@@ -37,6 +38,7 @@ export default async function MyTodosPage({ searchParams }: { searchParams?: { w
   const requested = searchParams?.week;
   const weekKey = requested && isValidDayKey(requested) ? resolveWeekKey(requested) : currentWeekKey;
 
+  const clientOrder = await getClientOrder(weekKey);
   const rows = await db.weeklyPriority.findMany({
     where: { weekOf: weekOfInstant(weekKey), assigneeId: target.id, list: { in: ["TEAM", "PERSONAL"] } },
     select: { ...prioritySelect, list: true },
@@ -65,6 +67,7 @@ export default async function MyTodosPage({ searchParams }: { searchParams?: { w
       isAdmin={viewer.role === "SUPER_ADMIN"}
       weekKey={weekKey}
       currentWeekKey={currentWeekKey}
+      clientOrder={clientOrder}
     />
   );
 }

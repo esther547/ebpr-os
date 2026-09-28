@@ -13,5 +13,5 @@ export default async function PrioritiesPage({
 }) {
   const user = await requireUser();
   if (!canManagePriorities(user)) redirect(ROLE_HOME[user.role]);
-  return <PrioritiesBoard list={PRIORITY_LISTS.TEAM} requestedWeek={searchParams?.week} />;
+  return <PrioritiesBoard list={PRIORITY_LISTS.TEAM} requestedWeek={searchParams?.week} canReorder={user.role === "SUPER_ADMIN"} />;
 }

@@ -206,6 +206,28 @@ export function zodMessage(issues: { path: (string | number)[]; message: string 
  * right away (with an undo toast). This nightly sweep removes anything still marked done
  * (older data, API edits) so no board accumulates crossed-out lines.
  */
+/**
+ * Client order on Prioridades (Esther, Sept 28 2026: "dejame mover los clientes para
+ * organizarlos yo por lo más urgente de esta semana"). Per week; a week without its own
+ * order inherits the most recent earlier one. Clients not in the list go after, A–Z.
+ */
+export async function getClientOrder(weekKey: string): Promise<string[]> {
+  const weekOf = weekOfInstant(weekKey);
+  const row = await db.priorityClientOrder.findFirst({ where: { weekOf: { lte: weekOf } }, orderBy: { weekOf: "desc" }, select: { clientIds: true } });
+  return row?.clientIds ?? [];
+}
+
+export async function setClientOrder(weekKey: string, clientIds: string[]): Promise<void> {
+  const weekOf = weekOfInstant(weekKey);
+  await db.priorityClientOrder.upsert({ where: { weekOf }, create: { weekOf, clientIds }, update: { clientIds } });
+}
+
+/** Comparator helper: rank of a client in the manual order (unknown → after everyone, then A–Z). */
+export function clientRank(order: string[]): (id: string | null) => number {
+  const idx = new Map(order.map((id, i) => [id, i]));
+  return (id) => (id && idx.has(id) ? (idx.get(id) as number) : Number.MAX_SAFE_INTEGER);
+}
+
 export async function purgeDonePriorities(): Promise<number> {
   const res = await db.weeklyPriority.deleteMany({ where: { isDone: true } });
   return res.count;

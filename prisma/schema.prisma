@@ -881,6 +881,17 @@ model WeeklyPriority {
   @@map("weekly_priorities")
 }
 
+/// Esther's manual client order on Prioridades for a given week (most urgent first).
+/// Weeks without their own order inherit the latest earlier one.
+model PriorityClientOrder {
+  id        String   @id @default(cuid())
+  weekOf    DateTime @unique
+  clientIds String[]
+  updatedAt DateTime @updatedAt
+
+  @@map("priority_client_orders")
+}
+
 // ─── CLIENT AVAILABILITY / TRAVEL ────────────────────────
 // Dates the client is off (OFF: do not book anything) or travelling (TRAVEL:
 // available, but look for opportunities in `location`). startDate/endDate are

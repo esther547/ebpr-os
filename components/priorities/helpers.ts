@@ -93,10 +93,15 @@ export function parseQuickAdd(
 }
 
 /** Pending first, then the team's order; done items sink to the bottom. */
-export function sortPriorities(items: PriorityItem[], byClient = false): PriorityItem[] {
+export function sortPriorities(items: PriorityItem[], byClient = false, clientOrder: string[] = []): PriorityItem[] {
+  const rank = new Map(clientOrder.map((id, i) => [id, i]));
+  const rankOf = (id: string | null) => (id && rank.has(id) ? (rank.get(id) as number) : Number.MAX_SAFE_INTEGER);
   return [...items].sort((a, b) => {
     if (a.isDone !== b.isDone) return a.isDone ? 1 : -1;
     if (byClient) {
+      // Esther's manual order (most urgent first); the rest A–Z after it.
+      const r = rankOf(a.clientId) - rankOf(b.clientId);
+      if (r !== 0) return r;
       const c = (a.client?.name ?? "").localeCompare(b.client?.name ?? "");
       if (c !== 0) return c;
     }
