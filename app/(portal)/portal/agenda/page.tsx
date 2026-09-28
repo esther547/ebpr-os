@@ -56,7 +56,7 @@ export default async function PortalAgendaPage() {
   );
 
   // Report months: MES 1 = the first `monthlyTarget` goals, MES 2 the next… (lib/agenda-months.ts)
-  const months = allocateAgendaMonths(items.map((i) => ({ ...i, reportMonth: i.deliverableId ? goalMonths.get(i.deliverableId) ?? null : null })), {
+  const months = allocateAgendaMonths(items.map((i) => ({ ...i, reportMonth: (i.deliverableId ? goalMonths.get(i.deliverableId) : null) ?? (i.agendaMonth && i.agendaYear ? { month: i.agendaMonth, year: i.agendaYear } : null) })), {
     monthlyTarget: client?.monthlyTarget ?? 0,
     cycleDay: client?.cycleDay ?? null,
   });

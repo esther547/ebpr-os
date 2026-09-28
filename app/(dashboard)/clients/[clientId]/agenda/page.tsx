@@ -69,7 +69,7 @@ export default async function AgendaPage({ params }: Props) {
     agendaSequence: item.agendaSequence,
     monthNumber: item.monthNumber,
     createdAt: item.createdAt,
-    reportMonth: item.deliverableId ? goalMonths.get(item.deliverableId) ?? null : null,
+    reportMonth: (item.deliverableId ? goalMonths.get(item.deliverableId) : null) ?? (item.agendaMonth && item.agendaYear ? { month: item.agendaMonth, year: item.agendaYear } : null),
     runner: item.runner ? { id: item.runner.id, name: item.runner.name } : null,
   }));
 

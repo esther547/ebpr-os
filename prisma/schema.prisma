@@ -542,6 +542,10 @@ model RunnerAssignment {
   accompanistCount Int       @default(0)
   monthNumber      Int? // MES 1, MES 2... for grouping
   agendaSequence   Int? // sequential # within the agenda doc
+  // The MES block this pauta belongs to on the client's agenda, as in Esther's ledger (the Google Doc):
+  // the calendar month the goal was CLOSED in, never the pauta's own date. Imported from the docs.
+  agendaMonth      Int?
+  agendaYear       Int?
 
   // Auto-scheduling
   autoAssigned Boolean   @default(false) // true when lib/runner-assign.ts picked the runner

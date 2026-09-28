@@ -1,10 +1,12 @@
 /**
  * Agenda months.
  *
- * Pautas are grouped by the Miami calendar month of their date (exactly how the
- * Google Docs were laid out before Sept 24), numbered MES 1, MES 2… in order. The agency keeps its own monthly accounting by hand
- * (some pautas count as two goals, months get rebalanced in the Google Doc), so the
- * portal never redistributes goals across months — Esther, Sept 25 2026.
+ * A pauta sits under the month its GOAL WAS CLOSED in (Esther, Sept 28 2026: "si hoy, en
+ * septiembre, se confirma Premios Billboard para octubre, esa meta cuenta para septiembre"),
+ * carried as `reportMonth` (the linked goal's month, or the ledger month imported from the
+ * Google Doc). Only a pauta with neither falls back to the Miami calendar month of its date.
+ * Months are numbered MES 1, MES 2… in order of the months present (a skipped month is not
+ * numbered). The portal never redistributes goals across months.
  *
  * An item with an explicit `monthNumber` is pinned to that MES (manual override).
  */

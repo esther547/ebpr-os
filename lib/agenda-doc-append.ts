@@ -55,6 +55,8 @@ type Pauta = {
   createdAt: Date;
   deliverableId?: string | null;
   deliverable?: { month: number; year: number } | null;
+  agendaMonth?: number | null;
+  agendaYear?: number | null;
 };
 
 /** A "MES N (…)" block inside the doc's single agenda table. */
@@ -171,7 +173,7 @@ export async function appendNewPautasToDoc(clientId: string, opts: { dryRun?: bo
     orderBy: [{ eventDate: "asc" }, { createdAt: "asc" }],
     select: {
       id: true, eventDate: true, eventTime: true, eventName: true, venueName: true, venueAddress: true,
-      notes: true, status: true, runnerId: true, createdAt: true, deliverableId: true,
+      notes: true, status: true, runnerId: true, createdAt: true, deliverableId: true, agendaMonth: true, agendaYear: true,
     },
   });
 
@@ -211,8 +213,8 @@ export async function appendNewPautasToDoc(clientId: string, opts: { dryRun?: bo
     const newBlocks: NewBlock[] = [];
     let nextNumber = Math.max(...blocks.map((b) => b.number)) + 1;
     for (const p of toAdd) {
-      // Block = the goal's report month when linked, else the pauta's calendar month.
-      const m = p.deliverable?.month ?? Number(dayKeyInTz(p.eventDate).split("-")[1]);
+      // Block = the goal's report month when linked, else the ledger month, else the pauta's calendar month.
+      const m = p.deliverable?.month ?? p.agendaMonth ?? Number(dayKeyInTz(p.eventDate).split("-")[1]);
       const monthName = MONTH_NAMES_ES[m - 1];
       const target = [...blocks].reverse().find((b) => b.monthName === norm(monthName));
       if (target) {
