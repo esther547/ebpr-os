@@ -8,6 +8,7 @@ import {
   isPriorityListKey,
   isValidDayKey,
   normalizeCategory,
+  canSeePersonalOf,
   priorityOrderBy,
   prioritySelect,
   readJsonBody,
@@ -20,7 +21,7 @@ export const dynamic = "force-dynamic";
 
 const createSchema = z.object({
   week: z.string().optional().nullable(),
-  list: z.enum(["TEAM", "ESTHER", "CAROLINA", "LEGAL"]).optional(),
+  list: z.enum(["TEAM", "ESTHER", "CAROLINA", "LEGAL", "PERSONAL"]).optional(),
   category: z.string().trim().max(40).nullable().optional(),
   clientId: z.string().min(1).nullable().optional(),
   title: z.string().trim().min(1, "El título es obligatorio").max(300),
@@ -41,8 +42,11 @@ export async function GET(req: NextRequest) {
   }
 
   const weekKey = resolveWeekKey(raw);
+  // PERSONAL lines are scoped by assignee: a strategist only lists their own.
+  const assigneeParam = req.nextUrl.searchParams.get("assignee");
+  const personalScope = listRaw === "PERSONAL" ? { assigneeId: canSeePersonalOf(auth.user, assigneeParam) && assigneeParam ? assigneeParam : auth.user.id } : {};
   const items = await db.weeklyPriority.findMany({
-    where: { weekOf: weekOfInstant(weekKey), list: listRaw },
+    where: { weekOf: weekOfInstant(weekKey), list: listRaw, ...personalScope },
     select: prioritySelect,
     orderBy: priorityOrderBy,
   });
@@ -73,7 +77,11 @@ export async function POST(req: NextRequest) {
   }
 
   const clientId = parsed.data.clientId ?? null;
-  const assigneeId = parsed.data.assigneeId ?? null;
+  // A PERSONAL line always belongs to someone: the given assignee (admins) or the creator.
+  const assigneeId =
+    list === "PERSONAL"
+      ? canSeePersonalOf(auth.user, parsed.data.assigneeId ?? null) && parsed.data.assigneeId ? parsed.data.assigneeId : auth.user.id
+      : parsed.data.assigneeId ?? null;
 
   if (clientId) {
     const client = await db.client.findUnique({ where: { id: clientId }, select: { id: true } });

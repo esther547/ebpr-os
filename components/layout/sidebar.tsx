@@ -49,6 +49,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
       { href: "/priorities", label: "Prioridades", icon: <ListChecks />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
+      { href: "/todos/mios", label: "Mis to dos", icon: <ListTodo />, roles: ["SUPER_ADMIN", "STRATEGIST"] },
       { href: "/todos/esther", label: "Esther to dos", icon: <ListTodo />, roles: [], emails: ["esther@ebmanagement.io"] },
       { href: "/todos/carolina", label: "Carolina's to dos", icon: <ListTodo />, roles: [], emails: ["esther@ebmanagement.io", "carolina@ebmanagement.io"] },
       { href: "/todos/legal", label: "Legal to dos", icon: <Scale />, roles: [], emails: ["esther@ebmanagement.io", "carolina@ebmanagement.io"] },

@@ -33,7 +33,7 @@ import {
 } from "./helpers";
 
 export type BoardInfo = {
-  key: "TEAM" | "ESTHER" | "CAROLINA" | "LEGAL";
+  key: "TEAM" | "ESTHER" | "CAROLINA" | "LEGAL" | "PERSONAL";
   path: string;
   title: string;
   subtitle: string;

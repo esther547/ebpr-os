@@ -8,6 +8,7 @@ import {
   badRequest,
   isPriorityListKey,
   normalizeCategory,
+  canSeePersonalOf,
   prioritySelect,
   readJsonBody,
   zodMessage,
@@ -48,11 +49,14 @@ export async function PATCH(
 
   const existing = await db.weeklyPriority.findUnique({
     where: { id },
-    select: { id: true, weekOf: true, clientId: true, list: true },
+    select: { id: true, weekOf: true, clientId: true, list: true, assigneeId: true },
   });
   if (!existing) return NextResponse.json({ error: "Prioridad no encontrada" }, { status: 404 });
   const auth = await authorizePriorities(isPriorityListKey(existing.list) ? existing.list : "TEAM");
   if (auth.error) return auth.error;
+  if (existing.list === "PERSONAL" && !canSeePersonalOf(auth.user, existing.assigneeId)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const d = parsed.data;
   const data: Prisma.WeeklyPriorityUncheckedUpdateInput = {};
@@ -111,10 +115,13 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const existing = await db.weeklyPriority.findUnique({ where: { id }, select: { list: true } });
+  const existing = await db.weeklyPriority.findUnique({ where: { id }, select: { list: true, assigneeId: true } });
   if (!existing) return NextResponse.json({ error: "Prioridad no encontrada" }, { status: 404 });
   const auth = await authorizePriorities(isPriorityListKey(existing.list) ? existing.list : "TEAM");
   if (auth.error) return auth.error;
+  if (existing.list === "PERSONAL" && !canSeePersonalOf(auth.user, existing.assigneeId)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   try {
     await db.weeklyPriority.delete({ where: { id } });

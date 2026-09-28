@@ -23,7 +23,7 @@ export function canManagePriorities(user: SessionUser): boolean {
 // The same weekly list machinery powers three boards: the team's "Prioridades"
 // and two personal to-do pages. Personal boards are locked by email, not role.
 
-export type PriorityListKey = "TEAM" | "ESTHER" | "CAROLINA" | "LEGAL";
+export type PriorityListKey = "TEAM" | "ESTHER" | "CAROLINA" | "LEGAL" | "PERSONAL";
 
 export type PriorityList = {
   key: PriorityListKey;
@@ -76,12 +76,21 @@ export const PRIORITY_LISTS: Record<PriorityListKey, PriorityList> = {
     viewers: [ESTHER, CAROLINA],
     personal: true,
   },
+  /** Each strategist's own pending lines ("Mis to dos"): scoped by assignee, not by board viewers. */
+  PERSONAL: {
+    key: "PERSONAL",
+    path: "/todos/mios",
+    title: "Mis to dos",
+    subtitle: "Lo que tienes asignado esta semana y tus propios pendientes.",
+    viewers: [],
+    personal: true,
+  },
 };
 
 /** "esther" → ESTHER list; unknown slugs → null. */
 export function priorityListFromSlug(slug: string): PriorityList | null {
   const key = slug.toUpperCase() as PriorityListKey;
-  return key in PRIORITY_LISTS && key !== "TEAM" ? PRIORITY_LISTS[key] : null;
+  return key in PRIORITY_LISTS && key !== "TEAM" && key !== "PERSONAL" ? PRIORITY_LISTS[key] : null;
 }
 
 export function isPriorityListKey(value: unknown): value is PriorityListKey {
@@ -97,6 +106,12 @@ export function canAccessPriorityList(user: SessionUser, key: PriorityListKey): 
 /** The personal boards this user may open (for the sidebar / landing redirect). */
 export function personalListsFor(user: SessionUser): PriorityList[] {
   return Object.values(PRIORITY_LISTS).filter((l) => l.viewers.length > 0 && canAccessPriorityList(user, l.key));
+}
+
+/** "Mis to dos": a strategist sees only their own PERSONAL lines; admins may look at anyone's. */
+export function canSeePersonalOf(user: SessionUser, assigneeId: string | null): boolean {
+  if (user.role === "SUPER_ADMIN") return true;
+  return !!assigneeId && assigneeId === user.id;
 }
 
 const DAY_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
