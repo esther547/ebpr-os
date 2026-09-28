@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth";
 import { canViewReports } from "@/lib/permissions";
 import { db } from "@/lib/db";
+import { isClosedGoal } from "@/lib/goal-status";
 import { PageHeader, SectionHeader } from "@/components/layout/header";
 import { monthLabel, DELIVERABLE_TYPE_LABELS } from "@/lib/utils";
 import { currentMonthYearInTz } from "@/components/runners/miami-time";
@@ -68,7 +69,8 @@ export default async function ReportsPage({
     const cur = perClient.get(g.clientId) ?? { completed: 0, inProgress: 0, total: 0, media: {} };
     const n = g._count._all;
     if (g.status !== "CANCELLED") cur.total += n;
-    if (g.status === "COMPLETED") {
+    // A goal counts as done for the month once it is CLOSED (confirmed), not only when executed.
+    if (isClosedGoal(g.status)) {
       cur.completed += n;
       cur.media[g.type] = (cur.media[g.type] ?? 0) + n;
     } else if (g.status !== "CANCELLED") {

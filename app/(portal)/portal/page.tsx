@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentClientUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isClosedGoal } from "@/lib/goal-status";
 import { DeliverableStatus } from "@prisma/client";
 import { currentMonthYear, monthLabel, DELIVERABLE_TYPE_LABELS } from "@/lib/utils";
 import { Sparkles } from "lucide-react";
@@ -47,9 +48,7 @@ export default async function PortalDashboardPage() {
     orderBy: { updatedAt: "desc" },
   });
 
-  const completed = deliverables.filter(
-    (d) => d.status === DeliverableStatus.COMPLETED
-  );
+  const completed = deliverables.filter((d) => isClosedGoal(d.status));
   const inProgress = deliverables.filter(
     (d) =>
       d.status !== DeliverableStatus.COMPLETED &&

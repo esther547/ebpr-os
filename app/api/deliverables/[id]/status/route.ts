@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { isClosedGoal } from "@/lib/goal-status";
 import { closingReportMonth } from "@/lib/report-month";
 import { requireUser } from "@/lib/auth";
 import { canManageDeliverables } from "@/lib/permissions";
@@ -67,8 +68,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     // Who closed the goal. Entering COMPLETED always records a closer; on a goal that is
     // already COMPLETED an explicit closedById (re)assigns it, and a missing one is filled in.
     let closer: Closer | null = null;
+    // Confirming a goal CLOSES it (Esther, Sept 28 2026): closer + closing date are recorded then.
+    const closing = isClosedGoal(to) && !existing.closedAt;
     const setCloser =
-      to === "COMPLETED" && (!alreadyCompleted || !!parsed.data.closedById || !existing.closedById);
+      closing || (to === "COMPLETED" && (!alreadyCompleted || !!parsed.data.closedById || !existing.closedById));
     if (setCloser) {
       const resolved = await resolveCloser({
         requestedId: parsed.data.closedById,
@@ -94,12 +97,12 @@ export async function POST(req: NextRequest, { params }: Params) {
             : to === existing.status
               ? undefined
               : null,
-        // Leaving COMPLETED clears the closer.
-        ...(to === "COMPLETED"
+        // Closing (confirmed / in progress / completed) records the closer; going back to idea/pitching clears it.
+        ...(isClosedGoal(to)
           ? setCloser && { closedById: closer?.id ?? null, closedAt: existing.closedAt ?? new Date() }
-          : { closedById: null }),
+          : { closedById: null, closedAt: null }),
         // Closing for the first time: the goal counts in THIS cycle month (Esther, Sept 28 2026).
-        ...(to === "COMPLETED" && setCloser && !existing.closedAt ? await closingReportMonth(existing.clientId) : {}),
+        ...(closing ? await closingReportMonth(existing.clientId) : {}),
       },
       include: { closedBy: { select: { id: true, name: true } } },
     });

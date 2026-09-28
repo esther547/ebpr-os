@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { isClosedGoal } from "@/lib/goal-status";
 import { requireUser } from "@/lib/auth";
 import { canManageDeliverables } from "@/lib/permissions";
 import { closingReportMonth } from "@/lib/report-month";
@@ -116,8 +117,8 @@ export async function POST(req: NextRequest) {
         venueName: rest.venueName?.trim() || null,
         venueAddress: rest.venueAddress?.trim() || null,
         needsRunner: rest.needsRunner ?? true,
-        closedById: closer?.id ?? null,
-        closedAt: closer ? (closedAtStr ? new Date(`${closedAtStr}T12:00:00.000Z`) : new Date()) : null,
+        closedById: closer?.id ?? (isClosedGoal(rest.status ?? "IDEA") ? user.id : null),
+        closedAt: closer || isClosedGoal(rest.status ?? "IDEA") ? (closedAtStr ? new Date(`${closedAtStr}T12:00:00.000Z`) : new Date()) : null,
         // A goal that is already secured: confirmed if the pauta is still ahead, completed if it already happened.
         status: rest.status ?? (closer ? (dueDate && dueDate.getTime() < Date.now() ? "COMPLETED" : "CONFIRMED") : undefined),
         completedAt: !rest.status && closer && dueDate && dueDate.getTime() < Date.now() ? dueDate : undefined,

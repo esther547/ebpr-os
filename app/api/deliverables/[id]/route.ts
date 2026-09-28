@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { isClosedGoal } from "@/lib/goal-status";
 import { closingReportMonth } from "@/lib/report-month";
 import { requireUser } from "@/lib/auth";
 import { canManageDeliverables } from "@/lib/permissions";
@@ -140,8 +141,9 @@ export async function PUT(
     const effectiveStatus = d.status ?? existing.status;
     let closer: Closer | null = null;
     if (
-      effectiveStatus === "COMPLETED" &&
-      (statusChanged || (d.closedById !== undefined && d.closedById !== null))
+      (effectiveStatus === "COMPLETED" && (statusChanged || (d.closedById !== undefined && d.closedById !== null))) ||
+      // Confirming a goal closes it: record who and when (Esther, Sept 28 2026).
+      (isClosedGoal(effectiveStatus) && !existing.closedAt)
     ) {
       const resolved = await resolveCloser({
         requestedId: d.closedById,

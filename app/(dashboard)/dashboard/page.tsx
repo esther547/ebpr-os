@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight, Target, Users } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isClosedGoal, isOpenGoal } from "@/lib/goal-status";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/header";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -48,8 +49,9 @@ export default async function DashboardPage() {
   const pacing = new Map<string, { completed: number; inProgress: number }>();
   for (const d of deliverables) {
     const p = pacing.get(d.clientId) ?? { completed: 0, inProgress: 0 };
-    if (d.status === "COMPLETED") p.completed++;
-    else if (d.status !== "IDEA") p.inProgress++;
+    // "Completed" here means CLOSED (confirmed or executed); "in progress" = still pitching.
+    if (isClosedGoal(d.status)) p.completed++;
+    else if (isOpenGoal(d.status)) p.inProgress++;
     pacing.set(d.clientId, p);
   }
 
@@ -86,7 +88,7 @@ export default async function DashboardPage() {
         <StatTile
           label="Deliverables"
           value={totalCompleted}
-          hint={`de ${totalTarget} metas este ciclo · faltan ${totalRemaining}`}
+          hint={`cerradas de ${totalTarget} metas este ciclo · faltan ${totalRemaining}`}
           icon={<Target />}
           tone={totalRemaining === 0 ? "success" : "neutral"}
         />

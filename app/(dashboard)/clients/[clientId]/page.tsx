@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Plus, ArrowRight } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isClosedGoal } from "@/lib/goal-status";
 import { FEATURES } from "@/lib/features";
 import { DeliverablePacingBar } from "@/components/deliverables/pacing-bar";
 import { formatDate } from "@/lib/utils";
@@ -62,7 +63,8 @@ export default async function ClientPage({ params }: Props) {
     select: { status: true },
   });
 
-  const completed = deliverables.filter((d) => d.status === "COMPLETED").length;
+  // Closed goals (confirmed or executed) count toward the cycle.
+  const completed = deliverables.filter((d) => isClosedGoal(d.status)).length;
   const inProgress = deliverables.filter(
     (d) => !["COMPLETED", "CANCELLED", "IDEA"].includes(d.status)
   ).length;
@@ -120,7 +122,7 @@ export default async function ClientPage({ params }: Props) {
             />
             <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm text-ink-muted">
               <span>
-                <span className="tabular font-semibold text-ink-primary">{completed}</span> completed
+                <span className="tabular font-semibold text-ink-primary">{completed}</span> cerradas
               </span>
               <span>
                 <span className="tabular font-semibold text-ink-primary">{inProgress}</span> in progress

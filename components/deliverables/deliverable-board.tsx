@@ -1,5 +1,6 @@
 "use client";
 
+import { isClosedGoal } from "@/lib/goal-status";
 import Link from "next/link";
 import { cn, formatDate, DELIVERABLE_STATUS_LABELS, DELIVERABLE_TYPE_LABELS } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -31,7 +32,8 @@ export function DeliverableBoard({ deliverables, clientId, target, runnerNeededI
     {} as Record<string, any[]>
   );
 
-  const completed = byStatus.COMPLETED.length;
+  // Closed = confirmed, in progress or completed (Esther, Sept 28 2026).
+  const completed = deliverables.filter((d: any) => isClosedGoal(d.status)).length;
 
   return (
     <div className="space-y-4">

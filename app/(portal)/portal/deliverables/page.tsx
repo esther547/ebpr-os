@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentClientUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isClosedGoal } from "@/lib/goal-status";
 import { DeliverableStatus } from "@prisma/client";
 import { monthLabel, formatDate, DELIVERABLE_TYPE_LABELS } from "@/lib/utils";
 import { ClipboardList } from "lucide-react";
@@ -57,7 +58,7 @@ export default async function PortalDeliverablesPage() {
     groups.set(key, g);
   }
 
-  const completedCount = deliverables.filter((d) => d.status === "COMPLETED").length;
+  const completedCount = deliverables.filter((d) => isClosedGoal(d.status)).length;
   const activeCount = deliverables.length - completedCount;
 
   return (
@@ -68,7 +69,7 @@ export default async function PortalDeliverablesPage() {
         subtitle={
           deliverables.length === 0
             ? "Your campaign deliverables will appear here."
-            : `${completedCount} completed · ${activeCount} in motion`
+            : `${completedCount} secured · ${activeCount} in motion`
         }
       />
 

@@ -137,6 +137,7 @@ export async function loadClosedGoals(fromKey: string, toKey: string): Promise<C
       OR: [
         { closedAt: rangeBounds(fromKey, toKey) },
         { closedAt: null, status: "COMPLETED", completedAt: rangeBounds(fromKey, toKey) },
+        { closedAt: null, status: { in: ["CONFIRMED", "IN_PROGRESS"] }, createdAt: rangeBounds(fromKey, toKey) },
       ],
     },
     select: {

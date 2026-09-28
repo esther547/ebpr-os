@@ -227,7 +227,7 @@ export async function buildClientContext(clientId: string, now: Date = new Date(
   lines.push(`Estado: ${CLIENT_STATUS_ES[client.status] ?? client.status}`);
   if (client.description) lines.push(`Descripción: ${one(client.description, 600)}`);
   if (client.website) lines.push(`Web: ${one(client.website)}`);
-  const completed = cycleGoals.filter((d) => d.status === "COMPLETED").length;
+  const completed = cycleGoals.filter((d) => ["CONFIRMED", "IN_PROGRESS", "COMPLETED"].includes(d.status)).length;
   const secured = cycleGoals.filter((d) => ["CONFIRMED", "IN_PROGRESS", "COMPLETED"].includes(d.status)).length;
   const lastDayKey = addDaysKey(cycle.endKey, -1);
   const cycleName =
