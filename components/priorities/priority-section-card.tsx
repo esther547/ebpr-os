@@ -21,6 +21,8 @@ type Props = {
   personal?: boolean;
   teamMembers?: TeamMember[];
   onAssign?: (item: PriorityItem, assigneeId: string | null) => void;
+  /** Mixed lists: show each line's client. */
+  showClient?: boolean;
   onAdd: (clientId: string | null, raw: string, category?: string | null) => Promise<void>;
   onToggle: (item: PriorityItem) => void;
   onRename: (item: PriorityItem, title: string) => void;
@@ -38,6 +40,7 @@ export function PrioritySectionCard({
   personal = false,
   teamMembers = [],
   onAssign,
+  showClient = false,
   onAdd,
   onToggle,
   onRename,
@@ -47,7 +50,7 @@ export function PrioritySectionCard({
 }: Props) {
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
-  const sorted = sortPriorities(items);
+  const sorted = sortPriorities(items, showClient);
 
   async function save() {
     const raw = draft.trim();
@@ -124,6 +127,7 @@ export function PrioritySectionCard({
               item={item}
               teamMembers={teamMembers}
               onAssign={onAssign}
+              showClient={showClient}
               onToggle={onToggle}
               onRename={onRename}
               onEdit={onEdit}

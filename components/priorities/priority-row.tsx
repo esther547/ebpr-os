@@ -18,6 +18,8 @@ type Props = {
   /** Team board: who can be put in charge. Empty on personal boards (no selector). */
   teamMembers?: TeamMember[];
   onAssign?: (item: PriorityItem, assigneeId: string | null) => void;
+  /** Mixed lists (Mis to dos): show which client the line belongs to. */
+  showClient?: boolean;
   onToggle: (item: PriorityItem) => void;
   onRename: (item: PriorityItem, title: string) => void;
   onEdit: (item: PriorityItem) => void;
@@ -35,7 +37,7 @@ export function splitPriorityNotes(notes: string | null | undefined): { text: st
   return { text: notes.slice(0, idx).trim(), contacts: notes.slice(idx + CONTACTS_MARKER.length).trim() };
 }
 
-export function PriorityRow({ item, teamMembers = [], onAssign, onToggle, onRename, onEdit, onMove, onDelete }: Props) {
+export function PriorityRow({ item, teamMembers = [], onAssign, showClient = false, onToggle, onRename, onEdit, onMove, onDelete }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.title);
   const [showContacts, setShowContacts] = useState(false);
@@ -63,6 +65,11 @@ export function PriorityRow({ item, teamMembers = [], onAssign, onToggle, onRena
       />
 
       <div className="min-w-0 flex-1">
+        {showClient && !editing && (
+          <div className="mb-0.5">
+            <Badge tone={item.client ? "dark" : "outline"} size="sm">{item.client?.name ?? "General"}</Badge>
+          </div>
+        )}
         {editing ? (
           <input
             autoFocus

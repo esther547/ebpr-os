@@ -33,6 +33,7 @@ export function MyTodosBoard({ items: initial, target, team, viewerId, isAdmin, 
   const viewingOther = target.id !== viewerId;
   const first = target.name.split(" ")[0];
 
+  // Team lines carry their client (badge per line; the card sorts them by client).
   const fromTeam = useMemo(() => items.filter((i) => i.list === "TEAM"), [items]);
   const personal = useMemo(() => items.filter((i) => i.list === "PERSONAL"), [items]);
   const done = items.filter((i) => i.isDone).length;
@@ -151,7 +152,7 @@ export function MyTodosBoard({ items: initial, target, team, viewerId, isAdmin, 
       </div>
 
       <div className="space-y-4">
-        <PrioritySectionCard clientId={null} title="Asignado en Prioridades del equipo" href="/priorities" items={fromTeam} onAdd={(_c, raw) => add("TEAM", raw)} {...rowProps} />
+        <PrioritySectionCard clientId={null} title="Asignado en Prioridades del equipo" href="/priorities" items={fromTeam} showClient onAdd={(_c, raw) => add("TEAM", raw)} {...rowProps} />
         <PrioritySectionCard clientId={null} title={viewingOther ? `Pendientes de ${first}` : "Mis pendientes"} items={personal} onAdd={(_c, raw) => add("PERSONAL", raw)} {...rowProps} />
       </div>
 

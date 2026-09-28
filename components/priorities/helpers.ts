@@ -93,9 +93,13 @@ export function parseQuickAdd(
 }
 
 /** Pending first, then the team's order; done items sink to the bottom. */
-export function sortPriorities(items: PriorityItem[]): PriorityItem[] {
+export function sortPriorities(items: PriorityItem[], byClient = false): PriorityItem[] {
   return [...items].sort((a, b) => {
     if (a.isDone !== b.isDone) return a.isDone ? 1 : -1;
+    if (byClient) {
+      const c = (a.client?.name ?? "").localeCompare(b.client?.name ?? "");
+      if (c !== 0) return c;
+    }
     if (a.order !== b.order) return a.order - b.order;
     return a.id.localeCompare(b.id);
   });
