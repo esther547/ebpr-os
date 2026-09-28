@@ -15,7 +15,9 @@ const INTERNAL_WORDS = /\bcontacto\b|\bcontact\b|post-event|no requiere runner|\
 export function isInternalNoteLine(line: string): boolean {
   const t = line.trim();
   if (!t) return false;
-  return PHONE.test(t) || EMAIL.test(t) || INTERNAL_WORDS.test(t);
+  // Links to publications are client-facing: words/digits inside a URL don't count.
+  const withoutUrls = t.replace(/https?:\/\/\S+/gi, " ");
+  return PHONE.test(withoutUrls) || EMAIL.test(withoutUrls) || INTERNAL_WORDS.test(withoutUrls);
 }
 
 /** Split free text into the part a client may see and the part that stays internal. */
