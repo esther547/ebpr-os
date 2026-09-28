@@ -55,7 +55,7 @@ export function PriorityRow({ item, teamMembers = [], onAssign, showClient = fal
   }
 
   return (
-    <li className="group flex items-start gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-surface-2/70">
+    <li className="group flex items-start gap-2 rounded-md px-1 py-1.5 transition-colors hover:bg-surface-2/70">
       <input
         type="checkbox"
         checked={item.isDone}
@@ -133,14 +133,14 @@ export function PriorityRow({ item, teamMembers = [], onAssign, showClient = fal
             value={item.assigneeId ?? ""}
             onChange={(e) => onAssign(item, e.target.value || null)}
             className={cn(
-              "h-7 max-w-[150px] rounded-md border bg-white px-1.5 text-xs transition-colors focus:outline-none focus:ring-2 focus:ring-ink-primary/20",
+              "h-6 max-w-[96px] rounded-md border bg-white px-1 text-2xs transition-colors focus:outline-none focus:ring-2 focus:ring-ink-primary/20",
               item.assigneeId ? "border-border font-medium text-ink-primary" : "border-dashed border-border text-ink-muted"
             )}
           >
-            <option value="">Sin responsable</option>
+            <option value="">Sin asignar</option>
             {teamMembers.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.name}
+                {m.name.split(" ")[0]}
               </option>
             ))}
           </select>

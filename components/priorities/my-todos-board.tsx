@@ -3,10 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, ListChecks, CheckCircle2, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/layout/header";
 import { Button, Select } from "@/components/ui/form-field";
-import { StatTile } from "@/components/ui/stat-tile";
 import { ConfirmModal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { apiErrorMessage } from "@/lib/form-helpers";
@@ -128,7 +127,7 @@ export function MyTodosBoard({ items: initial, target, team, viewerId, isAdmin, 
       <PageHeader
         eyebrow={weekRangeLabel(weekKey)}
         title={viewingOther ? `To dos de ${first}` : "Mis to dos"}
-        subtitle={isCurrent ? (viewingOther ? `Lo que ${first} tiene asignado esta semana en Prioridades, más sus propios pendientes.` : "Lo que tienes asignado esta semana en Prioridades, más tus propios pendientes.") : "Semana distinta a la actual."}
+        subtitle={`${items.length - done} pendiente${items.length - done === 1 ? "" : "s"} esta semana${isCurrent ? "" : " (semana distinta a la actual)"}`}
         actions={
           isAdmin ? (
             <Select value={target.id} onChange={(e) => router.push(`/todos/mios?user=${e.target.value}`)} className="h-9 w-auto min-w-[180px] text-sm" aria-label="Estratega">
@@ -146,12 +145,7 @@ export function MyTodosBoard({ items: initial, target, team, viewerId, isAdmin, 
         </div>
       </PageHeader>
 
-      <div className="mb-6 grid grid-cols-2 gap-3">
-        <StatTile label="Total" value={items.length} icon={<ListChecks />} />
-        <StatTile label="Pendientes" value={items.length - done} icon={<CalendarDays />} />
-      </div>
-
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
         <PrioritySectionCard clientId={null} title="Asignado en Prioridades del equipo" href="/priorities" items={fromTeam} showClient clientOrder={clientOrder} onAdd={(_c, raw) => add("TEAM", raw)} {...rowProps} />
         <PrioritySectionCard clientId={null} title={viewingOther ? `Pendientes de ${first}` : "Mis pendientes"} items={personal} onAdd={(_c, raw) => add("PERSONAL", raw)} {...rowProps} />
       </div>

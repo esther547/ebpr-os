@@ -4,19 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  CalendarDays,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   CopyPlus,
   ListChecks,
   Plus,
-  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/header";
 import { Button } from "@/components/ui/form-field";
-import { StatTile } from "@/components/ui/stat-tile";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmModal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
@@ -308,7 +304,7 @@ export function PrioritiesPageClient({
       <PageHeader
         eyebrow={weekRangeLabel(weekKey)}
         title={board.title}
-        subtitle={isCurrentWeek ? board.subtitle : "Semana distinta a la actual."}
+        subtitle={`${stats.pending} pendiente${stats.pending === 1 ? "" : "s"}${board.categories ? "" : ` · ${stats.clients} cliente${stats.clients === 1 ? "" : "s"}`}${isCurrentWeek ? "" : " · semana distinta a la actual"}`}
         actions={
           <>
             <Button
@@ -343,12 +339,6 @@ export function PrioritiesPageClient({
         </div>
       </PageHeader>
 
-      <div className={cn("mb-6 grid grid-cols-2 gap-3", board.categories ? "lg:grid-cols-2" : "lg:grid-cols-3")}>
-        <StatTile label="Total" value={stats.total} icon={<ListChecks />} />
-        <StatTile label="Pendientes" value={stats.pending} icon={<CalendarDays />} />
-        {!board.categories && <StatTile label="Clientes" value={stats.clients} icon={<Users />} />}
-      </div>
-
       {items.length === 0 && !board.categories ? (
         <EmptyState
           icon={<ListChecks />}
@@ -371,7 +361,7 @@ export function PrioritiesPageClient({
           }
         />
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
           {categorySections.map((section) => (
             <PrioritySectionCard
               key={section.key}
