@@ -52,6 +52,10 @@ export const canViewReports = (u: SessionUser) =>
 export const canManagePressReleases = (u: SessionUser) =>
   u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST || u.role === UserRole.WRITER;
 
+/** Only Esther may distribute a press release from the portal (Esther, Sept 28 2026). */
+export const PRESS_SENDER_EMAIL = "esther@ebmanagement.io";
+export const canSendPressReleases = (u: SessionUser) => (u.email ?? "").toLowerCase() === PRESS_SENDER_EMAIL;
+
 // "Necesitamos un comunicado" requests: strategists ask, the writer (Michel) delivers.
 export const canRequestPressRelease = (u: SessionUser) =>
   u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST;

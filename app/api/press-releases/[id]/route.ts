@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { z } from "zod";
 import { journalistWhere } from "@/app/api/journalists/_shared";
 import { distributePressRelease } from "@/lib/press-release-send";
+import { canSendPressReleases } from "@/lib/permissions";
 
 const STATUSES = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "SCHEDULED", "SENT", "CANCELLED"] as const;
 
@@ -169,6 +170,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }
 
     if (nextStatus === "SENT") {
+      if (!canSendPressReleases(user)) {
+        return NextResponse.json({ error: "Solo Esther puede enviar comunicados desde el portal." }, { status: 403 });
+      }
       // Really send it: BCC batches to the matching journalists from press@ (lib/press-release-send.ts).
       if (parsed.data.tags !== undefined) {
         await db.pressRelease.update({ where: { id }, data: { tags: parsed.data.tags } });
