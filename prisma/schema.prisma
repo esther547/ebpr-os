@@ -165,6 +165,7 @@ model User {
   reminders             Reminder[]                 @relation("ReminderCreator")
   notifications         Notification[]             @relation("UserNotifications")
   assignedPriorities    WeeklyPriority[]           @relation("PriorityAssignee")
+  timeEntries           TimeEntry[]
   createdPriorities     WeeklyPriority[]           @relation("PriorityCreator")
   createdAvailability   ClientAvailability[]       @relation("AvailabilityCreator")
   createdIndustryEvents IndustryEvent[]            @relation("IndustryEventCreator")
@@ -1121,4 +1122,20 @@ model ClientMonthOverride {
 
   @@unique([clientId, year, month])
   @@map("client_month_overrides")
+}
+
+/// Carolina's hourly time tracking on her to-do board (Clockify-style). Hours only — never money.
+/// A running timer is the entry with endedAt = null (at most one per user).
+model TimeEntry {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  description String
+  startedAt   DateTime
+  endedAt     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, startedAt])
+  @@map("time_entries")
 }

@@ -19,11 +19,14 @@ export async function PrioritiesBoard({
   list,
   requestedWeek,
   canReorder = false,
+  topSlot,
 }: {
   list: PriorityList;
   requestedWeek?: string;
   /** Team board: the viewer may reorder clients by urgency (admin). */
   canReorder?: boolean;
+  /** Rendered under the page header (e.g. Carolina's time tracker). */
+  topSlot?: React.ReactNode;
 }) {
   // Week boundaries in Miami time (weeks start Monday), independent of server TZ.
   const currentWeekKey = weekStartKey(dayKeyInTz(new Date()));
@@ -90,6 +93,7 @@ export async function PrioritiesBoard({
       currentWeekKey={currentWeekKey}
       clientOrder={clientOrder}
       canReorder={canReorder && list.key === "TEAM"}
+      topSlot={topSlot}
     />
   );
 }

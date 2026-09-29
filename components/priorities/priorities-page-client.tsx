@@ -51,6 +51,8 @@ type Props = {
   clientOrder?: string[];
   /** Whether the viewer may reorder clients (admin). */
   canReorder?: boolean;
+  /** Rendered right under the page header. */
+  topSlot?: React.ReactNode;
 };
 
 export function PrioritiesPageClient({
@@ -62,6 +64,7 @@ export function PrioritiesPageClient({
   currentWeekKey,
   clientOrder: initialClientOrder = [],
   canReorder = false,
+  topSlot,
 }: Props) {
   const router = useRouter();
   const { toast } = useToast();
@@ -265,7 +268,7 @@ export function PrioritiesPageClient({
       <PageHeader
         eyebrow={weekRangeLabel(weekKey)}
         title={board.title}
-        subtitle={`${stats.pending} pendiente${stats.pending === 1 ? "" : "s"}${stats.done ? ` · ${stats.done} hecha${stats.done === 1 ? "" : "s"}` : ""}${board.categories ? "" : ` · ${stats.clients} cliente${stats.clients === 1 ? "" : "s"}`}${isCurrentWeek ? "" : " · semana distinta a la actual"}`}
+        subtitle={`${stats.pending} pendiente${stats.pending === 1 ? "" : "s"}${stats.done ? ` · ${stats.done} hecha${stats.done === 1 ? "" : "s"}` : ""}${board.categories || board.personal ? "" : ` · ${stats.clients} cliente${stats.clients === 1 ? "" : "s"}`}${isCurrentWeek ? "" : " · semana distinta a la actual"}`}
         actions={
           <>
             <Button
@@ -299,6 +302,8 @@ export function PrioritiesPageClient({
           )}
         </div>
       </PageHeader>
+
+      {topSlot}
 
       {items.length === 0 && !board.categories ? (
         <EmptyState
