@@ -33,6 +33,8 @@ type AgendaItem = {
 type Props = {
   monthNumber: number;
   monthLabel?: string;
+  /** Goals this service month should hold (client.monthlyTarget). */
+  target?: number;
   items: AgendaItem[];
   runners?: { id: string; name: string; role?: string }[];
   clientId?: string;
@@ -55,7 +57,7 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelled",
 };
 
-export function AgendaMonthSection({ monthNumber, monthLabel, items, runners = [], clientId, canEdit = true }: Props) {
+export function AgendaMonthSection({ monthNumber, monthLabel, target = 0, items, runners = [], clientId, canEdit = true }: Props) {
   // Items arrive in report order (lib/agenda-months.ts); the number is the row's place in its MES.
   const sorted = items;
 
@@ -64,7 +66,11 @@ export function AgendaMonthSection({ monthNumber, monthLabel, items, runners = [
       <SectionHeader
         title={`Mes ${monthNumber}`}
         description={monthLabel}
-        actions={<span className="tabular text-xs text-ink-muted">{items.length} items</span>}
+        actions={
+          <span className={`tabular text-xs font-medium ${target > 0 && items.length >= target ? "text-emerald-700" : "text-ink-muted"}`}>
+            {target > 0 ? `${items.length} de ${target} metas` : `${items.length} items`}
+          </span>
+        }
       />
 
       <TableWrap>

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { reconcileSafely } from "@/lib/service-months";
+
 import { mergeInternalNotes, splitClientNotes } from "@/lib/client-safe-notes";
 import { miamiWeekOf } from "@/app/api/deliverables/_lib/agenda-sync";
 import { z } from "zod";
@@ -143,6 +145,7 @@ export async function PATCH(
     include: { runner: { select: { id: true, name: true } } },
   });
 
+  await reconcileSafely(clientId);
   return NextResponse.json({ data: updated, warning: availability.warning });
 }
 
@@ -162,6 +165,7 @@ export async function DELETE(
   }
 
   await db.runnerAssignment.delete({ where: { id: itemId } });
+  await reconcileSafely(clientId);
 
   return NextResponse.json({ success: true });
 }

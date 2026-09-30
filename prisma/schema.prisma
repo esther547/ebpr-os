@@ -212,6 +212,9 @@ model Client {
 
   // Monthly deliverable target (0 = preparation month, no target yet)
   monthlyTarget     Int       @default(6)
+  // MES 1 of the client's service (Esther, Sept 30 2026): service months run from here, each holding monthlyTarget goals.
+  serviceStartYear  Int?
+  serviceStartMonth Int?
   // Day of month the client's cycle resets ("fecha de corte"), 1-31
   cycleDay          Int?
   // Goals owed from previous cycles ("metas atrasadas")
@@ -469,8 +472,10 @@ model Deliverable {
   venueAddress    String?
   needsRunner     Boolean           @default(true)
   completedAt     DateTime?
-  month           Int // 1–12
+  month           Int // 1–12 (service month, see lib/service-months.ts)
   year            Int
+  /// Set when a strategist picked the month by hand ("Mes del reporte"): reconcile never moves it.
+  monthPinned     Boolean          @default(false)
   notes           String?
   outcome         String? // the win / result text
   isClientVisible Boolean           @default(true)
@@ -547,6 +552,8 @@ model RunnerAssignment {
   // the calendar month the goal was CLOSED in, never the pauta's own date. Imported from the docs.
   agendaMonth      Int?
   agendaYear       Int?
+  /// true when the month came from Esther's ledger (doc import) — reconcile never moves it.
+  agendaMonthPinned Boolean @default(false)
 
   // Auto-scheduling
   autoAssigned Boolean   @default(false) // true when lib/runner-assign.ts picked the runner

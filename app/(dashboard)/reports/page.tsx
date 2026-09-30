@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth";
 import { canViewReports } from "@/lib/permissions";
 import { db } from "@/lib/db";
+import { unitCountsForMonth } from "@/lib/service-months";
 import { isClosedGoal } from "@/lib/goal-status";
 import { PageHeader, SectionHeader } from "@/components/layout/header";
 import { monthLabel, DELIVERABLE_TYPE_LABELS } from "@/lib/utils";
@@ -79,10 +80,14 @@ export default async function ReportsPage({
     perClient.set(g.clientId, cur);
   }
 
-  const deliverableStats = clients.map((client) => ({
-    ...client,
-    ...(perClient.get(client.id) ?? { completed: 0, inProgress: 0, total: 0, media: {} }),
-  }));
+  // Same logic as the client agenda (Esther, Sept 30 2026): a service month's goals are its closed
+  // goals plus the history pautas the ledger places in it.
+  const unitCounts = await unitCountsForMonth(clients.map((c) => c.id), month, year);
+  const deliverableStats = clients.map((client) => {
+    const stats = perClient.get(client.id) ?? { completed: 0, inProgress: 0, total: 0, media: {} };
+    const completed = unitCounts.get(client.id) ?? 0;
+    return { ...client, ...stats, completed, total: Math.max(stats.total, completed) };
+  });
 
   const totalCompleted = deliverableStats.reduce((s, c) => s + c.completed, 0);
   const totalTarget = deliverableStats.reduce((s, c) => s + c.monthlyTarget, 0);

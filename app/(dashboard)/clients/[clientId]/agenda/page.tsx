@@ -129,6 +129,7 @@ export default async function AgendaPage({ params }: Props) {
               key={m.monthNumber}
               monthNumber={m.monthNumber}
               monthLabel={`${m.monthName} ${m.year}`}
+              target={m.target}
               items={m.items}
               runners={runners}
               clientId={client.id}

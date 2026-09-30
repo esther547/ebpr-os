@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { reconcileSafely } from "@/lib/service-months";
+
 import { isClosedGoal } from "@/lib/goal-status";
 import { closingReportMonth } from "@/lib/report-month";
 import { requireUser } from "@/lib/auth";
@@ -173,6 +175,8 @@ export async function PUT(
     }
     if (d.month !== undefined) data.month = d.month;
     if (d.year !== undefined) data.year = d.year;
+    // "Mes del reporte" chosen by hand: pinned, the service-month reconcile never moves it.
+    if (d.month !== undefined || d.year !== undefined) (data as { monthPinned?: boolean }).monthPinned = true;
 
     // Client availability. Moving the due date into an OFF window is refused; a date
     // inside a TRAVEL window (or an unchanged date that is now inside OFF) saves with a warning.
@@ -250,6 +254,7 @@ export async function PUT(
       });
     }
 
+    await reconcileSafely(deliverable.clientId);
     return NextResponse.json({ data: deliverable, warning: availability.warning });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") {
@@ -302,5 +307,6 @@ export async function DELETE(
     }),
   ]);
 
+  await reconcileSafely(existing.clientId);
   return NextResponse.json({ success: true });
 }

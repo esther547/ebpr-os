@@ -40,7 +40,7 @@ async function importClient(client: { id: string; name: string; agendaDocUrl: st
   if (!docId) { console.log(`— ${client.name}: sin doc`); return; }
   const doc = await docs.documents.get({ documentId: docId });
   const rows = readDoc(doc.data.body);
-  const pautas = await db.runnerAssignment.findMany({ where: { clientId: client.id }, select: { id: true, eventDate: true, eventName: true, deliverableId: true, agendaMonth: true, agendaYear: true } });
+  const pautas = await db.runnerAssignment.findMany({ where: { clientId: client.id }, select: { id: true, eventDate: true, eventName: true, deliverableId: true, agendaMonth: true, agendaYear: true, agendaMonthPinned: true } });
   // Year of a MES block = the year most of its dated rows carry (December → January roll-overs included).
   const yearOf = new Map<number, number>();
   for (const mes of new Set(rows.map((r) => r.mes))) {
@@ -55,12 +55,12 @@ async function importClient(client: { id: string; name: string; agendaDocUrl: st
     const p = pautas.find((x) => r.dayKey && dayKeyInTz(x.eventDate) === r.dayKey && sameName(x.eventName, r.name));
     if (!p) { unmatched.push(`${r.dayKey ?? "?"} ${r.name}`); continue; }
     matched++;
-    if (p.agendaMonth === month && p.agendaYear === year) continue;
+    if (p.agendaMonth === month && p.agendaYear === year && p.agendaMonthPinned) continue;
     changed++;
     console.log(`  ${r.dayKey} ${r.name.slice(0, 40)} → MES ${r.mes} (${r.monthName} ${year})`);
     if (!apply) continue;
-    await db.runnerAssignment.update({ where: { id: p.id }, data: { agendaMonth: month, agendaYear: year } });
-    if (p.deliverableId) await db.deliverable.update({ where: { id: p.deliverableId }, data: { month, year } }).catch(() => undefined);
+    await db.runnerAssignment.update({ where: { id: p.id }, data: { agendaMonth: month, agendaYear: year, agendaMonthPinned: true } });
+    if (p.deliverableId) await db.deliverable.update({ where: { id: p.deliverableId }, data: { month, year, monthPinned: true } }).catch(() => undefined);
   }
   console.log(`${client.name}: ${rows.length} filas en el doc, ${matched} con pauta en el portal, ${changed} ${apply ? "actualizadas" : "por actualizar"}, ${unmatched.length} sin pauta en el portal`);
   for (const u of unmatched.slice(0, 8)) console.log(`    sin pauta: ${u}`);

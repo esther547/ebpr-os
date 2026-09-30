@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { reconcileSafely } from "@/lib/service-months";
+
 import { isClosedGoal } from "@/lib/goal-status";
 import { closingReportMonth } from "@/lib/report-month";
 import { requireUser } from "@/lib/auth";
@@ -130,6 +132,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       });
     }
 
+    await reconcileSafely(deliverable.clientId);
     return NextResponse.json({ data: deliverable });
   } catch (err) {
     console.error("POST /api/deliverables/[id]/status failed:", err);
