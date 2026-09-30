@@ -18,6 +18,7 @@ type Assignment = {
   venueAddress: string | null;
   location: string | null;
   notes: string | null;
+  internalNotes: string | null;
   status: string;
   clientId: string | null;
   itemType: string | null;
@@ -34,6 +35,7 @@ const assignmentSelect = {
   venueAddress: true,
   location: true,
   notes: true,
+  internalNotes: true,
   status: true,
   clientId: true,
   itemType: true,
@@ -130,6 +132,7 @@ export async function GET(req: NextRequest) {
       a.venueName ? `Venue: ${a.venueName}` : null,
       a.venueAddress ? `Address: ${a.venueAddress}` : null,
       // Logistics notes are for the runner only; the client feed omits them
+      isRunnerFeed && a.internalNotes ? `Notas internas:\n${a.internalNotes}` : null,
       isRunnerFeed && a.notes ? a.notes : null,
       `Status: ${a.status}`,
     ].filter(Boolean).join("\n");

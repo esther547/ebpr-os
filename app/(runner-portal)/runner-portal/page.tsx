@@ -14,6 +14,8 @@ import {
 import { loadScheduleItems } from "@/components/runners/load-schedule";
 import { RunnerScheduleClient } from "@/components/runners/runner-schedule-client";
 import { OpenPautas, type OpenPauta } from "@/components/runners/open-pautas";
+import { CalendarSyncCard } from "@/components/runners/calendar-sync-card";
+import { APP_URL } from "@/lib/runner-notify";
 import { companionWhere } from "@/lib/companions";
 import { weekStartKey } from "@/components/runners/miami-time";
 import {
@@ -44,7 +46,7 @@ export default async function RunnerPortalPage({ searchParams }: { searchParams?
     where: { eventDate: { gte: tzMidnight(weekStartDay), lt: tzMidnight(addDaysKey(weekStartDay, 7)) }, status: { not: "CANCELLED" } },
     select: {
       id: true, runnerId: true, clientId: true, eventName: true, eventDate: true, location: true, venueName: true, venueAddress: true,
-      arrivalTime: true, eventTime: true, itemType: true, notes: true, status: true, autoAssigned: true,
+      arrivalTime: true, eventTime: true, itemType: true, notes: true, internalNotes: true, status: true, autoAssigned: true,
       runner: { select: { id: true, name: true, avatar: true } },
     },
     orderBy: { eventDate: "asc" },
@@ -193,6 +195,12 @@ export default async function RunnerPortalPage({ searchParams }: { searchParams?
 
       {/* Hours tracking */}
       <RunnerHoursClient hours={hours} totalHours={totalHours} todayKey={todayKey} />
+
+      {/* Private iCal feed: everything the runner is on, kept in sync in Google/Apple Calendar */}
+      <section className="space-y-4">
+        <SectionHeader title="Your calendar" className="mb-0" />
+        <CalendarSyncCard feedUrl={`${APP_URL}/api/calendar?token=${user.id}`} />
+      </section>
 
       {/* Availability — the schedule is built from this */}
       <section className="space-y-4">

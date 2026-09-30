@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { MapPin, Clock, User, FileText, Check, Briefcase, CalendarCheck, UserMinus } from "lucide-react";
+import { MapPin, Clock, User, FileText, Check, Briefcase, CalendarCheck, UserMinus, CalendarPlus } from "lucide-react";
+import { googleCalendarUrl } from "@/lib/calendar-links";
 import { Modal } from "@/components/ui/modal";
 import { Button, Textarea, FormGroup, FormActions } from "@/components/ui/form-field";
 import { Card } from "@/components/ui/card";
@@ -240,6 +241,9 @@ export function MyScheduleView({
                             className="h-12 w-full sm:h-10 sm:w-auto"
                           >
                             Mark complete
+                          </Button>
+                          <Button asChild size="sm" variant="ghost" leftIcon={<CalendarPlus className="h-4 w-4" />} className="w-full text-ink-secondary sm:w-auto">
+                            <a href={googleCalendarUrl(a)} target="_blank" rel="noopener noreferrer">Add to Google Calendar</a>
                           </Button>
                           {!showRunner && a.dayKey >= todayKey && (
                             <Button

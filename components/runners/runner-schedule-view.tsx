@@ -47,6 +47,8 @@ type Props = {
   isReadOnly: boolean;
   /** Where the week links point (the runner portal embeds this view). */
   basePath?: string;
+  /** Tap/click a card to see every detail (notes, contacts, calendar link). */
+  onOpen?: (assignment: ScheduleAssignment) => void;
   /** Open the "assign a runner" picker for one activity. */
   onAssign?: (assignment: ScheduleAssignment) => void;
   /** Strategists/admins: edit (time, place, runner…) or delete a pauta. */
@@ -76,6 +78,7 @@ export function RunnerScheduleView({
   todayKey,
   isReadOnly,
   basePath = "/runners/schedule",
+  onOpen,
   onAssign,
   onEdit,
   onDelete,
@@ -222,8 +225,13 @@ export function RunnerScheduleView({
                       return (
                         <div
                           key={a.id}
+                          role={onOpen ? "button" : undefined}
+                          tabIndex={onOpen ? 0 : undefined}
+                          onClick={onOpen ? () => onOpen(a) : undefined}
+                          onKeyDown={onOpen ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(a); } } : undefined}
                           className={cn(
                             "rounded-lg border p-2 transition-colors",
+                            onOpen && "cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ink-primary/25",
                             needsRunner
                               ? "border-red-200 bg-red-50/60 hover:border-red-300"
                               : "border-border bg-surface-1 hover:border-border-strong hover:bg-white"
@@ -288,7 +296,7 @@ export function RunnerScheduleView({
                                 size="xs"
                                 className="mt-1.5 w-full"
                                 leftIcon={<UserPlus className="h-3 w-3" />}
-                                onClick={() => onAssign(a)}
+                                onClick={(e) => { e.stopPropagation(); onAssign(a); }}
                               >
                                 Assign
                               </Button>
@@ -297,12 +305,12 @@ export function RunnerScheduleView({
                           {!isReadOnly && (onEdit || onDelete) && (
                             <div className="mt-1.5 flex items-center gap-1">
                               {onEdit && (
-                                <Button variant="ghost" size="xs" className="flex-1" leftIcon={<Pencil className="h-3 w-3" />} onClick={() => onEdit(a)}>
+                                <Button variant="ghost" size="xs" className="flex-1" leftIcon={<Pencil className="h-3 w-3" />} onClick={(e) => { e.stopPropagation(); onEdit(a); }}>
                                   Editar
                                 </Button>
                               )}
                               {onDelete && (
-                                <Button variant="ghost" size="icon-sm" aria-label="Eliminar" title="Eliminar del horario" onClick={() => onDelete(a)}>
+                                <Button variant="ghost" size="icon-sm" aria-label="Eliminar" title="Eliminar del horario" onClick={(e) => { e.stopPropagation(); onDelete(a); }}>
                                   <Trash2 className="h-3 w-3" />
                                 </Button>
                               )}

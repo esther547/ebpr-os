@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/form-field";
 import { addDaysKey } from "@/components/runners/miami-time";
 import { OpenPautas } from "@/components/runners/open-pautas";
+import { PautaDetailModal } from "@/components/runners/pauta-detail-modal";
 import { CalendarClock, Plus } from "lucide-react";
 
 interface Props {
@@ -56,6 +57,7 @@ export function RunnerScheduleClient({
   const [showAssign, setShowAssign] = useState(false);
   const [assignTarget, setAssignTarget] = useState<ScheduleAssignment | null>(null);
   const [editTarget, setEditTarget] = useState<ScheduleAssignment | null>(null);
+  const [detailTarget, setDetailTarget] = useState<ScheduleAssignment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ScheduleAssignment | null>(null);
   const [deleting, setDeleting] = useState(false);
   const router = useRouter();
@@ -131,10 +133,12 @@ export function RunnerScheduleClient({
         todayKey={todayKey}
         isReadOnly={isRunner}
         basePath={basePath}
+        onOpen={setDetailTarget}
         onAssign={setAssignTarget}
         onEdit={setEditTarget}
         onDelete={setDeleteTarget}
       />
+      <PautaDetailModal pauta={detailTarget} onClose={() => setDetailTarget(null)} />
       {!isRunner && openPautas && (
         <section className="mt-8 space-y-4">
           <SectionHeader

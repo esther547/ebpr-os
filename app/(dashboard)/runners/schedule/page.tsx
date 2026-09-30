@@ -63,6 +63,7 @@ export default async function RunnerSchedulePage({
       eventTime: true,
       itemType: true,
       notes: true,
+      internalNotes: true,
       status: true,
       autoAssigned: true,
       runner: { select: { id: true, name: true, avatar: true } },
