@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight, Target, Users } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { unitCountsForMonth } from "@/lib/service-months";
+import { currentPeriodProgress } from "@/lib/service-periods";
 import { isClosedGoal, isOpenGoal } from "@/lib/goal-status";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/header";
@@ -70,14 +70,15 @@ export default async function DashboardPage() {
     return Math.max(0, Math.round((b - a) / 86_400_000));
   };
 
-  // Closed goals + history pautas of each client's service month — same count as the agenda/reports.
-  const unitsByLabel = new Map<string, Map<string, number>>();
-  for (const l of labels.values()) unitsByLabel.set(`${l.year}-${l.month}`, await unitCountsForMonth(clients.map((c) => c.id), l.month, l.year));
+  // Service periods: each client's CURRENT period (the latest one) — the same progress the agenda shows.
+  const current = await currentPeriodProgress(clients.map((c) => c.id));
 
   const rows = clients.map((c) => {
-    const cycle = cycleByClient.get(c.id)!;
+    const cur = current.get(c.id);
+    const cycle = cur ? { ...cycleByClient.get(c.id)!, month: cur.refMonth, year: cur.refYear } : cycleByClient.get(c.id)!;
     const p0 = pacing.get(c.id) ?? { completed: 0, inProgress: 0 };
-    const p = { ...p0, completed: unitsByLabel.get(`${cycle.year}-${cycle.month}`)?.get(c.id) ?? p0.completed };
+    const p = { ...p0, completed: cur ? cur.achieved : p0.completed };
+    if (cur) c = { ...c, monthlyTarget: cur.target };
     const target = c.monthlyTarget + (c.goalsOwed ?? 0);
     const override = overrideOf(c.id, cycle.year, cycle.month);
     const remaining = override ? 0 : Math.max(0, target - p.completed);

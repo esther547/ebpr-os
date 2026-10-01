@@ -13,7 +13,6 @@ import { syncAllAgendaDocs, type AgendaDocSyncReport } from "@/lib/google-docs-w
 import { runEventReminders, type EventReminderSummary } from "@/lib/industry-events";
 import { reminderModeForToday, sendPitchReminders, type PitchReminderResult } from "@/lib/pitch-reminders";
 import { purgeDonePriorities, rollOverPendingPriorities } from "@/lib/priorities";
-import { reconcileClientMonths } from "@/lib/service-months";
 
 /**
  * Cron endpoint — called daily (8am Miami) to generate notifications:
@@ -243,16 +242,6 @@ export async function GET(req: NextRequest) {
     results.prioritiesPurged = await purgeDonePriorities();
   } catch (err) {
     console.error("Cron: priorities purge failed:", err);
-  }
-
-  // ── 4b2. Service months: every active client's goals/pautas re-bucketed (safety net) ──
-  try {
-    const active = await db.client.findMany({ where: { status: "ACTIVE" }, select: { id: true } });
-    let moved = 0;
-    for (const c of active) moved += await reconcileClientMonths(c.id);
-    results.serviceMonthsReconciled = moved;
-  } catch (err) {
-    console.error("Cron: service-month reconcile failed:", err);
   }
 
   // ── 4c. Pitch reminders for the strategists: Monday = full, Thursday = urgent only ──

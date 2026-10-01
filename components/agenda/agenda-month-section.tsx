@@ -6,9 +6,10 @@ import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { SectionHeader } from "@/components/layout/header";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, UserPlus, Check, XCircle } from "lucide-react";
+import { Pencil, UserPlus, Check, XCircle, Layers } from "lucide-react";
 import { DropdownMenu, DropdownMenuDots, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { ConfirmModal } from "@/components/ui/modal";
+import { ConfirmModal, Modal } from "@/components/ui/modal";
+import { Button, Textarea, FormGroup, FormActions } from "@/components/ui/form-field";
 import { useToast } from "@/components/ui/toast";
 import { apiErrorMessage } from "@/lib/form-helpers";
 import { EditAgendaItemModal } from "./edit-agenda-item-modal";
@@ -28,7 +29,14 @@ type AgendaItem = {
   notes: string | null;
   internalNotes?: string | null;
   runner: { id: string; name: string } | null;
+  /** Service-period data (lib/service-periods.ts). */
+  unitState?: "scheduled" | "closed_pending" | "executed" | "cancelled";
+  periodId?: string | null;
+  coversPeriod?: boolean;
+  periodNote?: string | null;
 };
+
+export type PeriodOption = { id: string; number: number; label: string; target: number };
 
 type Props = {
   monthNumber: number;
@@ -39,6 +47,21 @@ type Props = {
   runners?: { id: string; name: string; role?: string }[];
   clientId?: string;
   canEdit?: boolean;
+  /** When given, each row gets a period selector and the "covers the period" action. */
+  periods?: PeriodOption[];
+  /** Custom title/description (period board); defaults to "Mes N". */
+  title?: string;
+  description?: React.ReactNode;
+  actions?: React.ReactNode;
+  /** Hide the header entirely (e.g. inside a period card that has its own). */
+  hideHeader?: boolean;
+};
+
+const UNIT_STATE: Record<string, { label: string; tone: BadgeTone }> = {
+  scheduled: { label: "Programada", tone: "neutral" },
+  closed_pending: { label: "Cerrada · pendiente de ejecución", tone: "warning" },
+  executed: { label: "Ejecutada", tone: "success" },
+  cancelled: { label: "Cancelada", tone: "danger" },
 };
 
 const STATUS_TONES: Record<string, BadgeTone> = {
@@ -57,21 +80,25 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelled",
 };
 
-export function AgendaMonthSection({ monthNumber, monthLabel, target = 0, items, runners = [], clientId, canEdit = true }: Props) {
+export function AgendaMonthSection({ monthNumber, monthLabel, target = 0, items, runners = [], clientId, canEdit = true, periods, title, description, actions, hideHeader = false }: Props) {
   // Items arrive in report order (lib/agenda-months.ts); the number is the row's place in its MES.
   const sorted = items;
 
   return (
     <section>
-      <SectionHeader
-        title={`Mes ${monthNumber}`}
-        description={monthLabel}
-        actions={
-          <span className={`tabular text-xs font-medium ${target > 0 && items.length >= target ? "text-emerald-700" : "text-ink-muted"}`}>
-            {target > 0 ? `${items.length} de ${target} metas` : `${items.length} items`}
-          </span>
-        }
-      />
+      {!hideHeader && (
+        <SectionHeader
+          title={title ?? `Mes ${monthNumber}`}
+          description={description ?? monthLabel}
+          actions={
+            actions ?? (
+              <span className={`tabular text-xs font-medium ${target > 0 && items.length >= target ? "text-emerald-700" : "text-ink-muted"}`}>
+                {target > 0 ? `${items.length} de ${target} metas` : `${items.length} items`}
+              </span>
+            )
+          }
+        />
+      )}
 
       <TableWrap>
         <Table>
@@ -84,12 +111,13 @@ export function AgendaMonthSection({ monthNumber, monthLabel, target = 0, items,
               <Th>Item</Th>
               <Th>PR Runner</Th>
               <Th>Status</Th>
+              {periods && <Th>Período</Th>}
               {canEdit && clientId && <Th className="w-12" />}
             </tr>
           </thead>
           <tbody>
             {sorted.map((item, i) => (
-              <AgendaItemRow key={item.id} item={item} seq={i + 1} clientId={canEdit ? clientId : undefined} runners={runners} />
+              <AgendaItemRow key={item.id} item={item} seq={i + 1} clientId={canEdit ? clientId : undefined} runners={runners} periods={periods} patchClientId={clientId} />
             ))}
           </tbody>
         </Table>
@@ -98,12 +126,23 @@ export function AgendaMonthSection({ monthNumber, monthLabel, target = 0, items,
   );
 }
 
-function AgendaItemRow({ item, seq, clientId, runners }: { item: AgendaItem; seq: number; clientId?: string; runners: { id: string; name: string; role?: string }[] }) {
+function AgendaItemRow({ item, seq, clientId, runners, periods, patchClientId }: { item: AgendaItem; seq: number; clientId?: string; runners: { id: string; name: string; role?: string }[]; periods?: PeriodOption[]; patchClientId?: string }) {
   const router = useRouter();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState<"COMPLETED" | "CANCELLED" | null>(null);
   const [busy, setBusy] = useState(false);
+  const [covers, setCovers] = useState(false);
+  const [coverNote, setCoverNote] = useState(item.periodNote ?? "");
+
+  async function patchPeriod(body: Record<string, unknown>) {
+    const cid = patchClientId ?? clientId;
+    if (!cid) return;
+    const res = await fetch(`/api/clients/${cid}/agenda/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) { toast({ title: apiErrorMessage(data, "No se pudo guardar"), variant: "error" }); return; }
+    router.refresh();
+  }
 
   async function setStatus(status: "COMPLETED" | "CANCELLED") {
     if (!clientId) return;
@@ -196,10 +235,34 @@ function AgendaItemRow({ item, seq, clientId, runners }: { item: AgendaItem; seq
       </Td>
 
       <Td>
-        <Badge size="xs" tone={STATUS_TONES[item.status] ?? "neutral"} dot>
-          {STATUS_LABELS[item.status] ?? item.status}
-        </Badge>
+        {item.unitState ? (
+          <div className="flex flex-col items-start gap-1">
+            <Badge size="xs" tone={UNIT_STATE[item.unitState].tone} dot>{UNIT_STATE[item.unitState].label}</Badge>
+            {item.coversPeriod && <span title={item.periodNote ?? undefined}><Badge size="xs" tone="purple">Cubre el período</Badge></span>}
+          </div>
+        ) : (
+          <Badge size="xs" tone={STATUS_TONES[item.status] ?? "neutral"} dot>
+            {STATUS_LABELS[item.status] ?? item.status}
+          </Badge>
+        )}
       </Td>
+      {periods && (
+        <Td>
+          {clientId ? (
+            <select
+              value={item.periodId ?? ""}
+              onChange={(e) => void patchPeriod({ periodId: e.target.value || null })}
+              aria-label="Período de servicio"
+              className={`h-7 max-w-[150px] rounded-md border bg-white px-1.5 text-xs ${item.periodId ? "border-border text-ink-primary" : "border-dashed border-amber-400 text-amber-800"}`}
+            >
+              <option value="">Sin asignar</option>
+              {periods.map((p) => <option key={p.id} value={p.id}>Mes {p.number} · {p.label}</option>)}
+            </select>
+          ) : (
+            <span className="text-xs text-ink-secondary">{periods.find((p) => p.id === item.periodId) ? `Mes ${periods.find((p) => p.id === item.periodId)!.number}` : "—"}</span>
+          )}
+        </Td>
+      )}
 
       {clientId && (
         <Td align="right">
@@ -208,6 +271,11 @@ function AgendaItemRow({ item, seq, clientId, runners }: { item: AgendaItem; seq
             <DropdownMenuContent>
               <DropdownMenuItem icon={<Pencil />} onSelect={() => setEditing(true)}>Editar pauta</DropdownMenuItem>
               <DropdownMenuItem icon={<UserPlus />} onSelect={() => setEditing(true)}>{item.runner ? "Cambiar runner" : "Asignar runner"}</DropdownMenuItem>
+              {periods && (
+                <DropdownMenuItem icon={<Layers />} onSelect={() => setCovers(true)}>
+                  {item.coversPeriod ? "Quitar «cubre el período»" : "Marcar: cubre el período completo"}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               {item.status !== "COMPLETED" && (
                 <DropdownMenuItem icon={<Check />} onSelect={() => setConfirm("COMPLETED")}>Marcar completada</DropdownMenuItem>
@@ -220,6 +288,31 @@ function AgendaItemRow({ item, seq, clientId, runners }: { item: AgendaItem; seq
           {editing && (
             <EditAgendaItemModal open={editing} onOpenChange={setEditing} clientId={clientId} item={item} runners={runners} />
           )}
+          <Modal open={covers} onOpenChange={setCovers} title={item.coversPeriod ? "Quitar la excepción" : "Esta actividad cubre el período completo"} description={item.eventName ?? undefined}>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                await patchPeriod({ coversPeriod: !item.coversPeriod, periodNote: item.coversPeriod ? null : coverNote.trim() || null });
+                setCovers(false);
+              }}
+              className="space-y-4"
+            >
+              {!item.coversPeriod ? (
+                <>
+                  <p className="text-sm text-ink-secondary">Por acuerdo con el cliente, esta sola actividad vale por todas las metas del período. Explica el acuerdo: la nota queda en el registro.</p>
+                  <FormGroup label="Nota del acuerdo" htmlFor={`cover-${item.id}`}>
+                    <Textarea id={`cover-${item.id}`} rows={3} required value={coverNote} onChange={(e) => setCoverNote(e.target.value)} placeholder="Ej.: Netflix Berlín cubrió el mes completo según lo acordado con el cliente" />
+                  </FormGroup>
+                </>
+              ) : (
+                <p className="text-sm text-ink-secondary">La actividad volverá a contar como una sola meta.</p>
+              )}
+              <FormActions>
+                <Button type="button" variant="secondary" onClick={() => setCovers(false)}>Cancelar</Button>
+                <Button type="submit">{item.coversPeriod ? "Quitar" : "Guardar excepción"}</Button>
+              </FormActions>
+            </form>
+          </Modal>
           <ConfirmModal
             open={!!confirm}
             onOpenChange={(o) => { if (!o) setConfirm(null); }}

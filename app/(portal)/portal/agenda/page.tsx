@@ -8,10 +8,18 @@ import { PageHeader, SectionHeader } from "@/components/layout/header";
 import { Card } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { allocateAgendaMonths } from "@/lib/agenda-months";
+import { periodBoard } from "@/lib/service-periods";
 
 export const metadata = { title: "My Agenda" };
 export const dynamic = "force-dynamic";
+
+const UNIT_LABELS: Record<string, string> = {
+  scheduled: "Scheduled",
+  closed_pending: "Confirmed · pending execution",
+  executed: "Executed",
+  cancelled: "Cancelled",
+};
+const UNIT_TONES: Record<string, BadgeTone> = { scheduled: "neutral", closed_pending: "warning", executed: "success", cancelled: "danger" };
 
 const STATUS_LABELS: Record<string, string> = {
   SCHEDULED: "Goal",
@@ -50,16 +58,14 @@ export default async function PortalAgendaPage() {
       },
     }),
   ]);
-  const goalIds = items.map((i) => i.deliverableId).filter((id): id is string => !!id);
-  const goalMonths = new Map(
-    (await db.deliverable.findMany({ where: { id: { in: goalIds } }, select: { id: true, month: true, year: true } })).map((g) => [g.id, { month: g.month, year: g.year }])
-  );
-
-  // Report months: MES 1 = the first `monthlyTarget` goals, MES 2 the next… (lib/agenda-months.ts)
-  const months = allocateAgendaMonths(items.map((i) => ({ ...i, reportMonth: (i.deliverableId ? goalMonths.get(i.deliverableId) : null) ?? (i.agendaMonth && i.agendaYear ? { month: i.agendaMonth, year: i.agendaYear } : null) })), {
-    monthlyTarget: client?.monthlyTarget ?? 0,
-    cycleDay: client?.cycleDay ?? null,
-  });
+  // Service periods — the same grouping, progress and states the team sees.
+  const board = await periodBoard(clientUser.clientId);
+  const unitByPauta = new Map(board.periods.flatMap((pp) => pp.units).concat(board.pending).filter((u) => u.pautaId).map((u) => [u.pautaId!, u]));
+  const periods = board.periods.map((pp) => ({
+    ...pp,
+    pautas: items.filter((it) => unitByPauta.get(it.id)?.periodId === pp.id),
+    goalOnly: pp.units.filter((u) => !u.pautaId),
+  }));
 
   const upcomingCount = items.filter(
     (i) =>
@@ -79,7 +85,7 @@ export default async function PortalAgendaPage() {
         }
       />
 
-      {items.length === 0 ? (
+      {periods.length === 0 && items.length === 0 ? (
         <EmptyState
           icon={<CalendarDays />}
           title="No agenda yet"
@@ -87,18 +93,35 @@ export default async function PortalAgendaPage() {
         />
       ) : (
         <div className="space-y-6">
-          {months.map((m) => (
-            <section key={m.monthNumber}>
-              <SectionHeader
-                title={`MES ${m.monthNumber} — ${MONTH_NAMES[m.month].toUpperCase()} ${m.year}`}
-              />
-              <Card padding="none" className="divide-y divide-border">
-                {m.items.map((item, idx) => (
-                  <AgendaRow key={item.id} item={item} index={idx + 1} />
-                ))}
-              </Card>
-            </section>
-          ))}
+          {periods.map((m) => {
+            const done = m.target > 0 && m.achieved >= m.target;
+            return (
+              <section key={m.id}>
+                <SectionHeader
+                  title={`MONTH ${m.number} — ${m.label.toUpperCase()}`}
+                  description={`${m.target > 0 ? `${m.target} goals agreed` : ""}${m.closedPending ? ` · ${m.closedPending} confirmed, pending execution` : ""}${m.executed ? ` · ${m.executed} executed` : ""}`}
+                  actions={<span className={cn("tabular text-sm font-semibold", done ? "text-emerald-700" : "text-ink-primary")}>{m.achieved}{m.target > 0 ? ` / ${m.target}` : ""}</span>}
+                />
+                {m.pautas.length === 0 && m.goalOnly.length === 0 ? (
+                  <p className="text-sm text-ink-muted">No activities in this period yet.</p>
+                ) : (
+                  <Card padding="none" className="divide-y divide-border">
+                    {m.pautas.map((item, idx) => (
+                      <AgendaRow key={item.id} item={item} index={idx + 1} unit={unitByPauta.get(item.id)} />
+                    ))}
+                    {m.goalOnly.map((u, idx) => (
+                      <div key={u.key} className="flex flex-wrap items-center gap-3 px-5 py-3">
+                        <span className="w-5 text-xs text-ink-muted tabular">{m.pautas.length + idx + 1}</span>
+                        <p className="min-w-0 flex-1 text-sm font-medium text-ink-primary">{u.title}</p>
+                        {u.coversPeriod && <Badge tone="purple" size="xs">Covers the full month</Badge>}
+                        <Badge tone={UNIT_TONES[u.state]} dot>{UNIT_LABELS[u.state]}</Badge>
+                      </div>
+                    ))}
+                  </Card>
+                )}
+              </section>
+            );
+          })}
         </div>
       )}
     </div>
@@ -108,7 +131,9 @@ export default async function PortalAgendaPage() {
 function AgendaRow({
   item,
   index,
+  unit,
 }: {
+  unit?: { state: string; coversPeriod: boolean };
   item: Awaited<ReturnType<typeof db.runnerAssignment.findMany>>[number] & {
     runner: { id: string; name: string } | null;
   };
@@ -183,9 +208,12 @@ function AgendaRow({
             <p className="text-xs text-ink-secondary">{item.runner.name}</p>
           </div>
         )}
-        <Badge tone={STATUS_TONES[item.status] ?? "neutral"} dot className="shrink-0">
-          {STATUS_LABELS[item.status] ?? item.status}
-        </Badge>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {unit?.coversPeriod && <Badge tone="purple" size="xs">Covers the full month</Badge>}
+          <Badge tone={unit ? UNIT_TONES[unit.state] : STATUS_TONES[item.status] ?? "neutral"} dot className="shrink-0">
+            {unit ? UNIT_LABELS[unit.state] : STATUS_LABELS[item.status] ?? item.status}
+          </Badge>
+        </div>
       </div>
     </div>
   );

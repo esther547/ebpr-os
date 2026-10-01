@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { reconcileSafely } from "@/lib/service-months";
+import { assignPeriod } from "@/lib/service-periods";
 
 import { mergeInternalNotes, splitClientNotes } from "@/lib/client-safe-notes";
 import { miamiWeekOf } from "@/app/api/deliverables/_lib/agenda-sync";
@@ -32,6 +32,10 @@ const patchSchema = z.object({
   internalNotes: z.string().nullable().optional(),
   accompanistCount: z.number().int().min(0).optional(),
   monthNumber: z.number().int().min(1).optional().nullable(),
+  /** Service period (null = pending review). Changing the event date never changes it. */
+  periodId: z.string().nullable().optional(),
+  coversPeriod: z.boolean().optional(),
+  periodNote: z.string().trim().max(500).nullable().optional(),
   agendaSequence: z.number().int().min(1).optional().nullable(),
   status: z
     .enum(["SCHEDULED", "CONFIRMED", "COMPLETED", "CANCELLED"])
@@ -102,6 +106,13 @@ export async function PATCH(
   if (d.venueName !== undefined) updateData.venueName = d.venueName;
   if (d.venueAddress !== undefined) updateData.venueAddress = d.venueAddress;
   if (d.itemType !== undefined) updateData.itemType = d.itemType;
+  if (d.periodId !== undefined || d.coversPeriod !== undefined || d.periodNote !== undefined) {
+    if (d.periodId) {
+      const ok = await db.servicePeriod.findFirst({ where: { id: d.periodId, clientId }, select: { id: true } });
+      if (!ok) return NextResponse.json({ error: "Período no encontrado" }, { status: 400 });
+    }
+    await assignPeriod({ pautaId: itemId }, d.periodId !== undefined ? d.periodId : (existing.periodId ?? null), { coversPeriod: d.coversPeriod, periodNote: d.periodNote });
+  }
   if (d.notes !== undefined || d.internalNotes !== undefined) {
     // Contact-looking lines typed into the client-visible field move to internal notes.
     const split = d.notes !== undefined ? splitClientNotes(d.notes) : null;
@@ -145,7 +156,6 @@ export async function PATCH(
     include: { runner: { select: { id: true, name: true } } },
   });
 
-  await reconcileSafely(clientId);
   return NextResponse.json({ data: updated, warning: availability.warning });
 }
 
@@ -165,7 +175,7 @@ export async function DELETE(
   }
 
   await db.runnerAssignment.delete({ where: { id: itemId } });
-  await reconcileSafely(clientId);
+
 
   return NextResponse.json({ success: true });
 }

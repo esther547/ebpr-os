@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { reconcileSafely } from "@/lib/service-months";
+import { assignPeriod, placeNewUnit } from "@/lib/service-periods";
 
 import { isClosedGoal } from "@/lib/goal-status";
 import { closingReportMonth } from "@/lib/report-month";
@@ -14,6 +14,9 @@ import { syncAgendaItemDetails, activityInstant } from "../_lib/agenda-sync";
 import { checkClientDate, dayKeyOf } from "@/lib/client-availability";
 
 const updateDeliverableSchema = z.object({
+  periodId: z.string().nullable().optional(),
+  coversPeriod: z.boolean().optional(),
+  periodNote: z.string().trim().max(500).nullable().optional(),
   title: z.string().min(1).max(200).optional(),
   type: z.enum([
     "PRESS_PLACEMENT", "INTERVIEW", "INFLUENCER_COLLAB", "EVENT_APPEARANCE",
@@ -112,6 +115,7 @@ export async function PUT(
       where: { id },
       select: {
         id: true,
+        periodId: true,
         clientId: true,
         title: true,
         status: true,
@@ -209,6 +213,14 @@ export async function PUT(
     if (d.outcome !== undefined) data.outcome = d.outcome;
     if (d.isClientVisible !== undefined) data.isClientVisible = d.isClientVisible;
 
+    // Service period: placed by hand here; the goal's event date never changes it.
+    if (d.periodId !== undefined || d.coversPeriod !== undefined || d.periodNote !== undefined) {
+      if (d.periodId) {
+        const ok = await db.servicePeriod.findFirst({ where: { id: d.periodId, clientId: existing.clientId }, select: { id: true } });
+        if (!ok) return NextResponse.json({ error: "Período no encontrado" }, { status: 400 });
+      }
+      await assignPeriod({ goalId: id }, d.periodId !== undefined ? d.periodId : (existing.periodId ?? null), { coversPeriod: d.coversPeriod, periodNote: d.periodNote });
+    }
     const deliverable = await db.deliverable.update({
       where: { id },
       data,
@@ -254,7 +266,8 @@ export async function PUT(
       });
     }
 
-    await reconcileSafely(deliverable.clientId);
+    // Closed for the first time without a period yet: it becomes a unit → latest period with room, else pending.
+    if (isClosedGoal(deliverable.status) && !deliverable.periodId) await placeNewUnit(deliverable.clientId, { goalId: deliverable.id });
     return NextResponse.json({ data: deliverable, warning: availability.warning });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") {
@@ -307,6 +320,5 @@ export async function DELETE(
     }),
   ]);
 
-  await reconcileSafely(existing.clientId);
   return NextResponse.json({ success: true });
 }

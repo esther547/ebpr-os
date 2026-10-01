@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { canManageRunners } from "@/lib/permissions";
 import { db } from "@/lib/db";
-import { reconcileSafely } from "@/lib/service-months";
+import { placeNewUnit } from "@/lib/service-periods";
 
 import { mergeInternalNotes, splitClientNotes } from "@/lib/client-safe-notes";
 import { notifyRunnerAssigned, notifyRunnersOpenActivity } from "@/lib/runner-notify";
@@ -245,7 +245,7 @@ export async function POST(
       },
     });
 
-    await reconcileSafely(clientId);
+    await placeNewUnit(clientId, { pautaId: item.id });
     return NextResponse.json({ data: item, conflictWarning, warning: availability.warning }, { status: 201 });
   } catch (err) {
     console.error("POST /api/clients/[clientId]/agenda failed:", err);

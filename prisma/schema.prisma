@@ -215,6 +215,7 @@ model Client {
   // MES 1 of the client's service (Esther, Sept 30 2026): service months run from here, each holding monthlyTarget goals.
   serviceStartYear  Int?
   serviceStartMonth Int?
+  servicePeriods    ServicePeriod[]
   // Day of month the client's cycle resets ("fecha de corte"), 1-31
   cycleDay          Int?
   // Goals owed from previous cycles ("metas atrasadas")
@@ -472,10 +473,16 @@ model Deliverable {
   venueAddress    String?
   needsRunner     Boolean           @default(true)
   completedAt     DateTime?
-  month           Int // 1–12 (service month, see lib/service-months.ts)
+  month           Int // 1–12 — reference month of the goal's service period (derived; see lib/service-periods.ts)
   year            Int
   /// Set when a strategist picked the month by hand ("Mes del reporte"): reconcile never moves it.
   monthPinned     Boolean          @default(false)
+  /// SERVICE PERIOD (Esther, Oct 1 2026): the period this goal counts toward; null = pending the admin's review.
+  periodId        String?
+  period          ServicePeriod?   @relation(fields: [periodId], references: [id], onDelete: SetNull)
+  /// By agreement with the client this one activity covers the whole period (counts as all its goals).
+  coversPeriod    Boolean          @default(false)
+  periodNote      String?
   notes           String?
   outcome         String? // the win / result text
   isClientVisible Boolean           @default(true)
@@ -554,6 +561,11 @@ model RunnerAssignment {
   agendaYear       Int?
   /// true when the month came from Esther's ledger (doc import) — reconcile never moves it.
   agendaMonthPinned Boolean @default(false)
+  /// SERVICE PERIOD the pauta counts toward (kept equal to its goal's); null = pending review.
+  periodId         String?
+  period           ServicePeriod? @relation(fields: [periodId], references: [id], onDelete: SetNull)
+  coversPeriod     Boolean        @default(false)
+  periodNote       String?
 
   // Auto-scheduling
   autoAssigned Boolean   @default(false) // true when lib/runner-assign.ts picked the runner
@@ -1145,4 +1157,31 @@ model TimeEntry {
 
   @@index([userId, startedAt])
   @@map("time_entries")
+}
+
+/// A client's service period ("Mes 1", "Mes 2"…): the unit the client pays for. Periods are
+/// numbered consecutively per client but need not be consecutive calendar months (Grace: Mes 1 =
+/// mayo, Mes 2 = septiembre). Each carries the goals agreed for it. Esther, Oct 1 2026.
+model ServicePeriod {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  number    Int
+  /// Shown to the team and the client, e.g. "Septiembre 2026".
+  label     String
+  /// Calendar reference (for the Google Doc block, reports by month and the portal).
+  refYear   Int
+  refMonth  Int
+  /// Goals agreed for this period (6, 8… per the client's deal).
+  target    Int
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  deliverables Deliverable[]
+  pautas       RunnerAssignment[]
+
+  @@unique([clientId, number])
+  @@index([clientId, refYear, refMonth])
+  @@map("service_periods")
 }

@@ -3,7 +3,6 @@ import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { canManageRunners } from "@/lib/permissions";
 import { db } from "@/lib/db";
-import { reconcileSafely } from "@/lib/service-months";
 
 import { mergeInternalNotes, splitClientNotes } from "@/lib/client-safe-notes";
 import { isEmailConfigured, sendEmail } from "@/lib/email";
@@ -151,7 +150,6 @@ async function handleUpdate(req: NextRequest, { params }: Params) {
     include: { runner: { select: { id: true, name: true } } },
   });
 
-  await reconcileSafely(updated?.clientId ?? null);
   return NextResponse.json({ data: updated, reassigned });
 }
 
@@ -196,7 +194,6 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   });
   if (!existing) return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
   await db.runnerAssignment.delete({ where: { id: params.id } });
-  await reconcileSafely(existing.clientId);
   if (existing.runnerId) {
     const when = existing.eventDate.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", timeZone: "America/New_York" });
     await db.notification

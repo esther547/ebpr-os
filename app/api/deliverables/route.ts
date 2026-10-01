@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { reconcileSafely } from "@/lib/service-months";
+import { placeNewUnit } from "@/lib/service-periods";
 
 import { isClosedGoal } from "@/lib/goal-status";
 import { requireUser } from "@/lib/auth";
@@ -149,8 +149,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Service months: this goal takes the first month with room (Esther, Sept 30 2026).
-    await reconcileSafely(deliverable.clientId);
+    // Service periods: a new goal goes to the latest period with room; otherwise it waits for review.
+    await placeNewUnit(deliverable.clientId, { goalId: deliverable.id });
     return NextResponse.json({ data: deliverable, warning: availability.warning }, { status: 201 });
   } catch (err) {
     console.error("POST /api/deliverables failed:", err);

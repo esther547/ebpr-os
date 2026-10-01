@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { reconcileSafely } from "@/lib/service-months";
+import { placeNewUnit } from "@/lib/service-periods";
 
 import { isClosedGoal } from "@/lib/goal-status";
 import { closingReportMonth } from "@/lib/report-month";
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       });
     }
 
-    await reconcileSafely(deliverable.clientId);
+    if (isClosedGoal(deliverable.status) && !deliverable.periodId) await placeNewUnit(deliverable.clientId, { goalId: deliverable.id });
     return NextResponse.json({ data: deliverable });
   } catch (err) {
     console.error("POST /api/deliverables/[id]/status failed:", err);

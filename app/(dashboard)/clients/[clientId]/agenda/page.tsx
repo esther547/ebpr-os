@@ -4,13 +4,13 @@ import { db } from "@/lib/db";
 import { companionWhere } from "@/lib/companions";
 import { ClientHeader } from "@/components/clients/client-header";
 import { availabilityNowFor } from "@/lib/client-availability";
-import { AgendaMonthSection } from "@/components/agenda/agenda-month-section";
+import { PeriodBoard, type PeriodCard, type GoalOnlyUnit } from "@/components/agenda/period-board";
 import { AgendaAddItemButton } from "@/components/agenda/create-agenda-item-modal";
 import { SyncDocButton } from "@/components/agenda/sync-doc-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays } from "lucide-react";
-import { allocateAgendaMonths } from "@/lib/agenda-months";
+import { periodBoard } from "@/lib/service-periods";
 
 type Props = { params: { clientId: string } };
 
@@ -73,8 +73,24 @@ export default async function AgendaPage({ params }: Props) {
     runner: item.runner ? { id: item.runner.id, name: item.runner.name } : null,
   }));
 
-  // Report months: MES 1 holds the first `monthlyTarget` pautas, MES 2 the next… (lib/agenda-months.ts)
-  const months = allocateAgendaMonths(items, client);
+  // Service periods (lib/service-periods.ts): what each paid period holds, closed vs executed, pending review.
+  const board = await periodBoard(client.id);
+  const unitByPauta = new Map(board.periods.flatMap((pp) => pp.units).concat(board.pending).filter((u) => u.pautaId).map((u) => [u.pautaId!, u]));
+  const withUnit = (it: (typeof items)[number]) => {
+    const u = unitByPauta.get(it.id);
+    return { ...it, unitState: u?.state, periodId: u?.periodId ?? null, coversPeriod: u?.coversPeriod ?? false, periodNote: u?.periodNote ?? null };
+  };
+  const goalOnly = (units: typeof board.pending): GoalOnlyUnit[] =>
+    units.filter((u) => !u.pautaId && u.goalId).map((u) => ({ goalId: u.goalId!, title: u.title, state: u.state, coversPeriod: u.coversPeriod, periodNote: u.periodNote, periodId: u.periodId, closedAt: u.closedAt?.toISOString() ?? null, executedAt: u.executedAt?.toISOString() ?? null }));
+  const periodCards: PeriodCard[] = board.periods.map((pp) => ({
+    id: pp.id, number: pp.number, label: pp.label, target: pp.target, refYear: pp.refYear, refMonth: pp.refMonth, note: pp.note,
+    achieved: pp.achieved, closedPending: pp.closedPending, executed: pp.executed,
+    items: items.filter((it) => unitByPauta.get(it.id)?.periodId === pp.id).map(withUnit),
+    goalOnly: goalOnly(pp.units),
+  }));
+  const pendingIds = new Set(board.pending.filter((u) => u.pautaId).map((u) => u.pautaId!));
+  const pendingCard = { items: items.filter((it) => pendingIds.has(it.id)).map(withUnit), goalOnly: goalOnly(board.pending) };
+  const allItems = items.map(withUnit);
 
   // Activities on the agenda that nobody is accompanying yet.
   const needsRunnerCount = items.filter(
@@ -113,30 +129,18 @@ export default async function AgendaPage({ params }: Props) {
       )}
 
       <p className="mb-6 text-xs text-ink-muted">
-        Las pautas se agrupan por el mes de su fecha. El Google Doc de la agenda no se reescribe: el portal solo le agrega las pautas nuevas.
+        La agenda se organiza por períodos de servicio (Mes 1, Mes 2…), lo que el cliente paga. Cambiar la fecha de un evento no cambia su período. El Google Doc no se reescribe: el portal solo le agrega las pautas nuevas.
       </p>
 
-      {items.length === 0 ? (
-        <EmptyState
-          icon={<CalendarDays />}
-          title="No agenda items yet"
-          description="Add scheduled appearances, TV slots, events, and red carpets."
-        />
-      ) : (
-        <div className="space-y-8">
-          {months.map((m) => (
-            <AgendaMonthSection
-              key={m.monthNumber}
-              monthNumber={m.monthNumber}
-              monthLabel={`${m.monthName} ${m.year}`}
-              target={m.target}
-              items={m.items}
-              runners={runners}
-              clientId={client.id}
-            />
-          ))}
-        </div>
-      )}
+      <PeriodBoard
+        clientId={client.id}
+        canEdit
+        runners={runners}
+        periods={periodCards}
+        pending={pendingCard}
+        allItems={allItems}
+        defaultTarget={client.monthlyTarget ?? 6}
+      />
     </>
   );
 }
