@@ -31,6 +31,7 @@ export { AGENDA_TABLE_HEADER, MONTH_NAMES_ES, SERVICE_ACCOUNT_EMAIL_FALLBACK, fo
 export type { AgendaDocErrorKind };
 import type { docs_v1 } from "googleapis";
 import { db } from "@/lib/db";
+import { clientSafeNotes } from "@/lib/client-safe-notes";
 import { GOOGLE_NOT_CONFIGURED, extractDocId, getGoogleCredentials } from "@/lib/google-docs";
 import { dayKeyInTz } from "@/components/runners/miami-time";
 import {
@@ -134,12 +135,17 @@ export function sectionsFromAssignments(
   }));
 }
 
-/** Loads a client's agenda rows and turns them into the doc's month sections. */
-export async function buildAgendaSections(clientId: string): Promise<AgendaSection[]> {
-  const [client, assignments] = await Promise.all([
+/**
+ * Loads a client's agenda and turns it into the doc's sections. Sections are the client's SERVICE
+ * PERIODS (lib/service-periods.ts): "MES N (LABEL)" holds what was secured during that period,
+ * each row showing the real date of the activity. Pautas nobody has placed yet go last, under
+ * "POR ASIGNAR". Clients without periods fall back to the month allocation.
+ */
+export async function buildAgendaSections(clientId: string, now = new Date()): Promise<AgendaSection[]> {
+  const [client, assignments, periods] = await Promise.all([
     db.client.findUnique({ where: { id: clientId }, select: { monthlyTarget: true, cycleDay: true } }),
     db.runnerAssignment.findMany({
-      where: { clientId },
+      where: { clientId, status: { not: "CANCELLED" } },
       orderBy: [{ eventDate: "asc" }],
       select: {
         eventDate: true,
@@ -153,10 +159,27 @@ export async function buildAgendaSections(clientId: string): Promise<AgendaSecti
         notes: true,
         status: true,
         runnerId: true,
+        periodId: true,
       },
     }),
+    db.servicePeriod.findMany({ where: { clientId }, orderBy: { number: "asc" }, select: { id: true, number: true, label: true, refMonth: true } }),
   ]);
-  return sectionsFromAssignments(assignments, { monthlyTarget: client?.monthlyTarget ?? 0, cycleDay: client?.cycleDay ?? null });
+  if (!periods.length) return sectionsFromAssignments(assignments, { monthlyTarget: client?.monthlyTarget ?? 0, cycleDay: client?.cycleDay ?? null }, now);
+  const row = (a: (typeof assignments)[number], i: number): AgendaRow => ({
+    number: i + 1,
+    fecha: formatFecha(dayKeyInTz(a.eventDate)),
+    hora: formatHora(a.eventTime),
+    lugar: joinLines(a.venueName, a.venueAddress),
+    item: joinLines(a.eventName, clientSafeNotes(a.notes)),
+    estado: estadoFor(a, now),
+  });
+  const sections: AgendaSection[] = periods.map((p) => {
+    const monthName = MONTH_NAMES_ES[p.refMonth - 1];
+    return { monthNumber: p.number, monthName, heading: `MES ${p.number} (${monthName})`, rows: assignments.filter((a) => a.periodId === p.id).map(row) };
+  });
+  const loose = assignments.filter((a) => !a.periodId || !periods.some((p) => p.id === a.periodId));
+  if (loose.length) sections.push({ monthNumber: periods.length + 1, monthName: "POR ASIGNAR", heading: "POR ASIGNAR", rows: loose.map(row) });
+  return sections;
 }
 
 // ─── Doc inspection helpers ──────────────────────────────

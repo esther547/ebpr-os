@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentClientUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { clientSafeNotes } from "@/lib/client-safe-notes";
@@ -40,7 +41,8 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-export default async function PortalAgendaPage() {
+export default async function PortalAgendaPage({ searchParams }: { searchParams?: { view?: string } }) {
+  const view = searchParams?.view === "calendar" ? "calendar" : "periods";
   const clientUser = await getCurrentClientUser();
   if (!clientUser) redirect("/sign-in");
   if (!clientUser.isActive) redirect("/access-pending");
@@ -67,6 +69,20 @@ export default async function PortalAgendaPage() {
     goalOnly: pp.units.filter((u) => !u.pautaId),
   }));
 
+  // Calendar view: the same pautas grouped by the month they actually happen (upcoming months first).
+  const byMonth = new Map<string, typeof items>();
+  for (const it of items.filter((i) => i.status !== "CANCELLED")) {
+    const d = new Date(it.eventDate);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    byMonth.set(key, [...(byMonth.get(key) ?? []), it]);
+  }
+  const nowKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+  const keys = [...byMonth.keys()].sort();
+  const calendarMonths = [...keys.filter((k) => k >= nowKey), ...keys.filter((k) => k < nowKey).reverse()].map((key) => {
+    const [y, mo] = key.split("-").map(Number);
+    return { key, title: `${MONTH_NAMES[mo].toUpperCase()} ${y}${key === nowKey ? " · THIS MONTH" : ""}`, items: byMonth.get(key)! };
+  });
+
   const upcomingCount = items.filter(
     (i) =>
       i.status === "SCHEDULED" ||
@@ -85,7 +101,35 @@ export default async function PortalAgendaPage() {
         }
       />
 
-      {periods.length === 0 && items.length === 0 ? (
+      {/* Two views of the same records: what was achieved for each month you pay, and when each thing happens. */}
+      <div className="inline-flex rounded-lg border border-border bg-white p-0.5">
+        <Link href="/portal/agenda" className={cn("rounded-md px-3 py-1.5 text-xs font-medium", view === "periods" ? "bg-ink-primary text-white" : "text-ink-secondary")}>By service month</Link>
+        <Link href="/portal/agenda?view=calendar" className={cn("rounded-md px-3 py-1.5 text-xs font-medium", view === "calendar" ? "bg-ink-primary text-white" : "text-ink-secondary")}>By date</Link>
+      </div>
+      <p className="text-xs text-ink-muted">
+        {view === "periods"
+          ? "Each service month lists what we secured for you during it, whatever the date of the event."
+          : "Your calendar: every activity on the date it actually happens."}
+      </p>
+
+      {view === "calendar" ? (
+        calendarMonths.length === 0 ? (
+          <EmptyState icon={<CalendarDays />} title="No agenda yet" description="Your upcoming appearances will appear here once scheduled." />
+        ) : (
+          <div className="space-y-6">
+            {calendarMonths.map((cm) => (
+              <section key={cm.key}>
+                <SectionHeader title={cm.title} actions={<span className="text-xs text-ink-muted">{cm.items.length} {cm.items.length === 1 ? "activity" : "activities"}</span>} />
+                <Card padding="none" className="divide-y divide-border">
+                  {cm.items.map((item, idx) => (
+                    <AgendaRow key={item.id} item={item} index={idx + 1} unit={unitByPauta.get(item.id)} />
+                  ))}
+                </Card>
+              </section>
+            ))}
+          </div>
+        )
+      ) : periods.length === 0 && items.length === 0 ? (
         <EmptyState
           icon={<CalendarDays />}
           title="No agenda yet"
