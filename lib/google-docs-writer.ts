@@ -173,10 +173,25 @@ export async function buildAgendaSections(clientId: string, now = new Date()): P
     item: joinLines(a.eventName, clientSafeNotes(a.notes)),
     estado: estadoFor(a, now),
   });
-  const sections: AgendaSection[] = periods.map((p) => {
-    const monthName = MONTH_NAMES_ES[p.refMonth - 1];
-    return { monthNumber: p.number, monthName, heading: `MES ${p.number} (${monthName})`, rows: assignments.filter((a) => a.periodId === p.id).map(row) };
-  });
+  // Closed goals without a pauta (an interview, an article…) are achievements of the period too.
+  // The "Meta de <mes> #N" count-only fillers are never listed in a client's doc.
+  const linked = new Set((await db.runnerAssignment.findMany({ where: { clientId, deliverableId: { not: null } }, select: { deliverableId: true } })).map((x) => x.deliverableId));
+  const goalOnly = (await db.deliverable.findMany({
+    where: { clientId, isInternal: false, isClientVisible: true, status: { in: ["CONFIRMED", "IN_PROGRESS", "COMPLETED"] }, periodId: { not: null } },
+    select: { id: true, title: true, dueDate: true, closedAt: true, eventTime: true, venueName: true, venueAddress: true, periodId: true },
+  })).filter((g) => !linked.has(g.id) && !/^Meta de \p{L}+ #\d+/u.test(g.title));
+  const sections: AgendaSection[] = periods
+    .map((p) => {
+      const monthName = MONTH_NAMES_ES[p.refMonth - 1];
+      const rows = assignments.filter((a) => a.periodId === p.id).map(row);
+      for (const g of goalOnly.filter((x) => x.periodId === p.id)) {
+        const when = g.dueDate ?? g.closedAt;
+        rows.push({ number: rows.length + 1, fecha: when ? formatFecha(dayKeyInTz(when)) : "—", hora: formatHora(g.eventTime), lugar: joinLines(g.venueName, g.venueAddress), item: g.title, estado: "Goal" });
+      }
+      return { monthNumber: p.number, monthName, heading: `MES ${p.number} (${monthName})`, rows };
+    })
+    // A period with nothing to list is not printed (its number is kept, so MES 8 may follow MES 6).
+    .filter((sec) => sec.rows.length > 0);
   const loose = assignments.filter((a) => !a.periodId || !periods.some((p) => p.id === a.periodId));
   if (loose.length) sections.push({ monthNumber: periods.length + 1, monthName: "POR ASIGNAR", heading: "POR ASIGNAR", rows: loose.map(row) });
   return sections;
@@ -365,8 +380,10 @@ function cellSpecs(row: LayoutRow): Omit<CellFill, "index">[] {
  */
 export const AGENDA_DOC_WRITES_ENABLED = false; // Esther, Sept 25 2026: the docs are hers; the portal must only append new pautas, never rewrite
 
-export async function writeAgendaDoc(clientId: string): Promise<WriteAgendaDocResult> {
-  if (!AGENDA_DOC_WRITES_ENABLED) {
+export async function writeAgendaDoc(clientId: string, opts: { force?: boolean } = {}): Promise<WriteAgendaDocResult> {
+  // `force` is only passed by the reviewed one-off script (scripts/rewrite-agenda-docs-by-period.ts);
+  // the button and the nightly cron stay append-only.
+  if (!AGENDA_DOC_WRITES_ENABLED && !opts.force) {
     return { ok: false, kind: "other", error: "La sincronización a Google Docs está en pausa mientras se cambia a modo 'solo agregar'. El documento no se modificó." };
   }
   let docs: docs_v1.Docs;
