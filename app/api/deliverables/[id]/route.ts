@@ -17,6 +17,7 @@ const updateDeliverableSchema = z.object({
   periodId: z.string().nullable().optional(),
   coversPeriod: z.boolean().optional(),
   periodNote: z.string().trim().max(500).nullable().optional(),
+  goalValue: z.number().int().min(1).max(20).optional(),
   title: z.string().min(1).max(200).optional(),
   type: z.enum([
     "PRESS_PLACEMENT", "INTERVIEW", "INFLUENCER_COLLAB", "EVENT_APPEARANCE",
@@ -214,12 +215,12 @@ export async function PUT(
     if (d.isClientVisible !== undefined) data.isClientVisible = d.isClientVisible;
 
     // Service period: placed by hand here; the goal's event date never changes it.
-    if (d.periodId !== undefined || d.coversPeriod !== undefined || d.periodNote !== undefined) {
+    if (d.periodId !== undefined || d.coversPeriod !== undefined || d.periodNote !== undefined || d.goalValue !== undefined) {
       if (d.periodId) {
         const ok = await db.servicePeriod.findFirst({ where: { id: d.periodId, clientId: existing.clientId }, select: { id: true } });
         if (!ok) return NextResponse.json({ error: "Período no encontrado" }, { status: 400 });
       }
-      await assignPeriod({ goalId: id }, d.periodId !== undefined ? d.periodId : (existing.periodId ?? null), { coversPeriod: d.coversPeriod, periodNote: d.periodNote });
+      await assignPeriod({ goalId: id }, d.periodId !== undefined ? d.periodId : (existing.periodId ?? null), { coversPeriod: d.coversPeriod, periodNote: d.periodNote, goalValue: d.goalValue });
     }
     const deliverable = await db.deliverable.update({
       where: { id },

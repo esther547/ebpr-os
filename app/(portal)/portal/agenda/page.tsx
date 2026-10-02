@@ -99,7 +99,7 @@ export default async function PortalAgendaPage() {
               <section key={m.id}>
                 <SectionHeader
                   title={`MONTH ${m.number} — ${m.label.toUpperCase()}`}
-                  description={`${m.target > 0 ? `${m.target} goals agreed` : ""}${m.closedPending ? ` · ${m.closedPending} confirmed, pending execution` : ""}${m.executed ? ` · ${m.executed} executed` : ""}`}
+                  description={`${m.target > 0 ? `${m.target} goals agreed · ` : ""}${m.pautas.length + m.goalOnly.length} secured${m.closedPending ? ` · ${m.closedPending} confirmed, pending execution` : ""}${m.executed ? ` · ${m.executed} executed` : ""}`}
                   actions={<span className={cn("tabular text-sm font-semibold", done ? "text-emerald-700" : "text-ink-primary")}>{m.achieved}{m.target > 0 ? ` / ${m.target}` : ""}</span>}
                 />
                 {m.pautas.length === 0 && m.goalOnly.length === 0 ? (
@@ -114,6 +114,7 @@ export default async function PortalAgendaPage() {
                         <span className="w-5 text-xs text-ink-muted tabular">{m.pautas.length + idx + 1}</span>
                         <p className="min-w-0 flex-1 text-sm font-medium text-ink-primary">{u.title}</p>
                         {u.coversPeriod && <Badge tone="purple" size="xs">Covers the full month</Badge>}
+                        {!u.coversPeriod && u.goalValue > 1 && <Badge tone="purple" size="xs">Counts as {u.goalValue} goals</Badge>}
                         <Badge tone={UNIT_TONES[u.state]} dot>{UNIT_LABELS[u.state]}</Badge>
                       </div>
                     ))}
@@ -133,7 +134,7 @@ function AgendaRow({
   index,
   unit,
 }: {
-  unit?: { state: string; coversPeriod: boolean };
+  unit?: { state: string; coversPeriod: boolean; goalValue: number };
   item: Awaited<ReturnType<typeof db.runnerAssignment.findMany>>[number] & {
     runner: { id: string; name: string } | null;
   };
@@ -210,6 +211,7 @@ function AgendaRow({
         )}
         <div className="flex shrink-0 flex-col items-end gap-1">
           {unit?.coversPeriod && <Badge tone="purple" size="xs">Covers the full month</Badge>}
+          {unit && !unit.coversPeriod && unit.goalValue > 1 && <Badge tone="purple" size="xs">Counts as {unit.goalValue} goals</Badge>}
           <Badge tone={unit ? UNIT_TONES[unit.state] : STATUS_TONES[item.status] ?? "neutral"} dot className="shrink-0">
             {unit ? UNIT_LABELS[unit.state] : STATUS_LABELS[item.status] ?? item.status}
           </Badge>

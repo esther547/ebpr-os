@@ -483,6 +483,8 @@ model Deliverable {
   /// By agreement with the client this one activity covers the whole period (counts as all its goals).
   coversPeriod    Boolean          @default(false)
   periodNote      String?
+  /// How many goals this achievement is worth (1 by default; 2+ for a big win — Esther, Oct 2 2026).
+  goalValue       Int              @default(1)
   notes           String?
   outcome         String? // the win / result text
   isClientVisible Boolean           @default(true)
@@ -566,6 +568,7 @@ model RunnerAssignment {
   period           ServicePeriod? @relation(fields: [periodId], references: [id], onDelete: SetNull)
   coversPeriod     Boolean        @default(false)
   periodNote       String?
+  goalValue        Int            @default(1)
 
   // Auto-scheduling
   autoAssigned Boolean   @default(false) // true when lib/runner-assign.ts picked the runner

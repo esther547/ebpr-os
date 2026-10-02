@@ -16,7 +16,7 @@ import { MONTH_NAMES_ES } from "@/lib/agenda-months";
 
 type AgendaItem = React.ComponentProps<typeof AgendaMonthSection>["items"][number];
 type UnitState = "scheduled" | "closed_pending" | "executed" | "cancelled";
-export type GoalOnlyUnit = { goalId: string; title: string; state: UnitState; coversPeriod: boolean; periodNote: string | null; periodId: string | null; closedAt: string | null; executedAt: string | null };
+export type GoalOnlyUnit = { goalId: string; title: string; state: UnitState; coversPeriod: boolean; periodNote: string | null; periodId: string | null; closedAt: string | null; executedAt: string | null; goalValue: number };
 export type PeriodCard = PeriodOption & { refYear: number; refMonth: number; note: string | null; achieved: number; closedPending: number; executed: number; items: AgendaItem[]; goalOnly: GoalOnlyUnit[] };
 
 const STATE: Record<UnitState, { label: string; tone: BadgeTone }> = {
@@ -88,6 +88,7 @@ export function PeriodBoard({ clientId, canEdit, runners, periods, pending, allI
                       <h3 className="text-base font-semibold text-ink-primary">Mes {p.number} · {p.label}</h3>
                       <p className="mt-0.5 text-xs text-ink-muted">
                         {p.target > 0 ? `${p.target} metas acordadas` : "Sin meta fija"}
+                        {` · ${p.items.length + p.goalOnly.length} pauta${p.items.length + p.goalOnly.length === 1 ? "" : "s"} conseguida${p.items.length + p.goalOnly.length === 1 ? "" : "s"}`}
                         {p.closedPending > 0 && ` · ${p.closedPending} cerrada${p.closedPending === 1 ? "" : "s"} pendiente${p.closedPending === 1 ? "" : "s"} de ejecución`}
                         {p.executed > 0 && ` · ${p.executed} ejecutada${p.executed === 1 ? "" : "s"}`}
                       </p>
@@ -157,6 +158,11 @@ function GoalOnlyList({ units, periods, canEdit }: { units: GoalOnlyUnit[]; peri
           </div>
           <Badge size="xs" tone={STATE[u.state].tone} dot>{STATE[u.state].label}</Badge>
           {u.coversPeriod && <span title={u.periodNote ?? undefined}><Badge size="xs" tone="purple">Cubre el período</Badge></span>}
+          {canEdit ? (
+            <select value={u.goalValue} onChange={(e) => void patch(u.goalId, { goalValue: Number(e.target.value) })} aria-label="Metas que cubre" title="Metas que cubre esta meta" className={`h-7 rounded-md border bg-white px-1 text-xs tabular ${u.goalValue > 1 ? "border-violet-300 font-semibold text-violet-800" : "border-border text-ink-secondary"}`}>
+              {[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>Vale {n}</option>)}
+            </select>
+          ) : u.goalValue > 1 ? <Badge size="xs" tone="purple">Vale {u.goalValue} metas</Badge> : null}
           {canEdit ? (
             <select value={u.periodId ?? ""} onChange={(e) => void patch(u.goalId, { periodId: e.target.value || null })} aria-label="Período" className={`h-7 rounded-md border bg-white px-1.5 text-xs ${u.periodId ? "border-border" : "border-dashed border-amber-400 text-amber-800"}`}>
               <option value="">Sin asignar</option>

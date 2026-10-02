@@ -34,6 +34,8 @@ type AgendaItem = {
   periodId?: string | null;
   coversPeriod?: boolean;
   periodNote?: string | null;
+  /** Goals this pauta is worth (1 by default). */
+  goalValue?: number;
 };
 
 export type PeriodOption = { id: string; number: number; label: string; target: number };
@@ -112,6 +114,7 @@ export function AgendaMonthSection({ monthNumber, monthLabel, target = 0, items,
               <Th>PR Runner</Th>
               <Th>Status</Th>
               {periods && <Th>Período</Th>}
+              {periods && <Th>Vale</Th>}
               {canEdit && clientId && <Th className="w-12" />}
             </tr>
           </thead>
@@ -239,6 +242,7 @@ function AgendaItemRow({ item, seq, clientId, runners, periods, patchClientId }:
           <div className="flex flex-col items-start gap-1">
             <Badge size="xs" tone={UNIT_STATE[item.unitState].tone} dot>{UNIT_STATE[item.unitState].label}</Badge>
             {item.coversPeriod && <span title={item.periodNote ?? undefined}><Badge size="xs" tone="purple">Cubre el período</Badge></span>}
+            {!item.coversPeriod && (item.goalValue ?? 1) > 1 && <Badge size="xs" tone="purple">Vale {item.goalValue} metas</Badge>}
           </div>
         ) : (
           <Badge size="xs" tone={STATUS_TONES[item.status] ?? "neutral"} dot>
@@ -260,6 +264,23 @@ function AgendaItemRow({ item, seq, clientId, runners, periods, patchClientId }:
             </select>
           ) : (
             <span className="text-xs text-ink-secondary">{periods.find((p) => p.id === item.periodId) ? `Mes ${periods.find((p) => p.id === item.periodId)!.number}` : "—"}</span>
+          )}
+        </Td>
+      )}
+      {periods && (
+        <Td>
+          {clientId ? (
+            <select
+              value={item.goalValue ?? 1}
+              onChange={(e) => void patchPeriod({ goalValue: Number(e.target.value) })}
+              aria-label="Metas que cubre esta pauta"
+              title="Metas que cubre esta pauta"
+              className={`h-7 rounded-md border bg-white px-1 text-xs tabular ${(item.goalValue ?? 1) > 1 ? "border-violet-300 font-semibold text-violet-800" : "border-border text-ink-secondary"}`}
+            >
+              {[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          ) : (
+            <span className="tabular text-xs text-ink-secondary">{item.goalValue ?? 1}</span>
           )}
         </Td>
       )}

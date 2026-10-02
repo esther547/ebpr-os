@@ -78,10 +78,10 @@ export default async function AgendaPage({ params }: Props) {
   const unitByPauta = new Map(board.periods.flatMap((pp) => pp.units).concat(board.pending).filter((u) => u.pautaId).map((u) => [u.pautaId!, u]));
   const withUnit = (it: (typeof items)[number]) => {
     const u = unitByPauta.get(it.id);
-    return { ...it, unitState: u?.state, periodId: u?.periodId ?? null, coversPeriod: u?.coversPeriod ?? false, periodNote: u?.periodNote ?? null };
+    return { ...it, unitState: u?.state, periodId: u?.periodId ?? null, coversPeriod: u?.coversPeriod ?? false, periodNote: u?.periodNote ?? null, goalValue: u?.goalValue ?? 1 };
   };
   const goalOnly = (units: typeof board.pending): GoalOnlyUnit[] =>
-    units.filter((u) => !u.pautaId && u.goalId).map((u) => ({ goalId: u.goalId!, title: u.title, state: u.state, coversPeriod: u.coversPeriod, periodNote: u.periodNote, periodId: u.periodId, closedAt: u.closedAt?.toISOString() ?? null, executedAt: u.executedAt?.toISOString() ?? null }));
+    units.filter((u) => !u.pautaId && u.goalId).map((u) => ({ goalId: u.goalId!, title: u.title, state: u.state, coversPeriod: u.coversPeriod, periodNote: u.periodNote, periodId: u.periodId, closedAt: u.closedAt?.toISOString() ?? null, executedAt: u.executedAt?.toISOString() ?? null, goalValue: u.goalValue }));
   const periodCards: PeriodCard[] = board.periods.map((pp) => ({
     id: pp.id, number: pp.number, label: pp.label, target: pp.target, refYear: pp.refYear, refMonth: pp.refMonth, note: pp.note,
     achieved: pp.achieved, closedPending: pp.closedPending, executed: pp.executed,
@@ -129,7 +129,7 @@ export default async function AgendaPage({ params }: Props) {
       )}
 
       <p className="mb-6 text-xs text-ink-muted">
-        La agenda se organiza por períodos de servicio (Mes 1, Mes 2…), lo que el cliente paga. Cambiar la fecha de un evento no cambia su período. El Google Doc no se reescribe: el portal solo le agrega las pautas nuevas.
+        Cada período de servicio (Mes 1, Mes 2…) es la cuenta de las pautas conseguidas durante ese período: cuenta cuándo se consiguió, no cuándo se ejecuta. Una pauta puede valer más de una meta. El Google Doc no se reescribe: el portal solo le agrega las pautas nuevas.
       </p>
 
       <PeriodBoard

@@ -6,14 +6,20 @@
  * months (Grace: Mes 1 = mayo, Mes 2 = septiembre). A unit (a pauta, with or without a goal, or a
  * closed goal without a pauta) belongs to exactly one period, or to none while the admin reviews it.
  *
- * Rules: moving an event's date never changes its period; executing a closed goal updates its
- * status without moving it or counting it twice; one activity may cover a whole period when the
- * client agreed to it (coversPeriod + note). New units default to the latest period with room;
- * when there is none they wait for the admin ("Pendientes de asignar").
+ * THE RULE (Esther, Oct 2 2026): a period is a monthly account of achievements OBTAINED during it.
+ * A pauta belongs to the period in which it was secured/closed — never to the month in which it
+ * is executed ("conseguida el 25 de julio, evento el 1 de agosto → julio"). Each pauta is worth
+ * `goalValue` goals (1 by default, 2+ for a big win), so 5 pautas can make 6/6.
+ *
+ * Moving an event's date never changes its period; executing a closed goal updates its status
+ * without moving it or counting it twice; one activity may cover a whole period when the client
+ * agreed to it (coversPeriod + note). A new unit goes to the period of its closing month; when
+ * that one is already complete it goes to the next period with room (created if needed).
  */
 import { db } from "@/lib/db";
 import { CLOSED_GOAL_STATUSES, isClosedGoal } from "@/lib/goal-status";
 import { MONTH_NAMES_ES } from "@/lib/agenda-months";
+import { dayKeyInTz } from "@/components/runners/miami-time";
 
 export type PeriodDTO = { id: string; number: number; label: string; refYear: number; refMonth: number; target: number; note: string | null };
 
@@ -32,7 +38,9 @@ export type PeriodUnit = {
   coversPeriod: boolean;
   periodNote: string | null;
   periodId: string | null;
-  /** How many goals this unit is worth (1, or the period's target when it covers the period). */
+  /** Goals this pauta is worth by itself (1, 2, 3…). */
+  goalValue: number;
+  /** Goals it counts for in its period (goalValue, or the period's target when it covers the period). */
   weight: number;
 };
 
@@ -67,12 +75,12 @@ export async function clientUnits(clientId: string): Promise<PeriodUnit[]> {
   const [pautas, goals] = await Promise.all([
     db.runnerAssignment.findMany({
       where: { clientId, status: { not: "CANCELLED" } },
-      select: { id: true, deliverableId: true, eventName: true, eventDate: true, status: true, periodId: true, coversPeriod: true, periodNote: true, createdAt: true },
+      select: { id: true, deliverableId: true, eventName: true, eventDate: true, status: true, periodId: true, coversPeriod: true, periodNote: true, goalValue: true, createdAt: true },
       orderBy: [{ eventDate: "asc" }, { createdAt: "asc" }],
     }),
     db.deliverable.findMany({
       where: { clientId, status: { in: [...CLOSED_GOAL_STATUSES] }, isInternal: false },
-      select: { id: true, title: true, status: true, dueDate: true, closedAt: true, completedAt: true, periodId: true, coversPeriod: true, periodNote: true, createdAt: true },
+      select: { id: true, title: true, status: true, dueDate: true, closedAt: true, completedAt: true, periodId: true, coversPeriod: true, periodNote: true, goalValue: true, createdAt: true },
     }),
   ]);
   const goalById = new Map(goals.map((g) => [g.id, g]));
@@ -93,7 +101,8 @@ export async function clientUnits(clientId: string): Promise<PeriodUnit[]> {
       coversPeriod: g?.coversPeriod ?? p.coversPeriod,
       periodNote: g?.periodNote ?? p.periodNote,
       periodId: g?.periodId ?? p.periodId,
-      weight: 1,
+      goalValue: Math.max(g?.goalValue ?? 1, p.goalValue ?? 1),
+      weight: Math.max(g?.goalValue ?? 1, p.goalValue ?? 1),
     });
   }
   for (const g of goals) {
@@ -110,7 +119,8 @@ export async function clientUnits(clientId: string): Promise<PeriodUnit[]> {
       coversPeriod: g.coversPeriod,
       periodNote: g.periodNote,
       periodId: g.periodId,
-      weight: 1,
+      goalValue: g.goalValue ?? 1,
+      weight: g.goalValue ?? 1,
     });
   }
   return units;
@@ -128,12 +138,13 @@ export async function periodBoard(clientId: string): Promise<{ periods: PeriodVi
     else pending.push(u);
   }
   const views = periods.map((p) => {
-    const list = (byPeriod.get(p.id) ?? []).map((u) => ({ ...u, weight: u.coversPeriod ? p.target : 1 }));
-    const achieved = Math.min(p.target || Infinity, list.reduce((s, u) => s + u.weight, 0));
+    const list = (byPeriod.get(p.id) ?? []).map((u) => ({ ...u, weight: u.coversPeriod ? Math.max(p.target, u.goalValue) : u.goalValue }));
+    // Total goals achieved = the sum of each pauta's value (5 pautas can make 6/6).
+    const achieved = list.reduce((s, u) => s + u.weight, 0);
     return {
       ...p,
       units: list,
-      achieved: p.target ? achieved : list.length,
+      achieved,
       closedPending: list.filter((u) => u.state === "closed_pending").length,
       executed: list.filter((u) => u.state === "executed").length,
     };
@@ -141,22 +152,40 @@ export async function periodBoard(clientId: string): Promise<{ periods: PeriodVi
   return { periods: views, pending };
 }
 
-/** The latest period that still has room, for a brand-new unit. Null → the unit waits for review. */
-export async function defaultPeriodFor(clientId: string): Promise<string | null> {
-  const { periods } = await periodBoard(clientId);
-  if (!periods.length) return null;
-  const last = periods[periods.length - 1];
-  return last.achieved < last.target || last.target === 0 ? last.id : null;
+const monthIdx = (year: number, month: number) => year * 12 + (month - 1);
+
+/**
+ * Where a unit secured on `closedAt` belongs: the period of that calendar month (Miami); when that
+ * period is already complete, the next one with room. When no period exists for it, the next
+ * consecutive period is created (client's monthly target) — never an intermediate one.
+ */
+export async function defaultPeriodFor(clientId: string, closedAt: Date = new Date()): Promise<string | null> {
+  const [board, client] = await Promise.all([periodBoard(clientId), db.client.findUnique({ where: { id: clientId }, select: { monthlyTarget: true } })]);
+  const [cy, cm] = dayKeyInTz(closedAt).split("-").map(Number);
+  const closing = monthIdx(cy, cm);
+  const hasRoom = (p: PeriodView) => p.target === 0 || p.achieved < p.target;
+  const candidate = board.periods.find((p) => monthIdx(p.refYear, p.refMonth) >= closing && hasRoom(p));
+  if (candidate) return candidate.id;
+  // Nothing at or after the closing month has room: open the next period.
+  const last = board.periods[board.periods.length - 1];
+  const nextIdx = last ? Math.max(closing, monthIdx(last.refYear, last.refMonth) + 1) : closing;
+  const refYear = Math.floor(nextIdx / 12);
+  const refMonth = (nextIdx % 12) + 1;
+  const created = await db.servicePeriod.create({
+    data: { clientId, number: (last?.number ?? 0) + 1, label: defaultLabel(refYear, refMonth), refYear, refMonth, target: client?.monthlyTarget ?? 0 },
+    select: { id: true },
+  });
+  return created.id;
 }
 
 /** Place a unit (by pauta or goal) in a period — or in none. Keeps pauta + goal in sync and the derived month fields. */
 export async function assignPeriod(
   ref: { pautaId?: string | null; goalId?: string | null },
   periodId: string | null,
-  extra: { coversPeriod?: boolean; periodNote?: string | null } = {}
+  extra: { coversPeriod?: boolean; periodNote?: string | null; goalValue?: number } = {}
 ): Promise<void> {
   const period = periodId ? await db.servicePeriod.findUnique({ where: { id: periodId }, select: { id: true, refYear: true, refMonth: true } }) : null;
-  const data = { periodId: period?.id ?? null, ...(extra.coversPeriod !== undefined ? { coversPeriod: extra.coversPeriod } : {}), ...(extra.periodNote !== undefined ? { periodNote: extra.periodNote } : {}) };
+  const data = { periodId: period?.id ?? null, ...(extra.coversPeriod !== undefined ? { coversPeriod: extra.coversPeriod } : {}), ...(extra.periodNote !== undefined ? { periodNote: extra.periodNote } : {}), ...(extra.goalValue !== undefined ? { goalValue: Math.max(1, Math.min(20, Math.round(extra.goalValue))) } : {}) };
   let pautaId = ref.pautaId ?? null;
   let goalId = ref.goalId ?? null;
   if (pautaId && !goalId) goalId = (await db.runnerAssignment.findUnique({ where: { id: pautaId }, select: { deliverableId: true } }))?.deliverableId ?? null;
@@ -169,11 +198,16 @@ export async function assignPeriod(
   }
 }
 
-/** New unit: put it in the latest period with room (never moves anything already placed). */
-export async function placeNewUnit(clientId: string | null | undefined, ref: { pautaId?: string | null; goalId?: string | null }): Promise<void> {
+/** New unit: the period of the month it was secured in (or the next with room). Never moves anything already placed. */
+export async function placeNewUnit(clientId: string | null | undefined, ref: { pautaId?: string | null; goalId?: string | null }, closedAt?: Date | null): Promise<void> {
   if (!clientId) return;
   try {
-    const periodId = await defaultPeriodFor(clientId);
+    let when = closedAt ?? null;
+    if (!when) {
+      const goalId = ref.goalId ?? (ref.pautaId ? (await db.runnerAssignment.findUnique({ where: { id: ref.pautaId }, select: { deliverableId: true } }))?.deliverableId : null);
+      if (goalId) when = (await db.deliverable.findUnique({ where: { id: goalId }, select: { closedAt: true } }))?.closedAt ?? null;
+    }
+    const periodId = await defaultPeriodFor(clientId, when ?? new Date());
     await assignPeriod(ref, periodId);
   } catch (err) {
     console.error("placeNewUnit failed:", err);
