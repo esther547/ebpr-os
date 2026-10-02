@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Play, Square, Plus, Download, Pencil, Trash2, Timer } from "lucide-react";
+import { Play, Square, Plus, Download, Pencil, Trash2, Timer, ChevronDown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button, Input, FormGroup, FormActions } from "@/components/ui/form-field";
 import { Modal, ConfirmModal } from "@/components/ui/modal";
@@ -53,6 +53,10 @@ export function TimeTracker({ initialEntries, weekKey, canRun, ownerName, todoTi
   useEffect(() => { setNow(Date.now()); setMounted(true); }, []);
   const [editing, setEditing] = useState<TimeEntryDTO | "new" | null>(null);
   const [deleting, setDeleting] = useState<TimeEntryDTO | null>(null);
+  // The log is folded by default so the to-dos stay in view; the choice is remembered on this device.
+  const [showLog, setShowLog] = useState(false);
+  useEffect(() => { try { setShowLog(localStorage.getItem("ebpr.timeLogOpen") === "1"); } catch { /* storage blocked */ } }, []);
+  useEffect(() => { try { localStorage.setItem("ebpr.timeLogOpen", showLog ? "1" : "0"); } catch { /* storage blocked */ } }, [showLog]);
   useEffect(() => setEntries(initialEntries), [initialEntries]);
 
   const running = entries.find((e) => !e.endedAt) ?? null;
@@ -118,104 +122,115 @@ export function TimeTracker({ initialEntries, weekKey, canRun, ownerName, todoTi
 
   if (!mounted) {
     return (
-      <Card padding="none" className="mb-6 p-4 sm:p-5">
-        <div className="flex items-center gap-2">
-          <Timer className="h-4 w-4 text-ink-muted" />
-          <h2 className="text-sm font-semibold text-ink-primary">Horas de {ownerName.split(" ")[0]}</h2>
-        </div>
-        <div className="mt-3 h-11 animate-pulse rounded-lg bg-surface-2" />
+      <Card padding="none" className="mb-5 p-3 sm:p-4">
+        <div className="h-9 animate-pulse rounded-lg bg-surface-2" />
       </Card>
     );
   }
 
   return (
-    <Card padding="none" className="mb-6 p-4 sm:p-5">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Timer className="h-4 w-4 text-ink-muted" />
-          <h2 className="text-sm font-semibold text-ink-primary">Horas de {ownerName.split(" ")[0]}</h2>
-        </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-          <span className="text-ink-muted">Hoy <strong className="tabular text-ink-primary">{hm(todayTotal)}</strong></span>
-          <span className="text-ink-muted">Semana <strong className="tabular text-ink-primary">{hm(weekTotal)}</strong></span>
-          <a href={`/api/time-entries?week=${weekKey}&format=csv`} className="inline-flex items-center gap-1 text-xs font-medium text-ink-secondary hover:text-accent2">
-            <Download className="h-3.5 w-3.5" /> Exportar
-          </a>
+    <Card padding="none" className="mb-5 p-3 sm:p-4">
+      {/* One compact bar: timer + totals. The log lives in a panel that opens on demand, so the to-dos stay in view. */}
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+        {running ? (
+          <div className="flex min-w-0 flex-1 items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-1.5">
+            <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+            <p className="min-w-0 flex-1 truncate text-sm font-medium text-ink-primary" title={running.description}>
+              {!canRun && <span className="text-emerald-700">{ownerName.split(" ")[0]} está en: </span>}
+              {running.description}
+            </p>
+            <span className="tabular shrink-0 text-base font-semibold text-ink-primary">{clock(now - new Date(running.startedAt).getTime())}</span>
+            {canRun && (
+              <Button variant="destructive" size="sm" loading={busy} leftIcon={<Square className="h-3.5 w-3.5" />} onClick={() => void stop()} className="shrink-0">
+                Detener
+              </Button>
+            )}
+          </div>
+        ) : canRun ? (
+          <form onSubmit={(e) => { e.preventDefault(); void start(); }} className="flex min-w-0 flex-1 items-center gap-2">
+            <Timer className="hidden h-4 w-4 shrink-0 text-ink-muted sm:block" />
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              list="timer-todos"
+              placeholder="¿En qué estás trabajando?"
+              aria-label="Descripción"
+              className="h-9 min-w-0 flex-1 text-sm"
+            />
+            <datalist id="timer-todos">{todoTitles.map((t) => <option key={t} value={t} />)}</datalist>
+            <Button type="submit" size="sm" loading={busy} leftIcon={<Play className="h-3.5 w-3.5" />} className="h-9 shrink-0">
+              Iniciar
+            </Button>
+          </form>
+        ) : (
+          <p className="flex min-w-0 flex-1 items-center gap-2 text-sm text-ink-muted"><Timer className="h-4 w-4" /> Horas de {ownerName.split(" ")[0]} · sin timer corriendo</p>
+        )}
+
+        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+          <span className="text-ink-muted">Hoy <strong className="tabular text-sm text-ink-primary">{hm(todayTotal)}</strong></span>
+          <span className="text-ink-muted">Semana <strong className="tabular text-sm text-ink-primary">{hm(weekTotal)}</strong></span>
+          <button
+            type="button"
+            onClick={() => setShowLog((v) => !v)}
+            aria-expanded={showLog}
+            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 font-medium text-ink-secondary transition-colors hover:border-accent2 hover:text-accent2"
+          >
+            Registro de horas{weekEntries.length ? ` (${weekEntries.length})` : ""}
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showLog ? "rotate-180" : ""}`} />
+          </button>
         </div>
       </div>
 
-      {/* Timer bar */}
-      {running ? (
-        <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 sm:flex-row sm:items-center">
-          <div className="min-w-0 flex-1">
-            <p className="text-2xs font-semibold uppercase tracking-wide text-emerald-700">{canRun ? "En curso" : `${ownerName.split(" ")[0]} está trabajando`}</p>
-            <p className="truncate text-sm font-medium text-ink-primary">{running.description}</p>
-          </div>
-          <span className="tabular text-2xl font-semibold text-ink-primary">{clock(now - new Date(running.startedAt).getTime())}</span>
-          {canRun && (
-            <Button variant="destructive" size="lg" loading={busy} leftIcon={<Square className="h-4 w-4" />} onClick={() => void stop()} className="h-11 w-full sm:w-auto">
-              Detener
-            </Button>
-          )}
-        </div>
-      ) : canRun ? (
-        <form onSubmit={(e) => { e.preventDefault(); void start(); }} className="flex flex-col gap-2 sm:flex-row">
-          <Input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            list="timer-todos"
-            placeholder="¿En qué estás trabajando?"
-            aria-label="Descripción"
-            className="h-11 flex-1"
-          />
-          <datalist id="timer-todos">{todoTitles.map((t) => <option key={t} value={t} />)}</datalist>
-          <Button type="submit" size="lg" loading={busy} leftIcon={<Play className="h-4 w-4" />} className="h-11 w-full sm:w-auto">
-            Iniciar
-          </Button>
-        </form>
-      ) : (
-        <p className="text-sm text-ink-muted">Sin timer corriendo.</p>
-      )}
-
-      {canRun && (
-        <div className="mt-2">
-          <button type="button" onClick={() => setEditing("new")} className="inline-flex items-center gap-1 text-xs font-medium text-ink-secondary hover:text-accent2">
-            <Plus className="h-3.5 w-3.5" /> Agregar tiempo manual
-          </button>
-        </div>
-      )}
-
-      {/* Entries of the week */}
-      {days.length > 0 && (
-        <div className="mt-4 space-y-3">
-          {days.map(([dayKey, list]) => (
-            <div key={dayKey}>
-              <div className="mb-1 flex items-center justify-between text-2xs font-semibold uppercase tracking-wide text-ink-muted">
-                <span>{dayKey === todayKey ? "Hoy" : formatDayKey(dayKey, "EEEE d MMM")}</span>
-                <span className="tabular">{hm(list.reduce((s, e) => s + dur(e, now), 0))}</span>
-              </div>
-              <ul className="divide-y divide-border/60 rounded-lg border border-border">
-                {list.map((e) => (
-                  <li key={e.id} className="group flex items-center gap-3 px-3 py-2 text-sm">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-ink-primary">{e.description}</p>
-                      <p className="text-2xs text-ink-muted">{formatInTz(e.startedAt, HM)} – {e.endedAt ? formatInTz(e.endedAt, HM) : "en curso"}</p>
-                    </div>
-                    <span className="tabular shrink-0 text-sm font-medium text-ink-primary">{e.endedAt ? hm(dur(e, now)) : clock(dur(e, now))}</span>
-                    {canRun && (
-                      <div className="flex shrink-0 items-center gap-0.5 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
-                        {e.endedAt && (
-                          <button type="button" aria-label="Continuar" title="Continuar con esto" onClick={() => void start(e.description)} className="rounded p-1 text-ink-muted hover:text-emerald-700"><Play className="h-3.5 w-3.5" /></button>
-                        )}
-                        <button type="button" aria-label="Editar" onClick={() => setEditing(e)} className="rounded p-1 text-ink-muted hover:text-ink-primary"><Pencil className="h-3.5 w-3.5" /></button>
-                        <button type="button" aria-label="Eliminar" onClick={() => setDeleting(e)} className="rounded p-1 text-ink-muted hover:text-red-700"><Trash2 className="h-3.5 w-3.5" /></button>
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
+      {/* Week log: every entry is kept; this only shows or hides the list. */}
+      {showLog && (
+        <div className="mt-3 border-t border-border pt-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-ink-muted">Semana del {formatDayKey(weekKey, "d MMM")} · {weekEntries.length} entrada{weekEntries.length === 1 ? "" : "s"} · {hm(weekTotal)}</p>
+            <div className="flex items-center gap-3">
+              {canRun && (
+                <button type="button" onClick={() => setEditing("new")} className="inline-flex items-center gap-1 text-xs font-medium text-ink-secondary hover:text-accent2">
+                  <Plus className="h-3.5 w-3.5" /> Agregar tiempo manual
+                </button>
+              )}
+              <a href={`/api/time-entries?week=${weekKey}&format=csv`} className="inline-flex items-center gap-1 text-xs font-medium text-ink-secondary hover:text-accent2">
+                <Download className="h-3.5 w-3.5" /> Exportar
+              </a>
             </div>
-          ))}
+          </div>
+          {days.length === 0 ? (
+            <p className="text-xs text-ink-muted">Sin horas registradas esta semana. Usa las flechas de semana para ver las anteriores.</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {days.map(([dayKey, list]) => (
+                <div key={dayKey}>
+                  <div className="mb-1 flex items-center justify-between text-2xs font-semibold uppercase tracking-wide text-ink-muted">
+                    <span>{dayKey === todayKey ? "Hoy" : formatDayKey(dayKey, "EEEE d MMM")}</span>
+                    <span className="tabular">{hm(list.reduce((sum, e) => sum + dur(e, now), 0))}</span>
+                  </div>
+                  <ul className="divide-y divide-border/60 rounded-lg border border-border">
+                    {list.map((e) => (
+                      <li key={e.id} className="group flex items-center gap-3 px-3 py-1.5 text-sm">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-ink-primary" title={e.description}>{e.description}</p>
+                          <p className="text-2xs text-ink-muted">{formatInTz(e.startedAt, HM)} – {e.endedAt ? formatInTz(e.endedAt, HM) : "en curso"}</p>
+                        </div>
+                        <span className="tabular shrink-0 text-sm font-medium text-ink-primary">{e.endedAt ? hm(dur(e, now)) : clock(dur(e, now))}</span>
+                        {canRun && (
+                          <div className="flex shrink-0 items-center gap-0.5 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
+                            {e.endedAt && (
+                              <button type="button" aria-label="Continuar" title="Continuar con esto" onClick={() => void start(e.description)} className="rounded p-1 text-ink-muted hover:text-emerald-700"><Play className="h-3.5 w-3.5" /></button>
+                            )}
+                            <button type="button" aria-label="Editar" onClick={() => setEditing(e)} className="rounded p-1 text-ink-muted hover:text-ink-primary"><Pencil className="h-3.5 w-3.5" /></button>
+                            <button type="button" aria-label="Eliminar" onClick={() => setDeleting(e)} className="rounded p-1 text-ink-muted hover:text-red-700"><Trash2 className="h-3.5 w-3.5" /></button>
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
