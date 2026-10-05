@@ -30,6 +30,21 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
   CANCELLED: <Ban className="h-4 w-4 text-ink-muted" />,
 };
 
+/** What the team picks. "Bloqueado" stays available for when something is stuck. */
+const STATUS_OPTIONS = [
+  { value: "TODO", label: "Pendiente" },
+  { value: "IN_PROGRESS", label: "Trabajando en eso" },
+  { value: "BLOCKED", label: "Bloqueado" },
+  { value: "DONE", label: "Listo" },
+];
+const STATUS_SELECT_CLASS: Record<string, string> = {
+  TODO: "border-border text-ink-secondary",
+  IN_PROGRESS: "border-blue-300 bg-blue-50 text-blue-800",
+  BLOCKED: "border-red-300 bg-red-50 text-red-800",
+  DONE: "border-emerald-300 bg-emerald-50 text-emerald-800",
+  CANCELLED: "border-border text-ink-muted",
+};
+
 const PRIORITY_TONES: Record<string, BadgeTone> = {
   LOW: "neutral",
   MEDIUM: "info",
@@ -51,9 +66,10 @@ export function TaskList({ tasks, clientId, teamMembers }: Props) {
   const openTasks = tasks.filter((t) => t.status !== "DONE" && t.status !== "CANCELLED");
   const closedTasks = tasks.filter((t) => t.status === "DONE" || t.status === "CANCELLED");
 
-  async function toggleDone(taskId: string, currentStatus: string) {
+  // Real states, chosen explicitly (Esther, Oct 5 2026): a task is only "Listo" when someone says so,
+  // and any state can be changed back.
+  async function setStatus(taskId: string, newStatus: string) {
     setUpdating(taskId);
-    const newStatus = currentStatus === "DONE" ? "TODO" : "DONE";
     await fetch(`/api/tasks/${taskId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -91,14 +107,14 @@ export function TaskList({ tasks, clientId, teamMembers }: Props) {
           {openTasks.length > 0 && (
             <section>
               <SectionHeader title={`Open (${openTasks.length})`} />
-              <TaskTable tasks={openTasks} onToggle={toggleDone} updating={updating} />
+              <TaskTable tasks={openTasks} onStatus={setStatus} updating={updating} />
             </section>
           )}
 
           {closedTasks.length > 0 && (
             <section>
               <SectionHeader title={`Completed (${closedTasks.length})`} />
-              <TaskTable tasks={closedTasks} onToggle={toggleDone} updating={updating} />
+              <TaskTable tasks={closedTasks} onStatus={setStatus} updating={updating} />
             </section>
           )}
         </div>
@@ -116,11 +132,11 @@ export function TaskList({ tasks, clientId, teamMembers }: Props) {
 
 function TaskTable({
   tasks,
-  onToggle,
+  onStatus,
   updating,
 }: {
   tasks: Task[];
-  onToggle: (id: string, status: string) => void;
+  onStatus: (id: string, status: string) => void;
   updating: string | null;
 }) {
   return (
@@ -134,15 +150,7 @@ function TaskTable({
               task.status === "DONE" && "opacity-60"
             )}
           >
-            <button
-              type="button"
-              onClick={() => onToggle(task.id, task.status)}
-              disabled={updating === task.id}
-              className="mt-0.5 shrink-0 rounded disabled:opacity-50 sm:mt-0"
-              aria-label={task.status === "DONE" ? `Reopen ${task.title}` : `Complete ${task.title}`}
-            >
-              {STATUS_ICON[task.status]}
-            </button>
+            <span className="mt-0.5 shrink-0 sm:mt-0" aria-hidden>{STATUS_ICON[task.status]}</span>
 
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
@@ -163,9 +171,24 @@ function TaskTable({
               )}
             </div>
 
-            <div className="flex shrink-0 flex-col items-end gap-0.5 text-xs sm:flex-row sm:items-center sm:gap-4">
+            <div className="flex shrink-0 flex-col items-end gap-1 text-xs sm:flex-row sm:items-center sm:gap-4">
               {task.assignee && <span className="text-ink-secondary">{task.assignee.name.split(" ")[0]}</span>}
               {task.dueDate && <span className="text-ink-muted">{formatDate(task.dueDate)}</span>}
+              <select
+                value={task.status}
+                disabled={updating === task.id}
+                onChange={(e) => onStatus(task.id, e.target.value)}
+                aria-label={`Estado de ${task.title}`}
+                className={cn(
+                  "h-7 rounded-md border bg-white px-1.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ink-primary/20 disabled:opacity-50",
+                  STATUS_SELECT_CLASS[task.status] ?? "border-border text-ink-secondary"
+                )}
+              >
+                {STATUS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+                {task.status === "CANCELLED" && <option value="CANCELLED">Cancelado</option>}
+              </select>
             </div>
           </li>
         ))}

@@ -166,6 +166,7 @@ model User {
   notifications         Notification[]             @relation("UserNotifications")
   assignedPriorities    WeeklyPriority[]           @relation("PriorityAssignee")
   timeEntries           TimeEntry[]
+  clientNotes           ClientNote[]               @relation("ClientNoteAuthor")
   createdPriorities     WeeklyPriority[]           @relation("PriorityCreator")
   createdAvailability   ClientAvailability[]       @relation("AvailabilityCreator")
   createdIndustryEvents IndustryEvent[]            @relation("IndustryEventCreator")
@@ -216,6 +217,7 @@ model Client {
   serviceStartYear  Int?
   serviceStartMonth Int?
   servicePeriods    ServicePeriod[]
+  notes             ClientNote[]
   // Day of month the client's cycle resets ("fecha de corte"), 1-31
   cycleDay          Int?
   // Goals owed from previous cycles ("metas atrasadas")
@@ -1187,4 +1189,22 @@ model ServicePeriod {
   @@unique([clientId, number])
   @@index([clientId, refYear, refMonth])
   @@map("service_periods")
+}
+
+/// Meeting notes and background per client ("Notes" tab, Esther Oct 5 2026): the why and the
+/// context behind the work — one note per meeting or topic, full text, never abbreviated.
+model ClientNote {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title       String
+  body        String
+  meetingDate DateTime?
+  createdById String?
+  createdBy   User?    @relation("ClientNoteAuthor", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clientId, meetingDate])
+  @@map("client_notes")
 }

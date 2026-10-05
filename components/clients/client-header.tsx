@@ -24,7 +24,7 @@ export type ClientHeaderClient = {
 
 export type ClientTabCounts = Partial<
   Record<
-    "deliverables" | "strategy" | "suggestions" | "agenda" | "tasks" | "campaigns" | "approvals" | "files",
+    "deliverables" | "strategy" | "notes" | "suggestions" | "agenda" | "tasks" | "campaigns" | "approvals" | "files",
     number
   >
 >;
@@ -54,6 +54,7 @@ export function ClientHeader({
     { href: overviewHref, label: "Overview" },
     { href: `${base}/deliverables`, label: "Deliverables", count: counts.deliverables },
     { href: `${base}/strategy`, label: "Strategy", count: counts.strategy },
+    { href: `${base}/notes`, label: "Notes", count: counts.notes },
     { href: `${base}/suggestions`, label: "Sugerencias", count: counts.suggestions },
     { href: `${base}/agenda`, label: "Agenda", count: counts.agenda },
     { href: `${base}/tasks`, label: "Tasks", count: counts.tasks },
