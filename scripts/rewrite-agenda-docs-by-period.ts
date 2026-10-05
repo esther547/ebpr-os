@@ -27,7 +27,10 @@ const sameName = (a: string, b: string) => {
   const p = Math.min(x.length, y.length, 14);
   if (x.slice(0, p) === y.slice(0, p)) return true;
   const fx = x.split(" ").find((w) => w.length >= 4), fy = y.split(" ").find((w) => w.length >= 4);
-  return !!fx && fx === fy;
+  if (!!fx && fx === fy) return true;
+  // Same day and a shared distinctive word ("ANIMALS X NETFLIX" = "NETFLIX PREMIERE ANIMALS").
+  const wx = new Set(x.split(" ").filter((w) => w.length >= 5));
+  return y.split(" ").some((w) => w.length >= 5 && wx.has(w));
 };
 const dayKeyFromFecha = (text: string): string | null => { const m = text.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/); if (!m) return null; const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]); return `${y}-${String(m[1]).padStart(2, "0")}-${String(m[2]).padStart(2, "0")}`; };
 
@@ -44,6 +47,7 @@ async function docRows(docId: string): Promise<{ dayKey: string | null; name: st
 
 async function main() {
   const apply = process.argv.includes("--apply");
+  const force = process.argv.includes("--force");
   const only = process.argv.slice(2).find((a) => !a.startsWith("--"));
   const clients = await db.client.findMany({ where: { status: "ACTIVE", agendaDocUrl: { not: null }, ...(only ? { name: { contains: only, mode: "insensitive" } } : {}) }, select: { id: true, name: true, agendaDocUrl: true }, orderBy: { name: "asc" } });
   for (const c of clients) {
@@ -55,12 +59,18 @@ async function main() {
     // Periods labelled after the current month while holding past events mean the history fill is off for this client: needs Esther's values first.
     const now = new Date(); const nowIdx = now.getFullYear() * 12 + now.getMonth();
     const ahead = board.periods.filter((p) => p.refYear * 12 + (p.refMonth - 1) > nowIdx && p.units.some((u) => u.eventDate && u.eventDate < now));
-    if (ahead.length) { console.log(`— ${c.name}: sus períodos llegan a ${ahead.map((p) => p.label).join(", ")} con pautas ya pasadas; hay que revisar metas/valores antes de tocar el doc, se omite`); continue; }
-    if (board.pending.some((u) => u.pautaId)) { console.log(`— ${c.name}: tiene pautas pendientes de asignar a un período, se omite`); continue; }
+    if (ahead.length && !force) { console.log(`— ${c.name}: sus períodos llegan a ${ahead.map((p) => p.label).join(", ")} con pautas ya pasadas; hay que revisar metas/valores antes de tocar el doc, se omite`); continue; }
+    if (board.pending.some((u) => u.pautaId) && !force) { console.log(`— ${c.name}: tiene pautas pendientes de asignar a un período, se omite`); continue; }
     let rows: { dayKey: string | null; name: string }[];
     try { rows = await docRows(docId); } catch (e) { console.log(`— ${c.name}: no pude leer el doc (${(e as Error).message.slice(0, 60)})`); continue; }
-    const pautas = await db.runnerAssignment.findMany({ where: { clientId: c.id, status: { not: "CANCELLED" } }, select: { eventDate: true, eventName: true } });
-    const unknown = rows.filter((r) => !pautas.some((p) => r.dayKey && dayKeyInTz(p.eventDate) === r.dayKey && sameName(p.eventName, r.name)));
+    const pautas = await db.runnerAssignment.findMany({ where: { clientId: c.id }, select: { id: true, eventDate: true, eventName: true } });
+    const goalsOnly = await db.deliverable.findMany({ where: { clientId: c.id, isInternal: false, periodId: { not: null } }, select: { title: true, dueDate: true, closedAt: true } });
+    const known = (r: { dayKey: string | null; name: string }) =>
+      pautas.some((p) => r.dayKey && dayKeyInTz(p.eventDate) === r.dayKey && sameName(p.eventName, r.name)) ||
+      // a portal-era pauta whose date was moved after the doc row was written
+      pautas.some((p) => !p.id.startsWith("agimp_") && sameName(p.eventName, r.name)) ||
+      goalsOnly.some((g) => sameName(g.title, r.name));
+    const unknown = rows.filter((r) => !known(r));
     if (unknown.length) {
       console.log(`— ${c.name}: ${unknown.length} fila(s) del doc no están en el portal, se omite para no perderlas:`);
       unknown.slice(0, 5).forEach((u) => console.log(`     ${u.dayKey ?? "sin fecha"} ${u.name.slice(0, 50)}`));

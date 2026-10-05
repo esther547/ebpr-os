@@ -145,7 +145,7 @@ export async function buildAgendaSections(clientId: string, now = new Date()): P
   const [client, assignments, periods] = await Promise.all([
     db.client.findUnique({ where: { id: clientId }, select: { monthlyTarget: true, cycleDay: true } }),
     db.runnerAssignment.findMany({
-      where: { clientId, status: { not: "CANCELLED" } },
+      where: { clientId },
       orderBy: [{ eventDate: "asc" }],
       select: {
         eventDate: true,
@@ -183,7 +183,10 @@ export async function buildAgendaSections(clientId: string, now = new Date()): P
   const sections: AgendaSection[] = periods
     .map((p) => {
       const monthName = MONTH_NAMES_ES[p.refMonth - 1];
-      const rows = assignments.filter((a) => a.periodId === p.id).map(row);
+      const month = p.refMonth;
+      const rows = assignments.filter((a) => a.status !== "CANCELLED" && a.periodId === p.id).map(row);
+      // "Passed by client" rows stay on record, listed under the block of their calendar month.
+      for (const a of assignments.filter((x) => x.status === "CANCELLED" && Number(dayKeyInTz(x.eventDate).split("-")[1]) === month)) rows.push({ ...row(a, rows.length), estado: "Passed by client" });
       for (const g of goalOnly.filter((x) => x.periodId === p.id)) {
         const when = g.dueDate ?? g.closedAt;
         rows.push({ number: rows.length + 1, fecha: when ? formatFecha(dayKeyInTz(when)) : "—", hora: formatHora(g.eventTime), lugar: joinLines(g.venueName, g.venueAddress), item: g.title, estado: "Goal" });
@@ -192,8 +195,7 @@ export async function buildAgendaSections(clientId: string, now = new Date()): P
     })
     // A period with nothing to list is not printed (its number is kept, so MES 8 may follow MES 6).
     .filter((sec) => sec.rows.length > 0);
-  const loose = assignments.filter((a) => !a.periodId || !periods.some((p) => p.id === a.periodId));
-  if (loose.length) sections.push({ monthNumber: periods.length + 1, monthName: "POR ASIGNAR", heading: "POR ASIGNAR", rows: loose.map(row) });
+  // Unplaced (pending review) rows are not printed in a client's doc; they wait in the portal.
   return sections;
 }
 
@@ -432,7 +434,7 @@ export async function writeAgendaDoc(clientId: string, opts: { force?: boolean }
     // Never destroy information: if the Doc holds more dated rows than the portal knows, refuse.
     const docRows = countDatedRows(body);
     const portalRows = sections.reduce((n, sec) => n + sec.rows.length, 0);
-    if (docRows > portalRows) {
+    if (docRows > portalRows && !opts.force) {
       return { ok: false, kind: "other", error: `El Doc tiene ${docRows} pautas y el portal solo ${portalRows}; no se sobrescribe. Importa primero la agenda del Doc al portal.` };
     }
 
