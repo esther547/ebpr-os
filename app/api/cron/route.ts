@@ -13,6 +13,7 @@ import { syncAllAgendaDocs, type AgendaDocSyncReport } from "@/lib/google-docs-w
 import { runEventReminders, type EventReminderSummary } from "@/lib/industry-events";
 import { reminderModeForToday, sendPitchReminders, type PitchReminderResult } from "@/lib/pitch-reminders";
 import { purgeDonePriorities, rollOverPendingPriorities } from "@/lib/priorities";
+import { redistributeClient } from "@/lib/service-periods";
 
 /**
  * Cron endpoint — called daily (8am Miami) to generate notifications:
@@ -242,6 +243,16 @@ export async function GET(req: NextRequest) {
     results.prioritiesPurged = await purgeDonePriorities();
   } catch (err) {
     console.error("Cron: priorities purge failed:", err);
+  }
+
+  // ── 4b2. Service periods: deterministic distribution by closing date for every active client ──
+  try {
+    const active = await db.client.findMany({ where: { status: "ACTIVE" }, select: { id: true } });
+    let moved = 0;
+    for (const c of active) moved += await redistributeClient(c.id);
+    results.periodsRedistributed = moved;
+  } catch (err) {
+    console.error("Cron: period redistribution failed:", err);
   }
 
   // ── 4c. Pitch reminders for the strategists: Monday = full, Thursday = urgent only ──

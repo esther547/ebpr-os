@@ -17,7 +17,7 @@ import { MONTH_NAMES_ES } from "@/lib/agenda-months";
 type AgendaItem = React.ComponentProps<typeof AgendaMonthSection>["items"][number];
 type UnitState = "scheduled" | "closed_pending" | "executed" | "cancelled";
 export type GoalOnlyUnit = { goalId: string; title: string; state: UnitState; coversPeriod: boolean; periodNote: string | null; periodId: string | null; closedAt: string | null; executedAt: string | null; goalValue: number };
-export type PeriodCard = PeriodOption & { refYear: number; refMonth: number; note: string | null; achieved: number; closedPending: number; executed: number; items: AgendaItem[]; goalOnly: GoalOnlyUnit[] };
+export type PeriodCard = PeriodOption & { refYear: number; refMonth: number; note: string | null; achieved: number; closedPending: number; executed: number; missing: number; toReview: number; items: AgendaItem[]; goalOnly: GoalOnlyUnit[] };
 
 const STATE: Record<UnitState, { label: string; tone: BadgeTone }> = {
   scheduled: { label: "Programada", tone: "neutral" },
@@ -35,11 +35,13 @@ type Props = {
   pending: { items: AgendaItem[]; goalOnly: GoalOnlyUnit[] };
   /** Every pauta, for the calendar view. */
   allItems: AgendaItem[];
+  /** Proposals from the doc ("Pending"): shown apart, never counted. */
+  proposals: AgendaItem[];
   defaultTarget: number;
 };
 
 /** The client's agenda by service period: what each paid period holds, what is closed, what is executed. */
-export function PeriodBoard({ clientId, canEdit, runners, periods, pending, allItems, defaultTarget }: Props) {
+export function PeriodBoard({ clientId, canEdit, runners, periods, pending, allItems, proposals, defaultTarget }: Props) {
   const [view, setView] = useState<"periods" | "calendar">("periods");
   const [editing, setEditing] = useState<PeriodCard | "new" | null>(null);
   const options: PeriodOption[] = periods.map((p) => ({ id: p.id, number: p.number, label: p.label, target: p.target }));
@@ -91,6 +93,8 @@ export function PeriodBoard({ clientId, canEdit, runners, periods, pending, allI
                         {` · ${p.items.length + p.goalOnly.length} pauta${p.items.length + p.goalOnly.length === 1 ? "" : "s"} conseguida${p.items.length + p.goalOnly.length === 1 ? "" : "s"}`}
                         {p.closedPending > 0 && ` · ${p.closedPending} cerrada${p.closedPending === 1 ? "" : "s"} pendiente${p.closedPending === 1 ? "" : "s"} de ejecución`}
                         {p.executed > 0 && ` · ${p.executed} ejecutada${p.executed === 1 ? "" : "s"}`}
+                        {p.target > 0 && (p.missing > 0 ? ` · faltan ${p.missing}` : " · completo")}
+                        {p.toReview > 0 && ` · ${p.toReview} por revisar`}
                       </p>
                       {p.note && <p className="mt-1 text-xs text-ink-secondary">{p.note}</p>}
                     </div>
@@ -123,6 +127,14 @@ export function PeriodBoard({ clientId, canEdit, runners, periods, pending, allI
             })
           )}
         </>
+      )}
+
+      {view === "periods" && proposals.length > 0 && (
+        <Card padding="none" className="p-4 sm:p-5">
+          <h3 className="text-sm font-semibold text-ink-primary">Propuestas · no cuentan como metas ({proposals.length})</h3>
+          <p className="mb-2 mt-0.5 text-xs text-ink-muted">Oportunidades que en el doc estaban como «Pending». Cuando una se cierre, confírmala desde su menú y entra a contar.</p>
+          <AgendaMonthSection monthNumber={0} hideHeader items={proposals} runners={runners} clientId={clientId} canEdit={canEdit} periods={options} />
+        </Card>
       )}
 
       {editing && (

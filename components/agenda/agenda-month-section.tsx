@@ -36,6 +36,10 @@ type AgendaItem = {
   periodNote?: string | null;
   /** Goals this pauta is worth (1 by default). */
   goalValue?: number;
+  /** No closing date on record: the period is a placement to confirm. */
+  needsReview?: boolean;
+  /** A proposal from the doc ("Pending"): not confirmed, does not count. */
+  isProposal?: boolean;
 };
 
 export type PeriodOption = { id: string; number: number; label: string; target: number };
@@ -243,6 +247,8 @@ function AgendaItemRow({ item, seq, clientId, runners, periods, patchClientId }:
             <Badge size="xs" tone={UNIT_STATE[item.unitState].tone} dot>{UNIT_STATE[item.unitState].label}</Badge>
             {item.coversPeriod && <span title={item.periodNote ?? undefined}><Badge size="xs" tone="purple">Cubre el período</Badge></span>}
             {!item.coversPeriod && (item.goalValue ?? 1) > 1 && <Badge size="xs" tone="purple">Vale {item.goalValue} metas</Badge>}
+            {item.isProposal && <Badge size="xs" tone="outline">Propuesta · no cuenta</Badge>}
+            {item.needsReview && !item.isProposal && <span title="No hay fecha de cierre registrada; el período es una ubicación por confirmar"><Badge size="xs" tone="warning">Sin fecha de cierre · revisar</Badge></span>}
           </div>
         ) : (
           <Badge size="xs" tone={STATUS_TONES[item.status] ?? "neutral"} dot>
@@ -292,6 +298,12 @@ function AgendaItemRow({ item, seq, clientId, runners, periods, patchClientId }:
             <DropdownMenuContent>
               <DropdownMenuItem icon={<Pencil />} onSelect={() => setEditing(true)}>Editar pauta</DropdownMenuItem>
               <DropdownMenuItem icon={<UserPlus />} onSelect={() => setEditing(true)}>{item.runner ? "Cambiar runner" : "Asignar runner"}</DropdownMenuItem>
+              {periods && item.isProposal && (
+                <DropdownMenuItem icon={<Check />} onSelect={() => void patchPeriod({ isProposal: false })}>Confirmar: ya es una oportunidad cerrada</DropdownMenuItem>
+              )}
+              {periods && item.needsReview && !item.isProposal && item.periodId && (
+                <DropdownMenuItem icon={<Check />} onSelect={() => void patchPeriod({ periodId: item.periodId })}>Confirmar este período</DropdownMenuItem>
+              )}
               {periods && (
                 <DropdownMenuItem icon={<Layers />} onSelect={() => setCovers(true)}>
                   {item.coversPeriod ? "Quitar «cubre el período»" : "Marcar: cubre el período completo"}

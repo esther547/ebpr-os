@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { assignPeriod } from "@/lib/service-periods";
+import { assignPeriod, placeNewUnit } from "@/lib/service-periods";
 
 import { mergeInternalNotes, splitClientNotes } from "@/lib/client-safe-notes";
 import { miamiWeekOf } from "@/app/api/deliverables/_lib/agenda-sync";
@@ -38,6 +38,8 @@ const patchSchema = z.object({
   periodNote: z.string().trim().max(500).nullable().optional(),
   /** Goals this pauta is worth (1 by default). */
   goalValue: z.number().int().min(1).max(20).optional(),
+  /** false = the proposal became a confirmed opportunity (it starts counting). */
+  isProposal: z.boolean().optional(),
   agendaSequence: z.number().int().min(1).optional().nullable(),
   status: z
     .enum(["SCHEDULED", "CONFIRMED", "COMPLETED", "CANCELLED"])
@@ -113,7 +115,7 @@ export async function PATCH(
       const ok = await db.servicePeriod.findFirst({ where: { id: d.periodId, clientId }, select: { id: true } });
       if (!ok) return NextResponse.json({ error: "Período no encontrado" }, { status: 400 });
     }
-    await assignPeriod({ pautaId: itemId }, d.periodId !== undefined ? d.periodId : (existing.periodId ?? null), { coversPeriod: d.coversPeriod, periodNote: d.periodNote, goalValue: d.goalValue });
+    await assignPeriod({ pautaId: itemId }, d.periodId !== undefined ? d.periodId : (existing.periodId ?? null), { coversPeriod: d.coversPeriod, periodNote: d.periodNote, goalValue: d.goalValue, ...(d.periodId !== undefined ? { source: "manual" as const } : {}) });
   }
   if (d.notes !== undefined || d.internalNotes !== undefined) {
     // Contact-looking lines typed into the client-visible field move to internal notes.
@@ -124,6 +126,7 @@ export async function PATCH(
   }
   if (d.accompanistCount !== undefined) updateData.accompanistCount = d.accompanistCount;
   if (d.monthNumber !== undefined) updateData.monthNumber = d.monthNumber;
+  if (d.isProposal !== undefined) updateData.isProposal = d.isProposal;
   if (d.agendaSequence !== undefined) updateData.agendaSequence = d.agendaSequence;
   if (d.status !== undefined) updateData.status = d.status;
 
@@ -131,6 +134,8 @@ export async function PATCH(
     d.eventDate !== undefined || d.eventTime !== undefined || d.arrivalTime !== undefined;
 
   await db.runnerAssignment.update({ where: { id: itemId }, data: updateData });
+  // A proposal that just became a confirmed opportunity starts counting: place it now.
+  if (d.isProposal === false && existing.isProposal) await placeNewUnit(clientId, { pautaId: itemId }, new Date());
 
   // An auto-assigned runner who no longer fits the new time is replaced by
   // whoever is available (and the team is told if nobody is).

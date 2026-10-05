@@ -69,6 +69,7 @@ export default async function AgendaPage({ params }: Props) {
     agendaSequence: item.agendaSequence,
     monthNumber: item.monthNumber,
     createdAt: item.createdAt,
+    isProposal: item.isProposal,
     reportMonth: (item.deliverableId ? goalMonths.get(item.deliverableId) : null) ?? (item.agendaMonth && item.agendaYear ? { month: item.agendaMonth, year: item.agendaYear } : null),
     runner: item.runner ? { id: item.runner.id, name: item.runner.name } : null,
   }));
@@ -78,19 +79,20 @@ export default async function AgendaPage({ params }: Props) {
   const unitByPauta = new Map(board.periods.flatMap((pp) => pp.units).concat(board.pending).filter((u) => u.pautaId).map((u) => [u.pautaId!, u]));
   const withUnit = (it: (typeof items)[number]) => {
     const u = unitByPauta.get(it.id);
-    return { ...it, unitState: u?.state, periodId: u?.periodId ?? null, coversPeriod: u?.coversPeriod ?? false, periodNote: u?.periodNote ?? null, goalValue: u?.goalValue ?? 1 };
+    return { ...it, unitState: u?.state, periodId: u?.periodId ?? null, coversPeriod: u?.coversPeriod ?? false, periodNote: u?.periodNote ?? null, goalValue: u?.goalValue ?? 1, needsReview: u?.needsReview ?? false, isProposal: it.isProposal };
   };
   const goalOnly = (units: typeof board.pending): GoalOnlyUnit[] =>
     units.filter((u) => !u.pautaId && u.goalId).map((u) => ({ goalId: u.goalId!, title: u.title, state: u.state, coversPeriod: u.coversPeriod, periodNote: u.periodNote, periodId: u.periodId, closedAt: u.closedAt?.toISOString() ?? null, executedAt: u.executedAt?.toISOString() ?? null, goalValue: u.goalValue }));
   const periodCards: PeriodCard[] = board.periods.map((pp) => ({
     id: pp.id, number: pp.number, label: pp.label, target: pp.target, refYear: pp.refYear, refMonth: pp.refMonth, note: pp.note,
-    achieved: pp.achieved, closedPending: pp.closedPending, executed: pp.executed,
+    achieved: pp.achieved, closedPending: pp.closedPending, executed: pp.executed, missing: pp.missing, toReview: pp.toReview,
     items: items.filter((it) => unitByPauta.get(it.id)?.periodId === pp.id).map(withUnit),
     goalOnly: goalOnly(pp.units),
   }));
   const pendingIds = new Set(board.pending.filter((u) => u.pautaId).map((u) => u.pautaId!));
   const pendingCard = { items: items.filter((it) => pendingIds.has(it.id)).map(withUnit), goalOnly: goalOnly(board.pending) };
   const allItems = items.map(withUnit);
+  const proposals = allItems.filter((it) => it.isProposal);
 
   // Activities on the agenda that nobody is accompanying yet.
   const needsRunnerCount = items.filter(
@@ -139,6 +141,7 @@ export default async function AgendaPage({ params }: Props) {
         periods={periodCards}
         pending={pendingCard}
         allItems={allItems}
+        proposals={proposals}
         defaultTarget={client.monthlyTarget ?? 6}
       />
     </>

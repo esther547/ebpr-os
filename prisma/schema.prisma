@@ -487,6 +487,9 @@ model Deliverable {
   periodNote      String?
   /// How many goals this achievement is worth (1 by default; 2+ for a big win — Esther, Oct 2 2026).
   goalValue       Int              @default(1)
+  /// How the period was decided: "manual" (a person chose it — never moved), "closing" (from the
+  /// closing date — recomputed by the distribution), "history" (no closing date — kept, flagged for review).
+  periodSource    String?
   notes           String?
   outcome         String? // the win / result text
   isClientVisible Boolean           @default(true)
@@ -571,6 +574,9 @@ model RunnerAssignment {
   coversPeriod     Boolean        @default(false)
   periodNote       String?
   goalValue        Int            @default(1)
+  periodSource     String?
+  /// A proposal, not a confirmed opportunity (imported doc rows marked "Pending"): never counts as a goal.
+  isProposal       Boolean        @default(false)
 
   // Auto-scheduling
   autoAssigned Boolean   @default(false) // true when lib/runner-assign.ts picked the runner

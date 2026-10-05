@@ -220,7 +220,7 @@ export async function PUT(
         const ok = await db.servicePeriod.findFirst({ where: { id: d.periodId, clientId: existing.clientId }, select: { id: true } });
         if (!ok) return NextResponse.json({ error: "Período no encontrado" }, { status: 400 });
       }
-      await assignPeriod({ goalId: id }, d.periodId !== undefined ? d.periodId : (existing.periodId ?? null), { coversPeriod: d.coversPeriod, periodNote: d.periodNote, goalValue: d.goalValue });
+      await assignPeriod({ goalId: id }, d.periodId !== undefined ? d.periodId : (existing.periodId ?? null), { coversPeriod: d.coversPeriod, periodNote: d.periodNote, goalValue: d.goalValue, ...(d.periodId !== undefined ? { source: "manual" as const } : {}) });
     }
     const deliverable = await db.deliverable.update({
       where: { id },
