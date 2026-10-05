@@ -63,6 +63,10 @@ function serviceAccountEmail(): string {
 export type AgendaRow = {
   /** 1-based position inside its month section. */
   number: number;
+  /** Printed "#" — "4" or, for an activity worth several goals, "4, 5 y 6". */
+  numberLabel?: string;
+  /** Goals this row is worth (internal, for numbering). */
+  value?: number;
   /** "Viernes\n01/23/26" */
   fecha: string;
   /** "8 PM" / "8:30 PM" / "—" */
@@ -160,12 +164,15 @@ export async function buildAgendaSections(clientId: string, now = new Date()): P
         status: true,
         runnerId: true,
         periodId: true,
+        goalValue: true,
+        coversPeriod: true,
+        deliverableId: true,
       },
     }),
-    db.servicePeriod.findMany({ where: { clientId }, orderBy: { number: "asc" }, select: { id: true, number: true, label: true, refMonth: true } }),
+    db.servicePeriod.findMany({ where: { clientId }, orderBy: { number: "asc" }, select: { id: true, number: true, label: true, refMonth: true, target: true } }),
   ]);
   if (!periods.length) return sectionsFromAssignments(assignments, { monthlyTarget: client?.monthlyTarget ?? 0, cycleDay: client?.cycleDay ?? null }, now);
-  const row = (a: (typeof assignments)[number], i: number): AgendaRow => ({
+  const row = (a: (typeof assignments)[number], i: number): AgendaRow & { value?: number } => ({
     number: i + 1,
     fecha: formatFecha(dayKeyInTz(a.eventDate)),
     hora: formatHora(a.eventTime),
@@ -178,20 +185,31 @@ export async function buildAgendaSections(clientId: string, now = new Date()): P
   const linked = new Set((await db.runnerAssignment.findMany({ where: { clientId, deliverableId: { not: null } }, select: { deliverableId: true } })).map((x) => x.deliverableId));
   const goalOnly = (await db.deliverable.findMany({
     where: { clientId, isInternal: false, isClientVisible: true, status: { in: ["CONFIRMED", "IN_PROGRESS", "COMPLETED"] }, periodId: { not: null } },
-    select: { id: true, title: true, dueDate: true, closedAt: true, eventTime: true, venueName: true, venueAddress: true, periodId: true },
+    select: { id: true, title: true, dueDate: true, closedAt: true, eventTime: true, venueName: true, venueAddress: true, periodId: true, goalValue: true, coversPeriod: true },
   })).filter((g) => !linked.has(g.id) && !/^Meta de \p{L}+ #\d+/u.test(g.title));
+  const linkedGoal = new Map((await db.deliverable.findMany({ where: { clientId }, select: { id: true, goalValue: true, coversPeriod: true } })).map((g) => [g.id, g]));
   const sections: AgendaSection[] = periods
     .map((p) => {
       const monthName = MONTH_NAMES_ES[p.refMonth - 1];
       const month = p.refMonth;
-      const rows = assignments.filter((a) => a.status !== "CANCELLED" && a.periodId === p.id).map(row);
+      const rows = assignments.filter((a) => a.status !== "CANCELLED" && a.periodId === p.id).map((a, i) => { const g = a.deliverableId ? linkedGoal.get(a.deliverableId) : undefined; return { ...row(a, i), value: a.coversPeriod || g?.coversPeriod ? p.target : Math.max(a.goalValue ?? 1, g?.goalValue ?? 1) }; });
       // "Passed by client" rows stay on record, listed under the block of their calendar month.
-      for (const a of assignments.filter((x) => x.status === "CANCELLED" && Number(dayKeyInTz(x.eventDate).split("-")[1]) === month)) rows.push({ ...row(a, rows.length), estado: "Passed by client" });
+      for (const a of assignments.filter((x) => x.status === "CANCELLED" && Number(dayKeyInTz(x.eventDate).split("-")[1]) === month)) rows.push({ ...row(a, rows.length), estado: "Passed by client", value: 0 });
       for (const g of goalOnly.filter((x) => x.periodId === p.id)) {
         const when = g.dueDate ?? g.closedAt;
-        rows.push({ number: rows.length + 1, fecha: when ? formatFecha(dayKeyInTz(when)) : "—", hora: formatHora(g.eventTime), lugar: joinLines(g.venueName, g.venueAddress), item: g.title, estado: "Goal" });
+        rows.push({ number: rows.length + 1, fecha: when ? formatFecha(dayKeyInTz(when)) : "—", hora: formatHora(g.eventTime), lugar: joinLines(g.venueName, g.venueAddress), item: g.title, estado: "Goal", value: g.coversPeriod ? p.target : g.goalValue });
       }
-      return { monthNumber: p.number, monthName, heading: `MES ${p.number} (${monthName})`, rows };
+      // Goal numbers run through the block: an activity worth k goals takes k consecutive numbers.
+      let next = 1;
+      const numbered: AgendaRow[] = rows.map((r) => {
+        const v = Math.max(0, r.value ?? 1);
+        if (v === 0) return { ...r, number: next, numberLabel: "—" };
+        const nums = Array.from({ length: v }, (_, k) => next + k);
+        next += v;
+        const label = nums.length === 1 ? String(nums[0]) : `${nums.slice(0, -1).join(", ")} y ${nums[nums.length - 1]}`;
+        return { ...r, number: nums[0], numberLabel: label, item: v > 1 ? `${r.item}\nVale por ${v} metas (${label})` : r.item };
+      });
+      return { monthNumber: p.number, monthName, heading: `MES ${p.number} (${monthName})`, rows: numbered };
     })
     // A period with nothing to list is not printed (its number is kept, so MES 8 may follow MES 6).
     .filter((sec) => sec.rows.length > 0);
@@ -351,7 +369,7 @@ function cellSpecs(row: LayoutRow): Omit<CellFill, "index">[] {
   }
   const r = row.row;
   return [
-    { text: String(r.number), bold: "all", align: "START" },
+    { text: r.numberLabel ?? String(r.number), bold: "all", align: "START" },
     { text: r.fecha, bold: "none", align: "CENTER" },
     { text: r.hora, bold: r.hora === "—" ? "none" : "all", align: "CENTER" },
     { text: r.lugar, bold: "none", align: "CENTER" },

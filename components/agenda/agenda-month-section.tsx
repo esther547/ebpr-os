@@ -123,9 +123,16 @@ export function AgendaMonthSection({ monthNumber, monthLabel, target = 0, items,
             </tr>
           </thead>
           <tbody>
-            {sorted.map((item, i) => (
-              <AgendaItemRow key={item.id} item={item} seq={i + 1} clientId={canEdit ? clientId : undefined} runners={runners} periods={periods} patchClientId={clientId} />
-            ))}
+            {(() => {
+              // Goal numbers run through the block: an activity worth k goals takes k consecutive numbers.
+              let next = 1;
+              return sorted.map((item) => {
+                const v = periods ? Math.max(item.coversPeriod ? target : item.goalValue ?? 1, 1) : 1;
+                const first = next; next += v;
+                const label = v === 1 ? String(first) : `${first}–${first + v - 1}`;
+                return <AgendaItemRow key={item.id} item={item} seq={first} seqLabel={label} clientId={canEdit ? clientId : undefined} runners={runners} periods={periods} patchClientId={clientId} />;
+              });
+            })()}
           </tbody>
         </Table>
       </TableWrap>
@@ -133,7 +140,7 @@ export function AgendaMonthSection({ monthNumber, monthLabel, target = 0, items,
   );
 }
 
-function AgendaItemRow({ item, seq, clientId, runners, periods, patchClientId }: { item: AgendaItem; seq: number; clientId?: string; runners: { id: string; name: string; role?: string }[]; periods?: PeriodOption[]; patchClientId?: string }) {
+function AgendaItemRow({ item, seq, seqLabel, clientId, runners, periods, patchClientId }: { item: AgendaItem; seq: number; seqLabel?: string; clientId?: string; runners: { id: string; name: string; role?: string }[]; periods?: PeriodOption[]; patchClientId?: string }) {
   const router = useRouter();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
@@ -174,7 +181,7 @@ function AgendaItemRow({ item, seq, clientId, runners, periods, patchClientId }:
   return (
     <tr className={needsRunner ? "bg-red-50/40" : undefined}>
       <Td numeric className="text-xs font-semibold text-ink-muted">
-        {seq}
+        {seqLabel ?? seq}
       </Td>
 
       <Td>
