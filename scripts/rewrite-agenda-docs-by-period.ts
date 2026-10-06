@@ -15,7 +15,7 @@ import { periodBoard } from "../lib/service-periods";
 import { dayKeyInTz } from "../components/runners/miami-time";
 
 // Esther: these docs are already right — never touch them. NA'VI's doc is manual-only (it was wiped twice by a regeneration).
-const KEEP_AS_IS = ["Marko", "Pao Ruiz", "Camila Guiribitey", "NA'VI", "NAVI"];
+const KEEP_AS_IS = ["Marko", "Pao Ruiz", "Camila Guiribitey", "NA'VI", "NAVI", "Dra. Paola"];
 
 function loadKey() { const line = readFileSync(".env", "utf8").split("\n").find((l) => l.startsWith("GOOGLE_SERVICE_ACCOUNT_KEY="))!; let raw = line.slice("GOOGLE_SERVICE_ACCOUNT_KEY=".length).trim(); if (/^['"]/.test(raw)) raw = raw.slice(1, -1); return JSON.parse(raw); }
 const docs = google.docs({ version: "v1", auth: new google.auth.GoogleAuth({ credentials: loadKey(), scopes: ["https://www.googleapis.com/auth/documents.readonly"] }) });
