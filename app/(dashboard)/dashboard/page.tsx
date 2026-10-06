@@ -11,7 +11,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DeliverablePacingBar } from "@/components/deliverables/pacing-bar";
 import { MonthCompleteToggle } from "@/components/dashboard/month-complete-toggle";
-import { currentCycle, cycleLabel } from "@/lib/cycles";
+import { currentCycle, cycleForLabel, cycleLabel } from "@/lib/cycles";
+import { formatDayKey } from "@/components/runners/miami-time";
 import { dayKeyInTz } from "@/components/runners/miami-time";
 
 export const metadata = { title: "Dashboard — EBPR OS" };
@@ -73,9 +74,26 @@ export default async function DashboardPage() {
   // Service periods: each client's CURRENT period (the latest one) — the same progress the agenda shows.
   const current = await currentPeriodProgress(clients.map((c) => c.id));
 
+  // Who closed what in each client's current period (Esther, Oct 6 2026: "cuántas son por estratega").
+  const goalIds = [...current.values()].flatMap((p) => p.units.map((u) => u.goalId).filter((x): x is string => !!x));
+  const closers = new Map((await db.deliverable.findMany({ where: { id: { in: goalIds } }, select: { id: true, closedBy: { select: { name: true } }, assignee: { select: { name: true } } } })).map((g) => [g.id, g.closedBy?.name ?? g.assignee?.name ?? null]));
+  const byStrategist = new Map<string, number>();
+  const perClient = new Map<string, { name: string; goals: number }[]>();
+  for (const [clientId, p] of current) {
+    const m = new Map<string, number>();
+    for (const u of p.units) {
+      const who = (u.goalId ? closers.get(u.goalId) : null) ?? "Sin estratega";
+      m.set(who, (m.get(who) ?? 0) + u.weight);
+      byStrategist.set(who, (byStrategist.get(who) ?? 0) + u.weight);
+    }
+    perClient.set(clientId, [...m.entries()].map(([name, goals]) => ({ name, goals })).sort((a, b) => b.goals - a.goals));
+  }
+  const strategistTotals = [...byStrategist.entries()].sort((a, b) => b[1] - a[1]);
+
   const rows = clients.map((c) => {
     const cur = current.get(c.id);
-    const cycle = cur ? { ...cycleByClient.get(c.id)!, month: cur.refMonth, year: cur.refYear } : cycleByClient.get(c.id)!;
+    // The period is due at the end of the client's cycle whose label is the period's reference month.
+    const cycle = cur ? cycleForLabel(c.cycleDay, cur.refYear, cur.refMonth) : cycleByClient.get(c.id)!;
     const p0 = pacing.get(c.id) ?? { completed: 0, inProgress: 0 };
     const p = { ...p0, completed: cur ? cur.achieved : p0.completed };
     if (cur) c = { ...c, monthlyTarget: cur.target };
@@ -85,7 +103,7 @@ export default async function DashboardPage() {
     const left = daysLeft(cycle.endKey);
     // Urgency: goals still missing per day left (more missing + fewer days = more urgent).
     const urgency = remaining === 0 ? -1 : remaining / Math.max(left, 1);
-    return { ...c, cycle, completed: p.completed, inProgress: p.inProgress, target, remaining, left, urgency, override };
+    return { ...c, cycle, completed: p.completed, inProgress: p.inProgress, target, remaining, left, urgency, override, period: cur ?? null, strategists: perClient.get(c.id) ?? [] };
   });
 
   const active = rows.filter((r) => r.target > 0).sort((a, b) => b.urgency - a.urgency || a.left - b.left || a.name.localeCompare(b.name, "es"));
@@ -110,6 +128,20 @@ export default async function DashboardPage() {
         />
       </div>
 
+      {strategistTotals.length > 0 && (
+        <Card padding="none" className="mb-6 p-4 sm:p-5">
+          <p className="eyebrow">Metas cerradas por estratega · período actual de cada cliente</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {strategistTotals.map(([name, goals]) => (
+              <span key={name} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-sm", name === "Sin estratega" ? "border-dashed border-border text-ink-muted" : "border-border bg-white text-ink-primary")}>
+                <span className="font-medium">{name.split(" ")[0]}</span>
+                <span className="tabular text-ink-secondary">{goals}</span>
+              </span>
+            ))}
+          </div>
+        </Card>
+      )}
+
       <Card padding="none">
         <div className="border-b border-border px-5 py-3">
           <p className="eyebrow">Clientes por urgencia</p>
@@ -133,13 +165,21 @@ export default async function DashboardPage() {
                   </div>
                   {r.goalsOwed ? <span className="text-xs text-ink-muted">incl. {r.goalsOwed} {r.goalsOwed === 1 ? "debida" : "debidas"}</span> : null}
                   <Badge tone={done ? "success" : critical ? "danger" : warn ? "warning" : "neutral"} size="xs" dot>
-                    {done ? (r.override ? `Al día · marcado${r.override.note ? `: ${r.override.note}` : ""}` : "Al día") : `Faltan ${r.remaining} · ${r.left} ${r.left === 1 ? "día" : "días"}`}
+                    {done ? (r.override ? `Al día · marcado${r.override.note ? `: ${r.override.note}` : ""}` : "Al día") : `Faltan ${r.remaining} · vence ${formatDayKey(r.cycle.endKey, "d MMM")} (${r.left} ${r.left === 1 ? "día" : "días"})`}
                   </Badge>
                   <span className="ml-auto flex items-center gap-2 text-2xs text-ink-muted">
-                    {cycleLabel(r.cycle, r.cycleDay)}
+                    {r.period ? `Mes ${r.period.number} · ${r.period.label}` : cycleLabel(r.cycle, r.cycleDay)}
                     <MonthCompleteToggle clientId={r.id} clientName={r.name} year={r.cycle.year} month={r.cycle.month} isComplete={!!r.override} note={r.override?.note ?? null} />
                   </span>
                 </div>
+                {r.strategists.length > 0 && (
+                  <p className="mt-1.5 pl-10 text-xs text-ink-muted">
+                    <span className="text-ink-secondary">Por estratega:</span>{" "}
+                    {r.strategists.map((s, k) => (
+                      <span key={s.name}>{k > 0 ? " · " : ""}{s.name === "Sin estratega" ? "sin estratega" : s.name.split(" ")[0]} <span className="tabular font-medium text-ink-primary">{s.goals}</span></span>
+                    ))}
+                  </p>
+                )}
               </li>
             );
           })}
