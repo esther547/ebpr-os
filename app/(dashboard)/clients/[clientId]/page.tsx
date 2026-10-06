@@ -3,12 +3,14 @@ import Link from "next/link";
 import { Plus, ArrowRight } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { canManageClients } from "@/lib/permissions";
 import { isClosedGoal } from "@/lib/goal-status";
 import { FEATURES } from "@/lib/features";
 import { DeliverablePacingBar } from "@/components/deliverables/pacing-bar";
 import { formatDate } from "@/lib/utils";
 import { currentCycle, cycleLabel } from "@/lib/cycles";
 import { ClientHeader } from "@/components/clients/client-header";
+import { AgendaContacts } from "@/components/clients/agenda-contacts";
 import { availabilityNowFor, toWindow } from "@/lib/client-availability";
 import { ClientAvailability } from "@/components/clients/client-availability";
 import { dayKeyInTz } from "@/components/runners/miami-time";
@@ -29,7 +31,7 @@ export async function generateMetadata({ params }: Props) {
 }
 
 export default async function ClientPage({ params }: Props) {
-  await requireUser();
+  const user = await requireUser();
 
   const client = await db.client.findUnique({
     where: { id: params.clientId },
@@ -205,20 +207,7 @@ export default async function ClientPage({ params }: Props) {
 
           <ClientReminders clientId={client.id} reminders={JSON.parse(JSON.stringify(reminders))} />
 
-          {client.contacts.length > 0 && (
-            <Card padding="lg">
-              <CardHeader title="Contacts" />
-              <ul className="space-y-3">
-                {client.contacts.slice(0, 4).map((contact) => (
-                  <li key={contact.id} className="text-sm">
-                    <p className="font-medium text-ink-primary">{contact.name}</p>
-                    {contact.role && <p className="text-xs text-ink-muted">{contact.role}</p>}
-                    {contact.email && <p className="truncate text-xs text-ink-muted">{contact.email}</p>}
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
+          <AgendaContacts clientId={client.id} contacts={client.contacts} canEdit={canManageClients(user)} />
 
           {FEATURES.legal && client.contracts[0] && (
             <Card padding="lg">

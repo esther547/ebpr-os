@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { canManageRunners } from "@/lib/permissions";
 import { db } from "@/lib/db";
+import { notifyClientNewPauta } from "@/lib/client-notify";
 import { placeNewUnit } from "@/lib/service-periods";
 
 import { mergeInternalNotes, splitClientNotes } from "@/lib/client-safe-notes";
@@ -227,6 +228,7 @@ export async function POST(
 
     // Runner notifications: the chosen runner is told; with nobody on it, every runner is told.
     try {
+      await notifyClientNewPauta(item.id).catch((err) => console.error("notifyClientNewPauta:", err));
       if (item.runnerId) await notifyRunnerAssigned(item.id);
       else if (item.status !== "CANCELLED" && item.notes !== "No requiere runner") await notifyRunnersOpenActivity(item.id);
     } catch (err) {

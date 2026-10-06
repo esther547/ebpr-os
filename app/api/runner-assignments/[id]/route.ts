@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { canManageRunners } from "@/lib/permissions";
 import { db } from "@/lib/db";
+import { notifyClientPautaChanges, notifyClientPautaRemoved } from "@/lib/client-notify";
 
 import { mergeInternalNotes, splitClientNotes } from "@/lib/client-safe-notes";
 import { isEmailConfigured, sendEmail } from "@/lib/email";
@@ -139,6 +140,7 @@ async function handleUpdate(req: NextRequest, { params }: Params) {
   }
 
   try {
+    await notifyClientPautaChanges(existing).catch((err) => console.error("notifyClientPautaChanges:", err));
     const r = await notifyRunnerOfChanges(existing, user.name);
     if (!r.notified && existing.runnerId && d.runnerId === null) await notifyRunnersOpenActivity(params.id);
   } catch (err) {
@@ -193,7 +195,9 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     select: { id: true, runnerId: true, eventName: true, eventDate: true, clientId: true },
   });
   if (!existing) return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
+  const snap = await db.runnerAssignment.findUnique({ where: { id: params.id }, select: snapshotSelect });
   await db.runnerAssignment.delete({ where: { id: params.id } });
+  if (snap) await notifyClientPautaRemoved(snap).catch((err) => console.error("notifyClientPautaRemoved:", err));
   if (existing.runnerId) {
     const when = existing.eventDate.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", timeZone: "America/New_York" });
     await db.notification

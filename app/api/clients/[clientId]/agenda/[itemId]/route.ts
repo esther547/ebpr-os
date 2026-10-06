@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { notifyClientPautaChanges, notifyClientPautaRemoved } from "@/lib/client-notify";
 import { assignPeriod, placeNewUnit } from "@/lib/service-periods";
 
 import { mergeInternalNotes, splitClientNotes } from "@/lib/client-safe-notes";
@@ -152,6 +153,7 @@ export async function PATCH(
   // a pauta left without a runner is broadcast to every runner.
   try {
     if (before) {
+      if (before) await notifyClientPautaChanges(before).catch((err) => console.error("notifyClientPautaChanges:", err));
       const r = await notifyRunnerOfChanges(before, user.name);
       if (!r.notified && before.runnerId && d.runnerId === null) await notifyRunnersOpenActivity(itemId);
     }
@@ -182,7 +184,9 @@ export async function DELETE(
     return NextResponse.json({ error: "Agenda item not found" }, { status: 404 });
   }
 
+  const snap = await db.runnerAssignment.findUnique({ where: { id: itemId }, select: snapshotSelect });
   await db.runnerAssignment.delete({ where: { id: itemId } });
+  if (snap) await notifyClientPautaRemoved(snap).catch((err) => console.error("notifyClientPautaRemoved:", err));
 
 
   return NextResponse.json({ success: true });

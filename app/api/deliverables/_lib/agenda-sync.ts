@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { notifyClientNewPauta, notifyClientPautaChanges } from "@/lib/client-notify";
 import type { DeliverableType } from "@prisma/client";
 import { dayKeyInTz, tzMidnight, weekStartKey } from "@/components/runners/miami-time";
 import { autoAssignRunners, reassignAfterTimeChange } from "@/lib/runner-assign";
@@ -98,6 +99,7 @@ export async function ensureAgendaItemForDeliverable(
     }
     // Nobody could take it: every runner hears about the open pauta.
     if (!runnerName) {
+      try { await notifyClientNewPauta(created.id); } catch (err) { console.error("notifyClientNewPauta failed:", err); }
       try { await notifyRunnersOpenActivity(created.id); } catch (err) { console.error("notifyRunnersOpenActivity failed:", err); }
     }
   }
@@ -153,6 +155,7 @@ export async function syncAgendaItemDetails(
   // The assigned runner learns what changed on the pauta (date, time, place, title).
   try {
     const actor = actorId ? await db.user.findUnique({ where: { id: actorId }, select: { name: true } }) : null;
+    await notifyClientPautaChanges(linked).catch((err) => console.error("notifyClientPautaChanges:", err));
     await notifyRunnerOfChanges(linked, actor?.name);
   } catch (err) {
     console.error("Runner notification failed:", err);

@@ -267,6 +267,8 @@ model Contact {
   role      String?
   isPrimary Boolean @default(false)
   notes     String?
+  /// Gets the agenda emails (new pauta, changes, cancellations) — Esther, Oct 6 2026.
+  notifyAgenda Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
