@@ -101,12 +101,13 @@ type AssignmentLike = {
   status: string;
   runnerId: string | null;
   isGold?: boolean;
+  isProposal?: boolean;
 };
 
 function estadoFor(a: AssignmentLike, now: Date): AgendaRow["estado"] {
   if (a.status === "CANCELLED") return "Passed by client";
   if (a.isGold) return "GOLD";
-  if (!a.runnerId && a.eventDate.getTime() > now.getTime()) return "Pending";
+  if (a.isProposal) return "Pending";
   return "Goal";
 }
 
@@ -170,6 +171,7 @@ export async function buildAgendaSections(clientId: string, now = new Date()): P
         coversPeriod: true,
         deliverableId: true,
         isGold: true,
+        isProposal: true,
       },
     }),
     db.servicePeriod.findMany({ where: { clientId }, orderBy: { number: "asc" }, select: { id: true, number: true, label: true, refMonth: true, target: true } }),

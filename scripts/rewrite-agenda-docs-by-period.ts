@@ -70,7 +70,7 @@ async function main() {
       // a portal-era pauta whose date was moved after the doc row was written
       pautas.some((p) => !p.id.startsWith("agimp_") && sameName(p.eventName, r.name)) ||
       goalsOnly.some((g) => sameName(g.title, r.name));
-    const unknown = rows.filter((r) => !known(r));
+    const unknown = rows.filter((r) => (r.dayKey || r.name.trim()) && !known(r)); // blank template rows are not content
     if (unknown.length) {
       console.log(`— ${c.name}: ${unknown.length} fila(s) del doc no están en el portal, se omite para no perderlas:`);
       unknown.slice(0, 5).forEach((u) => console.log(`     ${u.dayKey ?? "sin fecha"} ${u.name.slice(0, 50)}`));
