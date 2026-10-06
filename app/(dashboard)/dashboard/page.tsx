@@ -109,22 +109,43 @@ export default async function DashboardPage() {
   const active = rows.filter((r) => r.target > 0).sort((a, b) => b.urgency - a.urgency || a.left - b.left || a.name.localeCompare(b.name, "es"));
   const prep = rows.filter((r) => r.target === 0).sort((a, b) => a.name.localeCompare(b.name, "es"));
 
+  // Specific numbers (Esther, Oct 6 2026): this period's goals vs. goals owed from earlier months,
+  // how many clients are complete, and what is due within a week.
   const totalCompleted = rows.reduce((s, r) => s + r.completed, 0);
-  const totalTarget = rows.reduce((s, r) => s + r.target, 0);
+  const periodTarget = active.reduce((s, r) => s + r.monthlyTarget, 0);
+  const owed = active.reduce((s, r) => s + (r.goalsOwed ?? 0), 0);
   const totalRemaining = rows.reduce((s, r) => s + r.remaining, 0);
+  const clientsDone = active.filter((r) => r.remaining === 0).length;
+  const dueSoon = active.filter((r) => r.remaining > 0 && r.left <= 7);
+  const dueSoonGoals = dueSoon.reduce((s, r) => s + r.remaining, 0);
+  const nextDue = active.filter((r) => r.remaining > 0).sort((a, b) => a.left - b.left)[0];
 
   return (
     <>
       <PageHeader title="Dashboard" subtitle="Clientes activos y entregables del ciclo actual, ordenados por urgencia." />
 
-      <div className="mb-8 grid grid-cols-2 gap-3">
-        <StatTile label="Active clients" value={clients.length} icon={<Users />} />
+      <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile label="Clientes activos" value={clients.length} hint={`${active.length} con meta este período · ${clientsDone} al día`} icon={<Users />} />
         <StatTile
-          label="Deliverables"
-          value={totalCompleted}
-          hint={`cerradas de ${totalTarget} metas este ciclo · faltan ${totalRemaining}`}
+          label="Metas del período actual"
+          value={`${totalCompleted} / ${periodTarget}`}
+          hint={`cerradas en ${active.length} clientes${owed ? ` · más ${owed} debida${owed === 1 ? "" : "s"} de meses anteriores` : ""}`}
           icon={<Target />}
           tone={totalRemaining === 0 ? "success" : "neutral"}
+        />
+        <StatTile
+          label="Faltan por cerrar"
+          value={totalRemaining}
+          hint={owed ? `${Math.max(0, totalRemaining - owed)} del período + ${owed} debidas` : "en los períodos en curso"}
+          icon={<Target />}
+          tone={totalRemaining === 0 ? "success" : "neutral"}
+        />
+        <StatTile
+          label="Vencen en 7 días"
+          value={dueSoonGoals}
+          hint={dueSoon.length ? `${dueSoon.length} cliente${dueSoon.length === 1 ? "" : "s"}: ${dueSoon.slice(0, 3).map((r) => r.name.split(" ")[0]).join(", ")}${dueSoon.length > 3 ? "…" : ""}` : nextDue ? `próximo: ${nextDue.name.split(" ")[0]} vence ${formatDayKey(nextDue.cycle.endKey, "d MMM")}` : "nada pendiente"}
+          icon={<Target />}
+          tone={dueSoonGoals > 0 ? "warning" : "success"}
         />
       </div>
 
