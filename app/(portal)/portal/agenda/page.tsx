@@ -157,6 +157,7 @@ export default async function PortalAgendaPage({ searchParams }: { searchParams?
                       <div key={u.key} className="flex flex-wrap items-center gap-3 px-5 py-3">
                         <span className="w-5 text-xs text-ink-muted tabular">{m.pautas.length + idx + 1}</span>
                         <p className="min-w-0 flex-1 text-sm font-medium text-ink-primary">{u.title}</p>
+                        {u.isGold && <span className="inline-flex items-center rounded-md bg-emerald-600 px-2 py-0.5 text-xs font-bold tracking-wide text-white">GOLD</span>}
                         {u.coversPeriod && <Badge tone="purple" size="xs">Covers the full month</Badge>}
                         {!u.coversPeriod && u.goalValue > 1 && <Badge tone="purple" size="xs">Counts as {u.goalValue} goals</Badge>}
                         <Badge tone={UNIT_TONES[u.state]} dot>{UNIT_LABELS[u.state]}</Badge>
@@ -178,7 +179,7 @@ function AgendaRow({
   index,
   unit,
 }: {
-  unit?: { state: string; coversPeriod: boolean; goalValue: number };
+  unit?: { state: string; coversPeriod: boolean; goalValue: number; isGold?: boolean };
   item: Awaited<ReturnType<typeof db.runnerAssignment.findMany>>[number] & {
     runner: { id: string; name: string } | null;
   };
@@ -254,6 +255,7 @@ function AgendaRow({
           </div>
         )}
         <div className="flex shrink-0 flex-col items-end gap-1">
+          {unit?.isGold && <span className="inline-flex items-center rounded-md bg-emerald-600 px-2 py-0.5 text-xs font-bold tracking-wide text-white">GOLD</span>}
           {unit?.coversPeriod && <Badge tone="purple" size="xs">Covers the full month</Badge>}
           {unit && !unit.coversPeriod && unit.goalValue > 1 && <Badge tone="purple" size="xs">Counts as {unit.goalValue} goals</Badge>}
           <Badge tone={unit ? UNIT_TONES[unit.state] : STATUS_TONES[item.status] ?? "neutral"} dot className="shrink-0">

@@ -38,6 +38,7 @@ const patchSchema = z.object({
   periodNote: z.string().trim().max(500).nullable().optional(),
   /** Goals this pauta is worth (1 by default). */
   goalValue: z.number().int().min(1).max(20).optional(),
+  isGold: z.boolean().optional(),
   /** false = the proposal became a confirmed opportunity (it starts counting). */
   isProposal: z.boolean().optional(),
   agendaSequence: z.number().int().min(1).optional().nullable(),
@@ -110,12 +111,12 @@ export async function PATCH(
   if (d.venueName !== undefined) updateData.venueName = d.venueName;
   if (d.venueAddress !== undefined) updateData.venueAddress = d.venueAddress;
   if (d.itemType !== undefined) updateData.itemType = d.itemType;
-  if (d.periodId !== undefined || d.coversPeriod !== undefined || d.periodNote !== undefined || d.goalValue !== undefined) {
+  if (d.periodId !== undefined || d.coversPeriod !== undefined || d.periodNote !== undefined || d.goalValue !== undefined || d.isGold !== undefined) {
     if (d.periodId) {
       const ok = await db.servicePeriod.findFirst({ where: { id: d.periodId, clientId }, select: { id: true } });
       if (!ok) return NextResponse.json({ error: "Período no encontrado" }, { status: 400 });
     }
-    await assignPeriod({ pautaId: itemId }, d.periodId !== undefined ? d.periodId : (existing.periodId ?? null), { coversPeriod: d.coversPeriod, periodNote: d.periodNote, goalValue: d.goalValue, ...(d.periodId !== undefined ? { source: "manual" as const } : {}) });
+    await assignPeriod({ pautaId: itemId }, d.periodId !== undefined ? d.periodId : (existing.periodId ?? null), { coversPeriod: d.coversPeriod, periodNote: d.periodNote, goalValue: d.goalValue, isGold: d.isGold, ...(d.periodId !== undefined ? { source: "manual" as const } : {}) });
   }
   if (d.notes !== undefined || d.internalNotes !== undefined) {
     // Contact-looking lines typed into the client-visible field move to internal notes.

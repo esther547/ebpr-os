@@ -6,7 +6,7 @@ import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { SectionHeader } from "@/components/layout/header";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, UserPlus, Check, XCircle, Layers } from "lucide-react";
+import { Pencil, UserPlus, Check, XCircle, Layers, Star } from "lucide-react";
 import { DropdownMenu, DropdownMenuDots, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { Button, Textarea, FormGroup, FormActions } from "@/components/ui/form-field";
@@ -40,6 +40,8 @@ type AgendaItem = {
   needsReview?: boolean;
   /** A proposal from the doc ("Pending"): not confirmed, does not count. */
   isProposal?: boolean;
+  /** Standout achievement: "GOLD". */
+  isGold?: boolean;
 };
 
 export type PeriodOption = { id: string; number: number; label: string; target: number };
@@ -254,6 +256,7 @@ function AgendaItemRow({ item, seq, seqLabel, clientId, runners, periods, patchC
             <Badge size="xs" tone={UNIT_STATE[item.unitState].tone} dot>{UNIT_STATE[item.unitState].label}</Badge>
             {item.coversPeriod && <span title={item.periodNote ?? undefined}><Badge size="xs" tone="purple">Cubre el período</Badge></span>}
             {!item.coversPeriod && (item.goalValue ?? 1) > 1 && <Badge size="xs" tone="purple">Vale {item.goalValue} metas</Badge>}
+            {item.isGold && <span className="inline-flex items-center rounded-md bg-emerald-600 px-2 py-0.5 text-xs font-bold tracking-wide text-white">GOLD</span>}
             {item.isProposal && <Badge size="xs" tone="outline">Propuesta · no cuenta</Badge>}
             {item.needsReview && !item.isProposal && <span title="No hay fecha de cierre registrada; el período es una ubicación por confirmar"><Badge size="xs" tone="warning">Sin fecha de cierre · revisar</Badge></span>}
           </div>
@@ -310,6 +313,9 @@ function AgendaItemRow({ item, seq, seqLabel, clientId, runners, periods, patchC
               )}
               {periods && item.needsReview && !item.isProposal && item.periodId && (
                 <DropdownMenuItem icon={<Check />} onSelect={() => void patchPeriod({ periodId: item.periodId })}>Confirmar este período</DropdownMenuItem>
+              )}
+              {periods && (
+                <DropdownMenuItem icon={<Star />} onSelect={() => void patchPeriod({ isGold: !item.isGold })}>{item.isGold ? "Quitar GOLD" : "Marcar GOLD"}</DropdownMenuItem>
               )}
               {periods && (
                 <DropdownMenuItem icon={<Layers />} onSelect={() => setCovers(true)}>

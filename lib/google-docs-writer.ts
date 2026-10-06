@@ -73,7 +73,7 @@ export type AgendaRow = {
   hora: string;
   lugar: string;
   item: string;
-  estado: "Goal" | "Pending" | "Passed by client";
+  estado: "Goal" | "Pending" | "Passed by client" | "GOLD";
 };
 
 export type AgendaSection = {
@@ -100,10 +100,12 @@ type AssignmentLike = {
   notes: string | null;
   status: string;
   runnerId: string | null;
+  isGold?: boolean;
 };
 
 function estadoFor(a: AssignmentLike, now: Date): AgendaRow["estado"] {
   if (a.status === "CANCELLED") return "Passed by client";
+  if (a.isGold) return "GOLD";
   if (!a.runnerId && a.eventDate.getTime() > now.getTime()) return "Pending";
   return "Goal";
 }
@@ -167,6 +169,7 @@ export async function buildAgendaSections(clientId: string, now = new Date()): P
         goalValue: true,
         coversPeriod: true,
         deliverableId: true,
+        isGold: true,
       },
     }),
     db.servicePeriod.findMany({ where: { clientId }, orderBy: { number: "asc" }, select: { id: true, number: true, label: true, refMonth: true, target: true } }),
@@ -185,30 +188,32 @@ export async function buildAgendaSections(clientId: string, now = new Date()): P
   const linked = new Set((await db.runnerAssignment.findMany({ where: { clientId, deliverableId: { not: null } }, select: { deliverableId: true } })).map((x) => x.deliverableId));
   const goalOnly = (await db.deliverable.findMany({
     where: { clientId, isInternal: false, isClientVisible: true, status: { in: ["CONFIRMED", "IN_PROGRESS", "COMPLETED"] }, periodId: { not: null } },
-    select: { id: true, title: true, dueDate: true, closedAt: true, eventTime: true, venueName: true, venueAddress: true, periodId: true, goalValue: true, coversPeriod: true },
+    select: { id: true, title: true, dueDate: true, closedAt: true, eventTime: true, venueName: true, venueAddress: true, periodId: true, goalValue: true, coversPeriod: true, isGold: true },
   })).filter((g) => !linked.has(g.id) && !/^Meta de \p{L}+ #\d+/u.test(g.title));
-  const linkedGoal = new Map((await db.deliverable.findMany({ where: { clientId }, select: { id: true, goalValue: true, coversPeriod: true } })).map((g) => [g.id, g]));
+  const linkedGoal = new Map((await db.deliverable.findMany({ where: { clientId }, select: { id: true, goalValue: true, coversPeriod: true, isGold: true } })).map((g) => [g.id, g]));
   const sections: AgendaSection[] = periods
     .map((p) => {
       const monthName = MONTH_NAMES_ES[p.refMonth - 1];
       const month = p.refMonth;
-      const rows = assignments.filter((a) => a.status !== "CANCELLED" && a.periodId === p.id).map((a, i) => { const g = a.deliverableId ? linkedGoal.get(a.deliverableId) : undefined; return { ...row(a, i), value: a.coversPeriod || g?.coversPeriod ? p.target : Math.max(a.goalValue ?? 1, g?.goalValue ?? 1) }; });
+      const rows = assignments.filter((a) => a.status !== "CANCELLED" && a.periodId === p.id).map((a, i) => { const g = a.deliverableId ? linkedGoal.get(a.deliverableId) : undefined; const r = row({ ...a, isGold: a.isGold || !!g?.isGold }, i); return { ...r, value: a.coversPeriod || g?.coversPeriod ? p.target : Math.max(a.goalValue ?? 1, g?.goalValue ?? 1) }; });
       // "Passed by client" rows stay on record, listed under the block of their calendar month.
       for (const a of assignments.filter((x) => x.status === "CANCELLED" && Number(dayKeyInTz(x.eventDate).split("-")[1]) === month)) rows.push({ ...row(a, rows.length), estado: "Passed by client", value: 0 });
       for (const g of goalOnly.filter((x) => x.periodId === p.id)) {
         const when = g.dueDate ?? g.closedAt;
-        rows.push({ number: rows.length + 1, fecha: when ? formatFecha(dayKeyInTz(when)) : "—", hora: formatHora(g.eventTime), lugar: joinLines(g.venueName, g.venueAddress), item: g.title, estado: "Goal", value: g.coversPeriod ? p.target : g.goalValue });
+        rows.push({ number: rows.length + 1, fecha: when ? formatFecha(dayKeyInTz(when)) : "—", hora: formatHora(g.eventTime), lugar: joinLines(g.venueName, g.venueAddress), item: g.title, estado: g.isGold ? "GOLD" : "Goal", value: g.coversPeriod ? p.target : g.goalValue });
       }
-      // Goal numbers run through the block: an activity worth k goals takes k consecutive numbers.
+      // Camila's format (Esther, Oct 5 2026): an activity worth k goals is printed k times, on
+      // consecutive numbers, each row saying how many goals it is worth and which numbers it takes.
       let next = 1;
-      const numbered: AgendaRow[] = rows.map((r) => {
+      const numbered: AgendaRow[] = [];
+      for (const r of rows) {
         const v = Math.max(0, r.value ?? 1);
-        if (v === 0) return { ...r, number: next, numberLabel: "—" };
+        if (v === 0) { numbered.push({ ...r, number: next, numberLabel: "—" }); continue; }
         const nums = Array.from({ length: v }, (_, k) => next + k);
-        next += v;
         const label = nums.length === 1 ? String(nums[0]) : `${nums.slice(0, -1).join(", ")} y ${nums[nums.length - 1]}`;
-        return { ...r, number: nums[0], numberLabel: label, item: v > 1 ? `${r.item}\nVale por ${v} metas (${label})` : r.item };
-      });
+        for (const n of nums) numbered.push({ ...r, number: n, numberLabel: String(n), item: v > 1 ? `${r.item}\nVale por ${v} metas (${label})` : r.item });
+        next += v;
+      }
       return { monthNumber: p.number, monthName, heading: `MES ${p.number} (${monthName})`, rows: numbered };
     })
     // A period with nothing to list is not printed (its number is kept, so MES 8 may follow MES 6).
@@ -364,17 +369,17 @@ function cellSpecs(row: LayoutRow): Omit<CellFill, "index">[] {
       text,
       bold: "all" as const,
       white: true,
-      align: col === 0 ? ("START" as const) : ("CENTER" as const),
+      align: "CENTER" as const,
     }));
   }
   const r = row.row;
   return [
-    { text: r.numberLabel ?? String(r.number), bold: "all", align: "START" },
+    { text: r.numberLabel ?? String(r.number), bold: "all", align: "CENTER" },
     { text: r.fecha, bold: "none", align: "CENTER" },
     { text: r.hora, bold: r.hora === "—" ? "none" : "all", align: "CENTER" },
     { text: r.lugar, bold: "none", align: "CENTER" },
     { text: r.item, bold: "firstLine", align: "CENTER" },
-    { text: r.estado, bold: "none", align: "CENTER" },
+    { text: r.estado, bold: r.estado === "GOLD" ? "all" : "none", gold: r.estado === "GOLD", align: "CENTER" },
   ];
 }
 

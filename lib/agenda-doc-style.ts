@@ -152,9 +152,12 @@ export type CellFill = {
   /** "all": whole text bold; "firstLine": only up to the first newline; "none": regular. */
   bold: "all" | "firstLine" | "none";
   white?: boolean;
+  /** "GOLD" estado: green, bold, large and clearly visible (Esther, Oct 5 2026). */
+  gold?: boolean;
   /** Paragraph alignment; the base is CENTER so only START needs a request. */
   align: "START" | "CENTER";
 };
+const GOLD_GREEN = { color: { rgbColor: { red: 0.05, green: 0.55, blue: 0.2 } } };
 
 /**
  * Inserts the texts of a set of empty cells and styles them. Returns the insert requests
@@ -199,6 +202,15 @@ export function fillCellRequests(cells: CellFill[]): { inserts: Request[]; style
           range: { startIndex: start, endIndex: start + len },
           textStyle: { foregroundColor: WHITE },
           fields: "foregroundColor",
+        },
+      });
+    }
+    if (cell.gold && len > 0) {
+      styles.push({
+        updateTextStyle: {
+          range: { startIndex: start, endIndex: start + len },
+          textStyle: { foregroundColor: GOLD_GREEN, bold: true, fontSize: { magnitude: 13, unit: "PT" } },
+          fields: "foregroundColor,bold,fontSize",
         },
       });
     }

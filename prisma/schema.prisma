@@ -490,6 +490,8 @@ model Deliverable {
   /// How the period was decided: "manual" (a person chose it — never moved), "closing" (from the
   /// closing date — recomputed by the distribution), "history" (no closing date — kept, flagged for review).
   periodSource    String?
+  /// A standout achievement: shown as "GOLD" (green, large) on the agenda and the Google Doc.
+  isGold          Boolean          @default(false)
   notes           String?
   outcome         String? // the win / result text
   isClientVisible Boolean           @default(true)
@@ -575,6 +577,7 @@ model RunnerAssignment {
   periodNote       String?
   goalValue        Int            @default(1)
   periodSource     String?
+  isGold           Boolean        @default(false)
   /// A proposal, not a confirmed opportunity (imported doc rows marked "Pending"): never counts as a goal.
   isProposal       Boolean        @default(false)
 

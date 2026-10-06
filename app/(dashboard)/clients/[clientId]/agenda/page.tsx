@@ -79,7 +79,7 @@ export default async function AgendaPage({ params }: Props) {
   const unitByPauta = new Map(board.periods.flatMap((pp) => pp.units).concat(board.pending).filter((u) => u.pautaId).map((u) => [u.pautaId!, u]));
   const withUnit = (it: (typeof items)[number]) => {
     const u = unitByPauta.get(it.id);
-    return { ...it, unitState: u?.state, periodId: u?.periodId ?? null, coversPeriod: u?.coversPeriod ?? false, periodNote: u?.periodNote ?? null, goalValue: u?.goalValue ?? 1, needsReview: u?.needsReview ?? false, isProposal: it.isProposal };
+    return { ...it, unitState: u?.state, periodId: u?.periodId ?? null, coversPeriod: u?.coversPeriod ?? false, periodNote: u?.periodNote ?? null, goalValue: u?.goalValue ?? 1, needsReview: u?.needsReview ?? false, isProposal: it.isProposal, isGold: u?.isGold ?? false };
   };
   const goalOnly = (units: typeof board.pending): GoalOnlyUnit[] =>
     units.filter((u) => !u.pautaId && u.goalId).map((u) => ({ goalId: u.goalId!, title: u.title, state: u.state, coversPeriod: u.coversPeriod, periodNote: u.periodNote, periodId: u.periodId, closedAt: u.closedAt?.toISOString() ?? null, executedAt: u.executedAt?.toISOString() ?? null, goalValue: u.goalValue }));

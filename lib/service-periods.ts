@@ -44,6 +44,8 @@ export type PeriodUnit = {
   weight: number;
   /** "manual" | "closing" | "history" | null — see the schema. */
   periodSource: string | null;
+  /** Standout achievement ("GOLD"). */
+  isGold: boolean;
   /** No closing date and nobody confirmed the period yet (Esther: flag, don't guess). */
   needsReview: boolean;
 };
@@ -80,12 +82,12 @@ export async function clientUnits(clientId: string): Promise<PeriodUnit[]> {
     db.runnerAssignment.findMany({
       // Proposals ("Pending" rows) are not confirmed opportunities: they never count.
       where: { clientId, status: { not: "CANCELLED" }, isProposal: false },
-      select: { id: true, deliverableId: true, eventName: true, eventDate: true, status: true, periodId: true, coversPeriod: true, periodNote: true, goalValue: true, periodSource: true, createdAt: true },
+      select: { id: true, deliverableId: true, eventName: true, eventDate: true, status: true, periodId: true, coversPeriod: true, periodNote: true, goalValue: true, periodSource: true, isGold: true, createdAt: true },
       orderBy: [{ eventDate: "asc" }, { createdAt: "asc" }],
     }),
     db.deliverable.findMany({
       where: { clientId, status: { in: [...CLOSED_GOAL_STATUSES] }, isInternal: false },
-      select: { id: true, title: true, status: true, dueDate: true, closedAt: true, completedAt: true, periodId: true, coversPeriod: true, periodNote: true, goalValue: true, periodSource: true, createdAt: true },
+      select: { id: true, title: true, status: true, dueDate: true, closedAt: true, completedAt: true, periodId: true, coversPeriod: true, periodNote: true, goalValue: true, periodSource: true, isGold: true, createdAt: true },
     }),
   ]);
   const goalById = new Map(goals.map((g) => [g.id, g]));
@@ -109,6 +111,7 @@ export async function clientUnits(clientId: string): Promise<PeriodUnit[]> {
       goalValue: Math.max(g?.goalValue ?? 1, p.goalValue ?? 1),
       weight: Math.max(g?.goalValue ?? 1, p.goalValue ?? 1),
       periodSource: g?.periodSource ?? p.periodSource ?? null,
+      isGold: !!(g?.isGold || p.isGold),
       needsReview: !(g?.closedAt) && (g?.periodSource ?? p.periodSource) !== "manual",
     });
   }
@@ -129,6 +132,7 @@ export async function clientUnits(clientId: string): Promise<PeriodUnit[]> {
       goalValue: g.goalValue ?? 1,
       weight: g.goalValue ?? 1,
       periodSource: g.periodSource ?? null,
+      isGold: g.isGold,
       needsReview: !g.closedAt && g.periodSource !== "manual",
     });
   }
@@ -193,10 +197,10 @@ export async function defaultPeriodFor(clientId: string, closedAt: Date = new Da
 export async function assignPeriod(
   ref: { pautaId?: string | null; goalId?: string | null },
   periodId: string | null,
-  extra: { coversPeriod?: boolean; periodNote?: string | null; goalValue?: number; source?: "manual" | "closing" | "history" } = {}
+  extra: { coversPeriod?: boolean; periodNote?: string | null; goalValue?: number; source?: "manual" | "closing" | "history"; isGold?: boolean } = {}
 ): Promise<void> {
   const period = periodId ? await db.servicePeriod.findUnique({ where: { id: periodId }, select: { id: true, refYear: true, refMonth: true } }) : null;
-  const data = { periodId: period?.id ?? null, ...(extra.source !== undefined ? { periodSource: extra.source } : {}), ...(extra.coversPeriod !== undefined ? { coversPeriod: extra.coversPeriod } : {}), ...(extra.periodNote !== undefined ? { periodNote: extra.periodNote } : {}), ...(extra.goalValue !== undefined ? { goalValue: Math.max(1, Math.min(20, Math.round(extra.goalValue))) } : {}) };
+  const data = { periodId: period?.id ?? null, ...(extra.source !== undefined ? { periodSource: extra.source } : {}), ...(extra.coversPeriod !== undefined ? { coversPeriod: extra.coversPeriod } : {}), ...(extra.periodNote !== undefined ? { periodNote: extra.periodNote } : {}), ...(extra.goalValue !== undefined ? { goalValue: Math.max(1, Math.min(20, Math.round(extra.goalValue))) } : {}), ...(extra.isGold !== undefined ? { isGold: extra.isGold } : {}) };
   let pautaId = ref.pautaId ?? null;
   let goalId = ref.goalId ?? null;
   if (pautaId && !goalId) goalId = (await db.runnerAssignment.findUnique({ where: { id: pautaId }, select: { deliverableId: true } }))?.deliverableId ?? null;
