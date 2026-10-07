@@ -94,7 +94,7 @@ export function JournalistsClient({
       if (search.trim()) params.set("search", search.trim());
       if (beatFilter) params.set("beat", beatFilter);
       const qs = params.toString();
-      router.replace(`/journalists${qs ? `?${qs}` : ""}`);
+      router.replace(`/contactos/medios${qs ? `?${qs}` : ""}`);
     }, 300);
     return () => clearTimeout(t);
   }, [search, beatFilter, router]);
@@ -105,7 +105,7 @@ export function JournalistsClient({
     if (beatFilter) params.set("beat", beatFilter);
     if (p > 1) params.set("page", String(p));
     const qs = params.toString();
-    router.push(`/journalists${qs ? `?${qs}` : ""}`);
+    router.push(`/contactos/medios${qs ? `?${qs}` : ""}`);
   }
 
   async function remove(j: Journalist) {

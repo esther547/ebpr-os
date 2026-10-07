@@ -162,6 +162,7 @@ model User {
   approvalRequests      Approval[]                 @relation("ApprovalRequester")
   files                 File[]                     @relation("FileUploader")
   pressReleases         PressRelease[]             @relation("PressReleaseCreator")
+  outreachSends         OutreachSend[]             @relation("OutreachSender")
   reminders             Reminder[]                 @relation("ReminderCreator")
   notifications         Notification[]             @relation("UserNotifications")
   assignedPriorities    WeeklyPriority[]           @relation("PriorityAssignee")
@@ -212,7 +213,7 @@ model Client {
   strategyDocUrl String? // Google Doc link for client strategy
 
   // Monthly deliverable target (0 = preparation month, no target yet)
-  monthlyTarget     Int       @default(6)
+  monthlyTarget     Int             @default(6)
   // MES 1 of the client's service (Esther, Sept 30 2026): service months run from here, each holding monthlyTarget goals.
   serviceStartYear  Int?
   serviceStartMonth Int?
@@ -221,7 +222,7 @@ model Client {
   // Day of month the client's cycle resets ("fecha de corte"), 1-31
   cycleDay          Int?
   // Goals owed from previous cycles ("metas atrasadas")
-  goalsOwed         Int       @default(0)
+  goalsOwed         Int             @default(0)
   // What the team should close next for this client ("metas de septiembre" note)
   focusNote         String?
   // Google Doc with the client's agenda (events/appearances)
@@ -232,41 +233,41 @@ model Client {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  contacts         Contact[]
-  clientUsers      ClientUser[]
-  contracts        Contract[]
-  onboarding       Onboarding?
-  strategyDocument StrategyDocument?
-  campaigns        Campaign[]
-  deliverables     Deliverable[]
-  strategyItems    StrategyItem[]
-  files            File[]
-  approvals        Approval[]
-  activityLogs     ActivityLog[]
-  reports          Report[]
-  pressReleases    PressRelease[]
-  reminders        Reminder[]
-  weeklyPriorities WeeklyPriority[]
-  availability     ClientAvailability[]
-  suggestions      ClientSuggestion[]
-  socialPosts      SocialPost[]
+  contacts             Contact[]
+  clientUsers          ClientUser[]
+  contracts            Contract[]
+  onboarding           Onboarding?
+  strategyDocument     StrategyDocument?
+  campaigns            Campaign[]
+  deliverables         Deliverable[]
+  strategyItems        StrategyItem[]
+  files                File[]
+  approvals            Approval[]
+  activityLogs         ActivityLog[]
+  reports              Report[]
+  pressReleases        PressRelease[]
+  reminders            Reminder[]
+  weeklyPriorities     WeeklyPriority[]
+  availability         ClientAvailability[]
+  suggestions          ClientSuggestion[]
+  socialPosts          SocialPost[]
   pressReleaseRequests PressReleaseRequest[]
-  brandLeads       BrandLead[]
-  monthOverrides   ClientMonthOverride[]
+  brandLeads           BrandLead[]
+  monthOverrides       ClientMonthOverride[]
 
   @@map("clients")
 }
 
 model Contact {
-  id        String  @id @default(cuid())
-  clientId  String
-  client    Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  name      String
-  email     String?
-  phone     String?
-  role      String?
-  isPrimary Boolean @default(false)
-  notes     String?
+  id           String  @id @default(cuid())
+  clientId     String
+  client       Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name         String
+  email        String?
+  phone        String?
+  role         String?
+  isPrimary    Boolean @default(false)
+  notes        String?
   /// Gets the agenda emails (new pauta, changes, cancellations) — Esther, Oct 6 2026.
   notifyAgenda Boolean @default(false)
 
@@ -279,18 +280,18 @@ model Contact {
 // ─── LEGAL / CONTRACTS ───────────────────────────────────
 
 model Contract {
-  id           String         @id @default(cuid())
-  clientId     String
-  client       Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  title        String
-  status       ContractStatus @default(DRAFT)
-  fileUrl      String?
-  fileName     String?
-  startDate    DateTime?
-  endDate      DateTime?
-  notes        String?
-  sentAt       DateTime?
-  signedAt     DateTime?
+  id        String         @id @default(cuid())
+  clientId  String
+  client    Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title     String
+  status    ContractStatus @default(DRAFT)
+  fileUrl   String?
+  fileName  String?
+  startDate DateTime?
+  endDate   DateTime?
+  notes     String?
+  sentAt    DateTime?
+  signedAt  DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -480,20 +481,20 @@ model Deliverable {
   month           Int // 1–12 — reference month of the goal's service period (derived; see lib/service-periods.ts)
   year            Int
   /// Set when a strategist picked the month by hand ("Mes del reporte"): reconcile never moves it.
-  monthPinned     Boolean          @default(false)
+  monthPinned     Boolean           @default(false)
   /// SERVICE PERIOD (Esther, Oct 1 2026): the period this goal counts toward; null = pending the admin's review.
   periodId        String?
-  period          ServicePeriod?   @relation(fields: [periodId], references: [id], onDelete: SetNull)
+  period          ServicePeriod?    @relation(fields: [periodId], references: [id], onDelete: SetNull)
   /// By agreement with the client this one activity covers the whole period (counts as all its goals).
-  coversPeriod    Boolean          @default(false)
+  coversPeriod    Boolean           @default(false)
   periodNote      String?
   /// How many goals this achievement is worth (1 by default; 2+ for a big win — Esther, Oct 2 2026).
-  goalValue       Int              @default(1)
+  goalValue       Int               @default(1)
   /// How the period was decided: "manual" (a person chose it — never moved), "closing" (from the
   /// closing date — recomputed by the distribution), "history" (no closing date — kept, flagged for review).
   periodSource    String?
   /// A standout achievement: shown as "GOLD" (green, large) on the agenda and the Google Doc.
-  isGold          Boolean          @default(false)
+  isGold          Boolean           @default(false)
   notes           String?
   outcome         String? // the win / result text
   isClientVisible Boolean           @default(true)
@@ -558,30 +559,30 @@ model RunnerAssignment {
   weekOf        DateTime // Monday of the week
 
   // Enriched agenda fields
-  arrivalTime      DateTime? // "Llegada" time
-  eventTime        DateTime? // "Al Aire" — actual event/broadcast start time
-  venueName        String? // "Telemundo Center"
-  venueAddress     String? // full street address
-  itemType         String? // "TV Appearance", "Podcast", "Red Carpet", "Event"
-  accompanistCount Int       @default(0)
-  monthNumber      Int? // MES 1, MES 2... for grouping
-  agendaSequence   Int? // sequential # within the agenda doc
+  arrivalTime       DateTime? // "Llegada" time
+  eventTime         DateTime? // "Al Aire" — actual event/broadcast start time
+  venueName         String? // "Telemundo Center"
+  venueAddress      String? // full street address
+  itemType          String? // "TV Appearance", "Podcast", "Red Carpet", "Event"
+  accompanistCount  Int            @default(0)
+  monthNumber       Int? // MES 1, MES 2... for grouping
+  agendaSequence    Int? // sequential # within the agenda doc
   // The MES block this pauta belongs to on the client's agenda, as in Esther's ledger (the Google Doc):
   // the calendar month the goal was CLOSED in, never the pauta's own date. Imported from the docs.
-  agendaMonth      Int?
-  agendaYear       Int?
+  agendaMonth       Int?
+  agendaYear        Int?
   /// true when the month came from Esther's ledger (doc import) — reconcile never moves it.
-  agendaMonthPinned Boolean @default(false)
+  agendaMonthPinned Boolean        @default(false)
   /// SERVICE PERIOD the pauta counts toward (kept equal to its goal's); null = pending review.
-  periodId         String?
-  period           ServicePeriod? @relation(fields: [periodId], references: [id], onDelete: SetNull)
-  coversPeriod     Boolean        @default(false)
-  periodNote       String?
-  goalValue        Int            @default(1)
-  periodSource     String?
-  isGold           Boolean        @default(false)
+  periodId          String?
+  period            ServicePeriod? @relation(fields: [periodId], references: [id], onDelete: SetNull)
+  coversPeriod      Boolean        @default(false)
+  periodNote        String?
+  goalValue         Int            @default(1)
+  periodSource      String?
+  isGold            Boolean        @default(false)
   /// A proposal, not a confirmed opportunity (imported doc rows marked "Pending"): never counts as a goal.
-  isProposal       Boolean        @default(false)
+  isProposal        Boolean        @default(false)
 
   // Auto-scheduling
   autoAssigned Boolean   @default(false) // true when lib/runner-assign.ts picked the runner
@@ -825,6 +826,48 @@ model Journalist {
   @@map("journalists")
 }
 
+// ─── OUTREACH (Music Industry database — Esther only, Oct 7 2026) ───────────
+
+/// Non-press contacts (managers, labels, promoters, venues, brands, DSPs…) Esther invites from the portal.
+model OutreachContact {
+  id       String   @id @default(cuid())
+  list     String   @default("Music Industry")
+  name     String
+  email    String   @unique
+  company  String?
+  role     String?
+  category String? // "Management", "Disqueras", "DSP", "Promotores", "Venues", "Marcas"…
+  phone    String?
+  city     String?
+  country  String?
+  notes    String?
+  source   String? // where the contact came from (sheet / grid)
+  tags     String[]
+  isActive Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([list, category])
+  @@map("outreach_contacts")
+}
+
+/// One invitation / mailing sent from the outreach database (BCC batches from press@).
+model OutreachSend {
+  id             String   @id @default(cuid())
+  list           String
+  subject        String
+  body           String
+  categories     String[]
+  tags           String[]
+  recipientCount Int
+  sentById       String?
+  sentBy         User?    @relation("OutreachSender", fields: [sentById], references: [id])
+  sentAt         DateTime @default(now())
+
+  @@map("outreach_sends")
+}
+
 // ─── PRESS RELEASES ──────────────────────────────────────
 
 enum PressReleaseStatus {
@@ -1025,27 +1068,27 @@ enum SuggestionStatus {
 }
 
 model ClientSuggestion {
-  id            String           @id @default(cuid())
-  clientId      String
-  client        Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  title         String // the action, one line, Spanish
-  rationale     String // why it fits this client (2-3 sentences)
-  category      String // MEDIA_TARGET | INFLUENCER | EVENT | BRAND_OPPORTUNITY | SOCIAL_MEDIA | PRESS_RELEASE | OTHER
-  effort        String? // "bajo" | "medio" | "alto"
-  timing        String? // e.g. "antes del 20 de octubre (Latin Billboard)"
-  status        SuggestionStatus @default(NEW)
-  batchId       String // one id per generation run
-  model         String? // model id used
-  createdById   String?
-  createdBy     User?            @relation("SuggestionCreator", fields: [createdById], references: [id])
-  deliverableId String? // set when converted into a goal
-  priorityId    String? // set when pushed to weekly priorities
+  id               String           @id @default(cuid())
+  clientId         String
+  client           Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title            String // the action, one line, Spanish
+  rationale        String // why it fits this client (2-3 sentences)
+  category         String // MEDIA_TARGET | INFLUENCER | EVENT | BRAND_OPPORTUNITY | SOCIAL_MEDIA | PRESS_RELEASE | OTHER
+  effort           String? // "bajo" | "medio" | "alto"
+  timing           String? // e.g. "antes del 20 de octubre (Latin Billboard)"
+  status           SuggestionStatus @default(NEW)
+  batchId          String // one id per generation run
+  model            String? // model id used
+  createdById      String?
+  createdBy        User?            @relation("SuggestionCreator", fields: [createdById], references: [id])
+  deliverableId    String? // set when converted into a goal
+  priorityId       String? // set when pushed to weekly priorities
   // Internal-only contact / source to reach the target (never shown to the client)
   contactNotes     String? // who/how: booker, producer, PR agency, press form…
   contactSource    String? // "TEAM" | "AI"
   contactUpdatedAt DateTime?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   @@index([clientId, status])
   @@map("client_suggestions")
@@ -1073,22 +1116,22 @@ model SocialPost {
 
 /// "Necesitamos un comunicado": a strategist's brief to the writer (client, news, date, photos, info).
 model PressReleaseRequest {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   clientId      String
-  client        Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  news          String   // la noticia
+  client        Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  news          String // la noticia
   dueDate       DateTime // para cuándo
-  photosUrl     String?  // link a fotos (Drive, WeTransfer…)
-  info          String?  // información adicional / links
+  photosUrl     String? // link a fotos (Drive, WeTransfer…)
+  info          String? // información adicional / links
   /// REQUESTED | IN_PROGRESS | DONE | CANCELLED
-  status        String   @default("REQUESTED")
-  draftUrl      String?  // link al comunicado entregado
-  writerNotes   String?  // comentarios del redactor
+  status        String    @default("REQUESTED")
+  draftUrl      String? // link al comunicado entregado
+  writerNotes   String? // comentarios del redactor
   requestedById String
-  requestedBy   User     @relation("PressReleaseRequester", fields: [requestedById], references: [id])
+  requestedBy   User      @relation("PressReleaseRequester", fields: [requestedById], references: [id])
   doneAt        DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([status, dueDate])
   @@map("press_release_requests")
@@ -1102,14 +1145,14 @@ model PressReleaseRequest {
 model BrandLead {
   id             String    @id @default(cuid())
   brand          String
-  clientId       String?   // the artist/talent the deal is for (optional while prospecting)
+  clientId       String? // the artist/talent the deal is for (optional while prospecting)
   client         Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  ownerId        String    // the seller working the lead
+  ownerId        String // the seller working the lead
   owner          User      @relation("BrandLeadOwner", fields: [ownerId], references: [id])
   /// PROSPECT | CONTACTED | IN_TALKS | PROPOSAL_SENT | NEGOTIATION | WON | LOST | ON_HOLD
   status         String    @default("PROSPECT")
-  contactName    String?   // who at the brand
-  contactInfo    String?   // email / IG / phone
+  contactName    String? // who at the brand
+  contactInfo    String? // email / IG / phone
   nextStep       String?
   nextFollowUpAt DateTime?
   notes          String?
@@ -1205,16 +1248,16 @@ model ServicePeriod {
 /// Meeting notes and background per client ("Notes" tab, Esther Oct 5 2026): the why and the
 /// context behind the work — one note per meeting or topic, full text, never abbreviated.
 model ClientNote {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   clientId    String
-  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
   title       String
   body        String
   meetingDate DateTime?
   createdById String?
-  createdBy   User?    @relation("ClientNoteAuthor", fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdBy   User?     @relation("ClientNoteAuthor", fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([clientId, meetingDate])
   @@map("client_notes")

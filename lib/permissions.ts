@@ -72,6 +72,10 @@ export const isWriter = (u: SessionUser) => u.role === UserRole.WRITER;
 export const canWorkPressReleaseRequests = (u: SessionUser) =>
   u.role === UserRole.SUPER_ADMIN || u.role === UserRole.WRITER;
 
+/** Outreach database ("Music Industry"): Esther's private list — only she sees or sends from it (Oct 7 2026). */
+export const OUTREACH_OWNER_EMAILS = ["esther@ebmanagement.io"];
+export const canManageOutreach = (u: SessionUser) => OUTREACH_OWNER_EMAILS.includes((u.email ?? "").toLowerCase());
+
 export const canManageJournalists = (u: SessionUser) =>
   (u.role === UserRole.SUPER_ADMIN || u.role === UserRole.STRATEGIST) && !pressExcluded(u);
 

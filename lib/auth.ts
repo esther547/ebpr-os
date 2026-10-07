@@ -184,7 +184,7 @@ export const ROLE_HOME: Record<UserRole, string> = {
 
 const ROLE_PREFIXES: Record<UserRole, string[]> = {
   SUPER_ADMIN: ["/"],
-  STRATEGIST: ["/dashboard", "/priorities", "/todos", "/ebm", "/events", "/social", "/clients", "/runners", "/press-releases", "/journalists", "/reports"],
+  STRATEGIST: ["/dashboard", "/priorities", "/todos", "/ebm", "/events", "/social", "/clients", "/runners", "/press-releases", "/journalists", "/contactos", "/reports"],
   LEGAL: ["/legal", "/follow-up", "/paused"],
   ASSISTANT: ["/todos", "/ebm", "/follow-up", "/assistant-portal", "/paused"],
   WRITER: ["/press-releases"], // Michel: that tab and nothing else (Esther, Sept 27 2026)

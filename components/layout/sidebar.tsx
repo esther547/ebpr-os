@@ -64,7 +64,7 @@ const navGroups: NavGroup[] = [
     label: "Media",
     items: [
       { href: "/press-releases", label: "Press Releases", icon: <Newspaper />, roles: ["SUPER_ADMIN", "STRATEGIST", "WRITER"], excludeEmails: ["diana@ebmanagement.io"] },
-      { href: "/journalists", label: "Journalists", icon: <BookOpen />, roles: ["SUPER_ADMIN", "STRATEGIST"], excludeEmails: ["diana@ebmanagement.io"] },
+      { href: "/contactos", label: "Contactos", icon: <BookOpen />, roles: ["SUPER_ADMIN", "STRATEGIST"], excludeEmails: ["diana@ebmanagement.io"] },
     ],
   },
   {
