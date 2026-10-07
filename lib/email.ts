@@ -32,6 +32,7 @@ export async function sendEmail({
   subject,
   html,
   text,
+  attachments,
 }: {
   to: string | string[];
   /** Hidden recipients (press-release distribution). */
@@ -40,6 +41,8 @@ export async function sendEmail({
   subject: string;
   html: string;
   text?: string;
+  /** Files to attach; give `cid` to embed one inline (<img src="cid:...">). */
+  attachments?: { filename: string; content: Buffer; contentType?: string; cid?: string }[];
 }): Promise<boolean> {
   if (!transporter) {
     console.log("[Email] Not configured — set GMAIL_USER + GMAIL_APP_PASSWORD");
@@ -61,6 +64,7 @@ export async function sendEmail({
       subject,
       html,
       text: text || subject,
+      attachments: attachments?.length ? attachments : undefined,
     });
     return true;
   } catch (err) {

@@ -41,7 +41,9 @@ function esc(v: string): string {
 }
 
 /** Plain text → simple branded HTML (blank line = paragraph; URLs become links). */
-export function invitationHtml(subject: string, body: string): string {
+export type Flyer = { filename: string; content: Buffer; contentType: string };
+
+export function invitationHtml(subject: string, body: string, flyer?: Flyer | null): string {
   const linkify = (t: string) => esc(t).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#0a0a0a">$1</a>');
   const paragraphs = body
     .split(/\n\s*\n/)
@@ -52,6 +54,7 @@ export function invitationHtml(subject: string, body: string): string {
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1a1a1a">
 <div style="max-width:640px;margin:0 auto;background:#fff">
   <div style="background:#0a0a0a;color:#fff;padding:22px 28px"><div style="font-size:16px;font-weight:600;letter-spacing:2px">EB PUBLIC RELATIONS</div></div>
+  ${flyer ? `<img src="cid:flyer" alt="${esc(subject)}" style="display:block;width:100%;height:auto">` : ""}
   <div style="padding:26px 28px">
     <h1 style="font-size:20px;line-height:1.3;margin:0 0 18px">${esc(subject)}</h1>
     ${paragraphs}
@@ -63,12 +66,13 @@ export function invitationHtml(subject: string, body: string): string {
 export type OutreachSendResult = { ok: true; recipients: number; batches: number; skipped: number } | { ok: false; error: string };
 
 /** Send one invitation to every active contact matching the filters (or to `testTo` only). */
-export async function sendOutreach(opts: { list?: string; subject: string; body: string; categories?: string[]; tags?: string[]; replyTo?: string; testTo?: string; sentById?: string }): Promise<OutreachSendResult> {
+export async function sendOutreach(opts: { list?: string; subject: string; body: string; categories?: string[]; tags?: string[]; replyTo?: string; testTo?: string; sentById?: string; flyer?: Flyer | null }): Promise<OutreachSendResult> {
   if (!isEmailConfigured()) return { ok: false, error: "El correo no está configurado (GMAIL_USER / GMAIL_APP_PASSWORD)." };
-  const html = invitationHtml(opts.subject, opts.body);
+  const html = invitationHtml(opts.subject, opts.body, opts.flyer);
+  const attachments = opts.flyer ? [{ filename: opts.flyer.filename, content: opts.flyer.content, contentType: opts.flyer.contentType, cid: "flyer" }] : undefined;
   const text = `${opts.body}\n\nEB Public Relations · press@ebmanagement.io`;
   if (opts.testTo) {
-    const ok = await sendEmail({ to: opts.testTo, replyTo: opts.replyTo, subject: `[Prueba] ${opts.subject}`, html, text });
+    const ok = await sendEmail({ to: opts.testTo, replyTo: opts.replyTo, subject: `[Prueba] ${opts.subject}`, html, text, attachments });
     return ok ? { ok: true, recipients: 1, batches: 1, skipped: 0 } : { ok: false, error: "Gmail rechazó la prueba." };
   }
   const contacts = await db.outreachContact.findMany({ where: outreachWhere({ list: opts.list, categories: opts.categories, tags: opts.tags }), select: { email: true }, orderBy: { name: "asc" } });
@@ -78,7 +82,7 @@ export async function sendOutreach(opts: { list?: string; subject: string; body:
   let sent = 0, batches = 0;
   for (let i = 0; i < send.length; i += BCC_BATCH) {
     const bcc = send.slice(i, i + BCC_BATCH);
-    const ok = await sendEmail({ to: process.env.GMAIL_USER!, bcc, replyTo: opts.replyTo, subject: opts.subject, html, text });
+    const ok = await sendEmail({ to: process.env.GMAIL_USER!, bcc, replyTo: opts.replyTo, subject: opts.subject, html, text, attachments });
     batches++;
     if (ok) sent += bcc.length; else console.error(`[outreach] batch ${batches} failed (${bcc.length})`);
     if (i + BCC_BATCH < send.length) await new Promise((r) => setTimeout(r, 400));

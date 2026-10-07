@@ -287,6 +287,7 @@ function SendModal({ open, onOpenChange, categories, total, list }: { open: bool
   const [count, setCount] = useState<number | null>(null);
   const [sending, setSending] = useState<"test" | "all" | null>(null);
   const [confirm, setConfirm] = useState(false);
+  const [flyer, setFlyer] = useState<File | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -297,13 +298,16 @@ function SendModal({ open, onOpenChange, categories, total, list }: { open: bool
 
   async function send(test: boolean) {
     setSending(test ? "test" : "all");
-    const res = await fetch("/api/outreach/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ list, subject, body, categories: selected, test }) }).catch(() => null);
+    const form = new FormData();
+    form.set("list", list); form.set("subject", subject); form.set("body", body); form.set("categories", selected.join(",")); form.set("test", String(test));
+    if (flyer) form.set("flyer", flyer);
+    const res = await fetch("/api/outreach/send", { method: "POST", body: form }).catch(() => null);
     setSending(null);
     if (!res || !res.ok) { toast({ title: test ? "No se pudo enviar la prueba" : "No se pudo enviar", description: res ? await readError(res, "Error") : "Sin conexión", variant: "error" }); return; }
     const out = await res.json();
     if (test) { toast({ title: "Prueba enviada a tu correo", variant: "success" }); return; }
     toast({ title: `Invitación enviada a ${out.recipients} contactos`, description: out.skipped ? `${out.skipped} quedaron fuera por el tope diario de Gmail.` : undefined, variant: "success" });
-    setConfirm(false); onOpenChange(false); setSubject(""); setBody(""); setSelected([]); router.refresh();
+    setConfirm(false); onOpenChange(false); setSubject(""); setBody(""); setSelected([]); setFlyer(null); router.refresh();
   }
 
   const ready = subject.trim().length > 0 && body.trim().length > 0;
@@ -313,6 +317,9 @@ function SendModal({ open, onOpenChange, categories, total, list }: { open: bool
         <div className="space-y-4">
           <FormGroup label="Asunto" htmlFor="s-subject" required><Input id="s-subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Invitación · Off The Record Miami" /></FormGroup>
           <FormGroup label="Mensaje" htmlFor="s-body" required description="Texto plano. Deja una línea en blanco entre párrafos; los links se vuelven clicables."><Textarea id="s-body" rows={9} value={body} onChange={(e) => setBody(e.target.value)} /></FormGroup>
+          <FormGroup label="Flyer" htmlFor="s-flyer" hint="opcional" description="PNG o JPG hasta 5 MB. Va arriba del mensaje, como imagen del correo.">
+            <input id="s-flyer" type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => setFlyer(e.target.files?.[0] ?? null)} className="block w-full text-sm text-ink-secondary file:mr-3 file:rounded-md file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-xs file:font-medium" />
+          </FormGroup>
           <div>
             <div className="text-sm font-medium text-ink-primary">¿A quién?</div>
             <p className="text-xs text-ink-muted">Sin marcar nada va a toda la base. Marca categorías para acotar.</p>
