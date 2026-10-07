@@ -44,6 +44,7 @@ import {
   baseTextRequests,
   cellBlockStyle,
   columnWidthRequests,
+  pageFitRequests,
   fillCellRequests,
   mergeRowRequest,
   rowHeightStyle,
@@ -490,7 +491,7 @@ export async function writeAgendaDoc(clientId: string, opts: { force?: boolean }
     const firstCell = cells[0][0];
     const lastCell = cells[cells.length - 1][columns - 1];
 
-    const requests: docs_v1.Schema$Request[] = [...columnWidthRequests(tableStart), ...inserts];
+    const requests: docs_v1.Schema$Request[] = [...columnWidthRequests(tableStart), ...pageFitRequests(after.data, tableStart), ...inserts];
     // Cell backgrounds/borders/padding and row heights address cells by (row, column): unaffected by the inserts.
     const monthRows: number[] = [];
     const dataRows: number[] = [];

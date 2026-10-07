@@ -91,6 +91,34 @@ export function columnWidthRequests(tableStart: number): Request[] {
   }));
 }
 
+/**
+ * Centre the agenda on the page. The Docs API has no table-alignment setting, so the page gets equal
+ * left/right margins sized for the agenda table to fill the content width exactly, and every other table
+ * (the header) is widened to the same width. Matches how Casa D / Benme look (Esther, Oct 7 2026).
+ */
+export function pageFitRequests(doc: docs_v1.Schema$Document, agendaTableStart: number): Request[] {
+  const target = AGENDA_COLUMN_WIDTHS_PT.reduce((a, b) => a + b, 0);
+  const pageWidth = doc.documentStyle?.pageSize?.width?.magnitude ?? 612;
+  const margin = Math.round(((pageWidth - target) / 2) * 10) / 10;
+  if (margin < 30) return [];
+  const requests: Request[] = [
+    { updateDocumentStyle: { documentStyle: { marginLeft: pt(margin), marginRight: pt(margin) }, fields: "marginLeft,marginRight" } },
+  ];
+  for (const el of doc.body?.content ?? []) {
+    if (!el.table || el.startIndex === agendaTableStart) continue;
+    const cols = el.table.tableStyle?.tableColumnProperties ?? [];
+    const width = cols.reduce((a, c) => a + (c.width?.magnitude ?? 0), 0);
+    if (!width || Math.abs(width - target) < 1) continue;
+    let acc = 0;
+    cols.forEach((c, i) => {
+      const w = i === cols.length - 1 ? Math.round((target - acc) * 100) / 100 : Math.round((c.width!.magnitude! * target) / width);
+      acc += w;
+      requests.push({ updateTableColumnProperties: { tableStartLocation: { index: el.startIndex! }, columnIndices: [i], tableColumnProperties: { widthType: "FIXED_WIDTH", width: pt(w) }, fields: "widthType,width" } });
+    });
+  }
+  return requests;
+}
+
 export function mergeRowRequest(tableStart: number, rowIndex: number, columns: number): Request {
   return {
     mergeTableCells: {
