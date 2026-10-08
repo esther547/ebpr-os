@@ -291,6 +291,8 @@ function SendModal({ open, onOpenChange, categories, list }: { open: boolean; on
   const [fromName, setFromName] = useState("");
   const [footer, setFooter] = useState("EB Public Relations · press@ebmanagement.io");
   const [noHeader, setNoHeader] = useState(false);
+  const [directTo, setDirectTo] = useState("");
+  const [directCc, setDirectCc] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -306,13 +308,14 @@ function SendModal({ open, onOpenChange, categories, list }: { open: boolean; on
     if (fromName.trim()) form.set("fromName", fromName.trim());
     if (noHeader) form.set("header", ""); else if (fromName.trim()) form.set("header", fromName.trim().toUpperCase());
     form.set("footer", footer.trim());
+    form.set("to", directTo.trim()); form.set("cc", directCc.trim());
     const res = await fetch("/api/outreach/send", { method: "POST", body: form }).catch(() => null);
     setSending(null);
     if (!res || !res.ok) { toast({ title: test ? "No se pudo enviar la prueba" : "No se pudo enviar", description: res ? await readError(res, "Error") : "Sin conexión", variant: "error" }); return; }
     const out = await res.json();
     if (test) { toast({ title: "Prueba enviada a tu correo", variant: "success" }); return; }
-    toast({ title: `Invitación enviada a ${out.recipients} contactos`, description: out.skipped ? `${out.skipped} quedaron fuera por el tope diario de Gmail.` : undefined, variant: "success" });
-    setConfirm(false); onOpenChange(false); setSubject(""); setBody(""); setSelected([]); setFlyer(null); router.refresh();
+    toast({ title: directTo.trim() ? `Enviada a ${directTo.trim()}` : `Invitación enviada a ${out.recipients} contactos`, description: out.skipped ? `${out.skipped} quedaron fuera por el tope diario de Gmail.` : undefined, variant: "success" });
+    setConfirm(false); onOpenChange(false); setSubject(""); setBody(""); setSelected([]); setFlyer(null); setDirectTo(""); setDirectCc(""); router.refresh();
   }
 
   const ready = subject.trim().length > 0 && body.trim().length > 0;
@@ -344,15 +347,19 @@ function SendModal({ open, onOpenChange, categories, list }: { open: boolean; on
               })}
             </div>
           </div>
-          <p className="text-sm text-ink-secondary">Destinatarios: <strong>{count ?? "…"}</strong> contactos activos con email.</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormGroup label="Solo a estos correos" htmlFor="s-to" hint="opcional" description="Si lo llenas, el correo va únicamente a ellos (no a la base). Separa con comas."><Input id="s-to" value={directTo} onChange={(e) => setDirectTo(e.target.value)} placeholder="mcorrea@cmnevents.com" /></FormGroup>
+            <FormGroup label="Con copia (cc)" htmlFor="s-cc" hint="opcional"><Input id="s-cc" value={directCc} onChange={(e) => setDirectCc(e.target.value)} placeholder="esther@ebmanagement.io" /></FormGroup>
+          </div>
+          <p className="text-sm text-ink-secondary">{directTo.trim() ? <>Va solo a <strong>{directTo.trim()}</strong>{directCc.trim() ? ` (cc ${directCc.trim()})` : ""}.</> : <>Destinatarios: <strong>{count ?? "…"}</strong> contactos activos con email.</>}</p>
           <FormActions>
             <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button type="button" variant="secondary" onClick={() => send(true)} loading={sending === "test"} disabled={!ready}>Enviarme una prueba</Button>
-            <Button type="button" onClick={() => setConfirm(true)} disabled={!ready || !count} leftIcon={<Send className="h-4 w-4" />}>Enviar a {count ?? 0}</Button>
+            <Button type="button" onClick={() => setConfirm(true)} disabled={!ready || (!directTo.trim() && !count)} leftIcon={<Send className="h-4 w-4" />}>{directTo.trim() ? "Enviar" : `Enviar a ${count ?? 0}`}</Button>
           </FormActions>
         </div>
       </Modal>
-      <ConfirmModal open={confirm} onOpenChange={setConfirm} title={`¿Enviar "${subject}" a ${count ?? 0} contactos?`} description="Sale ahora mismo en lotes de 50 en copia oculta. No se puede deshacer." confirmLabel="Sí, enviar" loading={sending === "all"} onConfirm={() => send(false)} />
+      <ConfirmModal open={confirm} onOpenChange={setConfirm} title={directTo.trim() ? `¿Enviar "${subject}" a ${directTo.trim()}?` : `¿Enviar "${subject}" a ${count ?? 0} contactos?`} description={directTo.trim() ? "Sale ahora mismo solo a esos correos." : "Sale ahora mismo en lotes de 50 en copia oculta. No se puede deshacer."} confirmLabel="Sí, enviar" loading={sending === "all"} onConfirm={() => send(false)} />
     </>
   );
 }

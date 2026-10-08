@@ -15,6 +15,9 @@ const schema = z.object({
   fromName: z.string().trim().max(120).optional(),
   header: z.string().trim().max(120).optional(),
   footer: z.string().trim().max(300).optional(),
+  /** Direct send to these addresses only (with optional cc) instead of the database. */
+  to: z.array(z.string().trim().toLowerCase().email()).max(20).optional(),
+  cc: z.array(z.string().trim().toLowerCase().email()).max(20).optional(),
 });
 
 /** POST: send an invitation to the matching contacts, or (test=true) only to the signed-in sender. */
@@ -27,7 +30,7 @@ export async function POST(req: NextRequest) {
     const form = await req.formData().catch(() => null);
     if (!form) return NextResponse.json({ error: "Formulario inválido" }, { status: 400 });
     const str = (k: string) => String(form.get(k) ?? "");
-    raw = { list: str("list") || undefined, subject: str("subject"), body: str("body"), categories: str("categories").split(",").map((c) => c.trim()).filter(Boolean), tags: str("tags").split(",").map((t) => t.trim()).filter(Boolean), test: str("test") === "true", fromName: str("fromName") || undefined, header: form.has("header") ? str("header") : undefined, footer: form.has("footer") ? str("footer") : undefined };
+    raw = { list: str("list") || undefined, subject: str("subject"), body: str("body"), categories: str("categories").split(",").map((c) => c.trim()).filter(Boolean), tags: str("tags").split(",").map((t) => t.trim()).filter(Boolean), test: str("test") === "true", fromName: str("fromName") || undefined, header: form.has("header") ? str("header") : undefined, footer: form.has("footer") ? str("footer") : undefined, to: str("to").split(/[,;\s]+/).filter(Boolean), cc: str("cc").split(/[,;\s]+/).filter(Boolean) };
     const file = form.get("flyer");
     if (file instanceof File && file.size > 0) {
       if (!/^image\/(png|jpe?g|webp|gif)$/.test(file.type)) return NextResponse.json({ error: "El flyer debe ser una imagen (PNG, JPG, WebP o GIF)." }, { status: 400 });
@@ -39,8 +42,8 @@ export async function POST(req: NextRequest) {
   }
   const parsed = schema.safeParse(raw);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 });
-  const { list, subject, body, categories, tags, test, fromName, header, footer } = parsed.data;
-  const result = await sendOutreach({ list, subject, body, categories, tags, flyer, brand: { fromName, header, footer }, replyTo: user.email ?? undefined, testTo: test ? user.email ?? undefined : undefined, sentById: user.id });
+  const { list, subject, body, categories, tags, test, fromName, header, footer, to, cc } = parsed.data;
+  const result = await sendOutreach({ list, subject, body, categories, tags, flyer, brand: { fromName, header, footer }, directTo: test ? undefined : to, cc: test ? undefined : cc, replyTo: user.email ?? undefined, testTo: test ? user.email ?? undefined : undefined, sentById: user.id });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
   return NextResponse.json(result);
 }

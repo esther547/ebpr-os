@@ -72,12 +72,19 @@ export function invitationHtml(subject: string, body: string, flyer?: Flyer | nu
 export type OutreachSendResult = { ok: true; recipients: number; batches: number; skipped: number } | { ok: false; error: string };
 
 /** Send one invitation to every active contact matching the filters (or to `testTo` only). */
-export async function sendOutreach(opts: { list?: string; subject: string; body: string; categories?: string[]; tags?: string[]; replyTo?: string; testTo?: string; sentById?: string; flyer?: Flyer | null; brand?: Brand }): Promise<OutreachSendResult> {
+export async function sendOutreach(opts: { list?: string; subject: string; body: string; categories?: string[]; tags?: string[]; replyTo?: string; testTo?: string; sentById?: string; flyer?: Flyer | null; brand?: Brand; directTo?: string[]; cc?: string[] }): Promise<OutreachSendResult> {
   if (!isEmailConfigured()) return { ok: false, error: "El correo no está configurado (GMAIL_USER / GMAIL_APP_PASSWORD)." };
   const brand = opts.brand ?? {};
   const html = invitationHtml(opts.subject, opts.body, opts.flyer, brand);
   const attachments = opts.flyer ? [{ filename: opts.flyer.filename, content: opts.flyer.content, contentType: opts.flyer.contentType, cid: "flyer" }] : undefined;
   const text = `${opts.body}${brand.footer === undefined ? "\n\nEB Public Relations · press@ebmanagement.io" : brand.footer ? `\n\n${brand.footer}` : ""}`;
+  if (opts.directTo?.length) {
+    // One real email to specific people (e.g. the client reviewing the invitation), not a mass send.
+    const ok = await sendEmail({ to: opts.directTo, cc: opts.cc, replyTo: opts.replyTo, subject: opts.subject, html, text, attachments, fromName: brand.fromName });
+    if (!ok) return { ok: false, error: "Gmail rechazó el envío." };
+    await db.outreachSend.create({ data: { list: opts.list ?? DEFAULT_LIST, subject: opts.subject, body: opts.body, categories: [`Directo: ${opts.directTo.join(", ")}`], tags: opts.tags ?? [], recipientCount: opts.directTo.length, sentById: opts.sentById ?? null } });
+    return { ok: true, recipients: opts.directTo.length, batches: 1, skipped: 0 };
+  }
   if (opts.testTo) {
     const ok = await sendEmail({ to: opts.testTo, replyTo: opts.replyTo, subject: `[Prueba] ${opts.subject}`, html, text, attachments, fromName: brand.fromName });
     return ok ? { ok: true, recipients: 1, batches: 1, skipped: 0 } : { ok: false, error: "Gmail rechazó la prueba." };
