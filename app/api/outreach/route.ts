@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { canManageOutreach } from "@/lib/permissions";
 import { db } from "@/lib/db";
-import { DEFAULT_LIST, outreachWhere } from "@/lib/outreach";
+import { DEFAULT_LIST, mediosEmails, outreachWhere } from "@/lib/outreach";
 
 const optText = z.string().trim().max(500).optional().nullable().transform((v) => (v ? v : undefined));
 const listField = z.string().trim().min(1).max(100).optional();
@@ -34,8 +34,13 @@ export async function GET(req: NextRequest) {
     category: sp.get("category"),
     categories: sp.getAll("categories").flatMap((c) => c.split(",")),
     tags: sp.getAll("tag").flatMap((t) => t.split(",")),
+    excludeTags: sp.getAll("excludeTags").flatMap((t) => t.split(",")),
   });
-  if (sp.get("count") === "1") return NextResponse.json({ total: await db.outreachContact.count({ where }) });
+  if (sp.get("count") === "1") {
+    const total = await db.outreachContact.count({ where });
+    const medios = sp.get("includeMedios") === "1" ? (await mediosEmails()).length : 0;
+    return NextResponse.json({ total: total + medios, contacts: total, medios });
+  }
   const limit = Math.min(Math.max(parseInt(sp.get("limit") || "100", 10) || 100, 1), 1000);
   const offset = Math.max(parseInt(sp.get("offset") || "0", 10) || 0, 0);
   const [data, total] = await Promise.all([

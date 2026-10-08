@@ -8,12 +8,20 @@ import { isEmailConfigured, sendEmail } from "@/lib/email";
 
 export const DEFAULT_LIST = "Music Industry";
 const BCC_BATCH = 50;
-const MAX_PER_SEND = 1500;
+export const MAX_PER_SEND = 1500;
 
-export function outreachWhere(opts: { list?: string; search?: string | null; category?: string | null; categories?: string[]; tags?: string[]; includeInactive?: boolean; withEmail?: boolean }): Prisma.OutreachContactWhereInput {
+/** Active journalists (the Medios database) as plain emails. */
+export async function mediosEmails(): Promise<string[]> {
+  const js = await db.journalist.findMany({ where: { isActive: true }, select: { email: true } });
+  return [...new Set(js.map((j) => j.email.trim().toLowerCase()).filter((e) => /\S+@\S+\.\S+/.test(e)))];
+}
+
+export function outreachWhere(opts: { list?: string; search?: string | null; category?: string | null; categories?: string[]; tags?: string[]; includeInactive?: boolean; withEmail?: boolean; excludeTags?: string[] }): Prisma.OutreachContactWhereInput {
   const where: Prisma.OutreachContactWhereInput = { list: opts.list ?? DEFAULT_LIST };
   if (!opts.includeInactive) where.isActive = true;
   if (opts.withEmail) where.email = { not: null };
+  const excludeTags = (opts.excludeTags ?? []).map((t) => t.trim()).filter(Boolean);
+  if (excludeTags.length) where.NOT = { tags: { hasSome: excludeTags } };
   const search = opts.search?.trim();
   if (search) {
     where.OR = [
@@ -72,7 +80,7 @@ export function invitationHtml(subject: string, body: string, flyer?: Flyer | nu
 export type OutreachSendResult = { ok: true; recipients: number; batches: number; skipped: number } | { ok: false; error: string };
 
 /** Send one invitation to every active contact matching the filters (or to `testTo` only). */
-export async function sendOutreach(opts: { list?: string; subject: string; body: string; categories?: string[]; tags?: string[]; replyTo?: string; testTo?: string; sentById?: string; flyer?: Flyer | null; brand?: Brand; directTo?: string[]; cc?: string[] }): Promise<OutreachSendResult> {
+export async function sendOutreach(opts: { list?: string; subject: string; body: string; categories?: string[]; tags?: string[]; replyTo?: string; testTo?: string; sentById?: string; flyer?: Flyer | null; brand?: Brand; directTo?: string[]; cc?: string[]; excludeTags?: string[]; includeMedios?: boolean }): Promise<OutreachSendResult> {
   if (!isEmailConfigured()) return { ok: false, error: "El correo no está configurado (GMAIL_USER / GMAIL_APP_PASSWORD)." };
   const brand = opts.brand ?? {};
   const html = invitationHtml(opts.subject, opts.body, opts.flyer, brand);
@@ -89,8 +97,8 @@ export async function sendOutreach(opts: { list?: string; subject: string; body:
     const ok = await sendEmail({ to: opts.testTo, replyTo: opts.replyTo, subject: `[Prueba] ${opts.subject}`, html, text, attachments, fromName: brand.fromName });
     return ok ? { ok: true, recipients: 1, batches: 1, skipped: 0 } : { ok: false, error: "Gmail rechazó la prueba." };
   }
-  const contacts = await db.outreachContact.findMany({ where: outreachWhere({ list: opts.list, categories: opts.categories, tags: opts.tags, withEmail: true }), select: { email: true }, orderBy: { name: "asc" } });
-  const emails = [...new Set(contacts.map((c) => (c.email ?? "").trim().toLowerCase()).filter((e) => /\S+@\S+\.\S+/.test(e)))];
+  const contacts = await db.outreachContact.findMany({ where: outreachWhere({ list: opts.list, categories: opts.categories, tags: opts.tags, excludeTags: opts.excludeTags, withEmail: true }), select: { email: true }, orderBy: { name: "asc" } });
+  const emails = [...new Set([...contacts.map((c) => (c.email ?? "").trim().toLowerCase()), ...(opts.includeMedios ? await mediosEmails() : [])].filter((e) => /\S+@\S+\.\S+/.test(e)))];
   if (!emails.length) return { ok: false, error: "No hay contactos activos que coincidan con el filtro." };
   const send = emails.slice(0, MAX_PER_SEND);
   let sent = 0, batches = 0;
@@ -102,6 +110,6 @@ export async function sendOutreach(opts: { list?: string; subject: string; body:
     if (i + BCC_BATCH < send.length) await new Promise((r) => setTimeout(r, 400));
   }
   if (!sent) return { ok: false, error: "Gmail rechazó el envío. Revisa GMAIL_USER / GMAIL_APP_PASSWORD." };
-  await db.outreachSend.create({ data: { list: opts.list ?? DEFAULT_LIST, subject: opts.subject, body: opts.body, categories: opts.categories ?? [], tags: opts.tags ?? [], recipientCount: sent, sentById: opts.sentById ?? null } });
+  await db.outreachSend.create({ data: { list: opts.list ?? DEFAULT_LIST, subject: opts.subject, body: opts.body, categories: [...(opts.categories ?? []), ...(opts.includeMedios ? ["+ Medios"] : []), ...(opts.excludeTags?.length ? [`sin: ${opts.excludeTags.join(", ")}`] : [])], tags: opts.tags ?? [], recipientCount: sent, sentById: opts.sentById ?? null } });
   return { ok: true, recipients: sent, batches, skipped: emails.length - send.length };
 }

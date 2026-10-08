@@ -16,13 +16,13 @@ type Contact = { id: string; name: string; email: string | null; company: string
 type Category = { name: string; count: number };
 type SendLog = { id: string; subject: string; categories: string[]; recipientCount: number; sentAt: string };
 
-interface Props { list: string; basePath: string; contacts: Contact[]; matching: number; total: number; categories: Category[]; page: number; pageSize: number; initialSearch: string; initialCategory: string; sends: SendLog[] }
+interface Props { list: string; basePath: string; contacts: Contact[]; matching: number; total: number; categories: Category[]; tags: Category[]; mediosCount: number; page: number; pageSize: number; initialSearch: string; initialCategory: string; sends: SendLog[] }
 
 async function readError(res: Response, fallback: string): Promise<string> {
   try { const data = await res.json(); return typeof data.error === "string" ? data.error : fallback; } catch { return fallback; }
 }
 
-export function OutreachClient({ list, basePath, contacts, matching, total, categories, page, pageSize, initialSearch, initialCategory, sends }: Props) {
+export function OutreachClient({ list, basePath, contacts, matching, total, categories, tags, mediosCount, page, pageSize, initialSearch, initialCategory, sends }: Props) {
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showSend, setShowSend] = useState(false);
@@ -163,7 +163,7 @@ export function OutreachClient({ list, basePath, contacts, matching, total, cate
       <ContactFormModal open={showAdd} onOpenChange={setShowAdd} categories={categories} list={list} />
       {editing && <ContactFormModal open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }} contact={editing} categories={categories} list={list} />}
       <ImportCsvModal open={showImport} onOpenChange={setShowImport} list={list} />
-      <SendModal open={showSend} onOpenChange={setShowSend} categories={categories} list={list} />
+      <SendModal open={showSend} onOpenChange={setShowSend} categories={categories} tags={tags} mediosCount={mediosCount} list={list} />
       <ConfirmModal open={!!removing} onOpenChange={(o) => { if (!o) setRemoving(null); }} title={removing ? `¿Eliminar a ${removing.name}?` : "¿Eliminar contacto?"} description="Sale de esta base de datos. Puedes volver a agregarlo después." confirmLabel="Eliminar" destructive loading={!!removing && busyId === removing.id}
         onConfirm={async () => { if (!removing) return; const ok = await remove(removing); if (ok) setRemoving(null); }} />
     </div>
@@ -278,12 +278,15 @@ function ImportCsvModal({ open, onOpenChange, list }: { open: boolean; onOpenCha
 
 // ─── Send invitation ──────────────────────────────────────
 
-function SendModal({ open, onOpenChange, categories, list }: { open: boolean; onOpenChange: (o: boolean) => void; categories: Category[]; list: string }) {
+function SendModal({ open, onOpenChange, categories, tags, mediosCount, list }: { open: boolean; onOpenChange: (o: boolean) => void; categories: Category[]; tags: Category[]; mediosCount: number; list: string }) {
   const router = useRouter();
   const { toast } = useToast();
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
+  const [selTags, setSelTags] = useState<string[]>([]);
+  const [exclTags, setExclTags] = useState<string[]>([]);
+  const [withMedios, setWithMedios] = useState(false);
   const [count, setCount] = useState<number | null>(null);
   const [sending, setSending] = useState<"test" | "all" | null>(null);
   const [confirm, setConfirm] = useState(false);
@@ -297,8 +300,11 @@ function SendModal({ open, onOpenChange, categories, list }: { open: boolean; on
   useEffect(() => {
     if (!open) return;
     const params = new URLSearchParams(); params.set("count", "1"); params.set("withEmail", "1"); params.set("list", list); if (selected.length) params.set("categories", selected.join(","));
+    if (selTags.length) params.set("tag", selTags.join(","));
+    if (exclTags.length) params.set("excludeTags", exclTags.join(","));
+    if (withMedios) params.set("includeMedios", "1");
     fetch(`/api/outreach?${params}`).then((r) => r.json()).then((d) => setCount(typeof d.total === "number" ? d.total : null)).catch(() => setCount(null));
-  }, [open, selected, list]);
+  }, [open, selected, selTags, exclTags, withMedios, list]);
 
   async function send(test: boolean) {
     setSending(test ? "test" : "all");
@@ -309,13 +315,16 @@ function SendModal({ open, onOpenChange, categories, list }: { open: boolean; on
     if (noHeader) form.set("header", ""); else if (fromName.trim()) form.set("header", fromName.trim().toUpperCase());
     form.set("footer", footer.trim());
     form.set("to", directTo.trim()); form.set("cc", directCc.trim());
+    if (selTags.length) form.set("tags", selTags.join(","));
+    if (exclTags.length) form.set("excludeTags", exclTags.join(","));
+    form.set("includeMedios", String(withMedios));
     const res = await fetch("/api/outreach/send", { method: "POST", body: form }).catch(() => null);
     setSending(null);
     if (!res || !res.ok) { toast({ title: test ? "No se pudo enviar la prueba" : "No se pudo enviar", description: res ? await readError(res, "Error") : "Sin conexión", variant: "error" }); return; }
     const out = await res.json();
     if (test) { toast({ title: "Prueba enviada a tu correo", variant: "success" }); return; }
     toast({ title: directTo.trim() ? `Enviada a ${directTo.trim()}` : `Invitación enviada a ${out.recipients} contactos`, description: out.skipped ? `${out.skipped} quedaron fuera por el tope diario de Gmail.` : undefined, variant: "success" });
-    setConfirm(false); onOpenChange(false); setSubject(""); setBody(""); setSelected([]); setFlyer(null); setDirectTo(""); setDirectCc(""); router.refresh();
+    setConfirm(false); onOpenChange(false); setSubject(""); setBody(""); setSelected([]); setSelTags([]); setExclTags([]); setWithMedios(false); setFlyer(null); setDirectTo(""); setDirectCc(""); router.refresh();
   }
 
   const ready = subject.trim().length > 0 && body.trim().length > 0;
@@ -335,7 +344,7 @@ function SendModal({ open, onOpenChange, categories, list }: { open: boolean; on
           </FormGroup>
           <div>
             <div className="text-sm font-medium text-ink-primary">¿A quién?</div>
-            <p className="text-xs text-ink-muted">Sin marcar nada va a toda la base. Marca categorías para acotar.</p>
+            <p className="text-xs text-ink-muted">Sin marcar nada va a toda la base. Marca categorías o etiquetas para acotar; una categoría o una etiqueta marcada basta para entrar.</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {categories.map((c) => {
                 const on = selected.includes(c.name);
@@ -351,6 +360,21 @@ function SendModal({ open, onOpenChange, categories, list }: { open: boolean; on
             <FormGroup label="Solo a estos correos" htmlFor="s-to" hint="opcional" description="Si lo llenas, el correo va únicamente a ellos (no a la base). Separa con comas."><Input id="s-to" value={directTo} onChange={(e) => setDirectTo(e.target.value)} placeholder="mcorrea@cmnevents.com" /></FormGroup>
             <FormGroup label="Con copia (cc)" htmlFor="s-cc" hint="opcional"><Input id="s-cc" value={directCc} onChange={(e) => setDirectCc(e.target.value)} placeholder="esther@ebmanagement.io" /></FormGroup>
           </div>
+          {tags.length > 0 && (
+            <div>
+              <div className="text-sm font-medium text-ink-primary">Etiquetas</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {tags.map((t) => { const on = selTags.includes(t.name); return (<button key={t.name} type="button" onClick={() => setSelTags(on ? selTags.filter((s) => s !== t.name) : [...selTags, t.name])} className={`rounded-full border px-3 py-1 text-xs ${on ? "border-ink-primary bg-ink-primary text-white" : "border-border text-ink-secondary hover:border-ink-muted"}`}>{t.name} · {t.count}</button>); })}
+              </div>
+              <div className="mt-3 text-sm font-medium text-ink-primary">Excluir etiquetas</div>
+              <p className="text-xs text-ink-muted">Quien tenga una de estas no recibe el correo (por ejemplo los ya confirmados).</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {tags.map((t) => { const on = exclTags.includes(t.name); return (<button key={t.name} type="button" onClick={() => setExclTags(on ? exclTags.filter((s) => s !== t.name) : [...exclTags, t.name])} className={`rounded-full border px-3 py-1 text-xs ${on ? "border-red-600 bg-red-600 text-white" : "border-border text-ink-secondary hover:border-ink-muted"}`}>{t.name} · {t.count}</button>); })}
+              </div>
+            </div>
+          )}
+          <label className="flex items-center gap-2 text-sm text-ink-secondary"><input type="checkbox" checked={withMedios} onChange={(e) => setWithMedios(e.target.checked)} /> Incluir también la base de Medios ({mediosCount} periodistas)</label>
+          {!!count && count > 1500 && !directTo.trim() && <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">Gmail permite unos 1,500 correos por día: de {count} saldrán los primeros 1,500 y el resto queda fuera. Divide el envío (por ejemplo Medios un día, Industria al siguiente).</p>}
           <p className="text-sm text-ink-secondary">{directTo.trim() ? <>Va solo a <strong>{directTo.trim()}</strong>{directCc.trim() ? ` (cc ${directCc.trim()})` : ""}.</> : <>Destinatarios: <strong>{count ?? "…"}</strong> contactos activos con email.</>}</p>
           <FormActions>
             <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Cancelar</Button>
