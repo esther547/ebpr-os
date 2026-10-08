@@ -833,7 +833,7 @@ model OutreachContact {
   id       String   @id @default(cuid())
   list     String   @default("Music Industry")
   name     String
-  email    String   @unique
+  email    String?  @unique // email or phone: at least one
   company  String?
   role     String?
   category String? // "Management", "Disqueras", "DSP", "Promotores", "Venues", "Marcas"…

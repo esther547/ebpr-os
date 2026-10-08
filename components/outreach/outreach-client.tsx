@@ -12,7 +12,7 @@ import { useToast } from "@/components/ui/toast";
 import { DropdownMenu, DropdownMenuDots, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Search, Upload, Plus, Pencil, Trash2, Users, ChevronLeft, ChevronRight, Send, Mail } from "lucide-react";
 
-type Contact = { id: string; name: string; email: string; company: string | null; role: string | null; category: string | null; phone: string | null; city: string | null; country: string | null; notes: string | null; tags: string[]; isActive: boolean };
+type Contact = { id: string; name: string; email: string | null; company: string | null; role: string | null; category: string | null; phone: string | null; city: string | null; country: string | null; notes: string | null; tags: string[]; isActive: boolean };
 type Category = { name: string; count: number };
 type SendLog = { id: string; subject: string; categories: string[]; recipientCount: number; sentAt: string };
 
@@ -125,7 +125,7 @@ export function OutreachClient({ list, basePath, contacts, matching, total, cate
                         {c.role && <div className="text-xs text-ink-muted">{c.role}</div>}
                         {c.tags.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{c.tags.map((t) => (<Badge key={t} tone="outline" size="xs">{t}</Badge>))}</div>}
                       </Td>
-                      <Td className="text-ink-secondary">{c.email}</Td>
+                      <Td className="text-ink-secondary">{c.email || "—"}</Td>
                       <Td className="text-ink-secondary">{c.company || "—"}</Td>
                       <Td>{c.category ? <Badge tone="info">{c.category}</Badge> : <span className="text-ink-muted">—</span>}</Td>
                       <Td className="text-ink-muted">{c.phone || "—"}</Td>
@@ -163,7 +163,7 @@ export function OutreachClient({ list, basePath, contacts, matching, total, cate
       <ContactFormModal open={showAdd} onOpenChange={setShowAdd} categories={categories} list={list} />
       {editing && <ContactFormModal open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }} contact={editing} categories={categories} list={list} />}
       <ImportCsvModal open={showImport} onOpenChange={setShowImport} list={list} />
-      <SendModal open={showSend} onOpenChange={setShowSend} categories={categories} total={total} list={list} />
+      <SendModal open={showSend} onOpenChange={setShowSend} categories={categories} list={list} />
       <ConfirmModal open={!!removing} onOpenChange={(o) => { if (!o) setRemoving(null); }} title={removing ? `¿Eliminar a ${removing.name}?` : "¿Eliminar contacto?"} description="Sale de esta base de datos. Puedes volver a agregarlo después." confirmLabel="Eliminar" destructive loading={!!removing && busyId === removing.id}
         onConfirm={async () => { if (!removing) return; const ok = await remove(removing); if (ok) setRemoving(null); }} />
     </div>
@@ -197,7 +197,7 @@ function ContactFormModal({ open, onOpenChange, contact, categories, list }: { o
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormGroup label="Nombre" htmlFor="o-name" required><Input id="o-name" name="name" defaultValue={contact?.name} required autoFocus /></FormGroup>
-          <FormGroup label="Email" htmlFor="o-email" required><Input id="o-email" name="email" type="email" defaultValue={contact?.email} required /></FormGroup>
+          <FormGroup label="Email" htmlFor="o-email" hint="email o teléfono, al menos uno"><Input id="o-email" name="email" type="email" defaultValue={contact?.email ?? ""} /></FormGroup>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <FormGroup label="Empresa" htmlFor="o-company"><Input id="o-company" name="company" defaultValue={contact?.company ?? ""} placeholder="Rimas, WME, Kaseya Center…" /></FormGroup>
@@ -208,7 +208,7 @@ function ContactFormModal({ open, onOpenChange, contact, categories, list }: { o
           </FormGroup>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <FormGroup label="Teléfono" htmlFor="o-phone"><Input id="o-phone" name="phone" defaultValue={contact?.phone ?? ""} /></FormGroup>
+          <FormGroup label="Teléfono" htmlFor="o-phone" description="Sin email solo recibe WhatsApp o llamada, no las invitaciones por correo."><Input id="o-phone" name="phone" type="tel" defaultValue={contact?.phone ?? ""} placeholder="+1 305 …" /></FormGroup>
           <FormGroup label="Ciudad" htmlFor="o-city"><Input id="o-city" name="city" defaultValue={contact?.city ?? ""} placeholder="Miami" /></FormGroup>
           <FormGroup label="País" htmlFor="o-country"><Input id="o-country" name="country" defaultValue={contact?.country ?? ""} placeholder="USA" /></FormGroup>
         </div>
@@ -248,13 +248,13 @@ function ImportCsvModal({ open, onOpenChange, list }: { open: boolean; onOpenCha
   const rows = parseCsv(text);
   const header = rows[0]?.map((h) => h.trim().toLowerCase()) ?? [];
   const col = (...keys: string[]) => header.findIndex((h) => keys.some((k) => h.includes(k)));
-  const hasHeader = col("email", "correo") >= 0;
+  const hasHeader = col("email", "correo", "tel", "phone", "nombre", "name") >= 0;
   const idx = hasHeader ? { name: col("nombre", "name"), email: col("email", "correo"), company: col("empresa", "company"), role: col("cargo", "role", "title"), category: col("categor"), phone: col("tel", "phone") } : { name: 0, email: 2, company: 1, role: -1, category: -1, phone: -1 };
-  const data = (hasHeader ? rows.slice(1) : rows).map((r) => ({ name: r[idx.name]?.trim() ?? "", email: (r[idx.email] ?? "").match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/)?.[0]?.toLowerCase() ?? "", company: idx.company >= 0 ? r[idx.company]?.trim() : "", role: idx.role >= 0 ? r[idx.role]?.trim() : "", category: idx.category >= 0 ? r[idx.category]?.trim() : "", phone: idx.phone >= 0 ? r[idx.phone]?.trim() : "" })).filter((r) => r.email);
+  const data = (hasHeader ? rows.slice(1) : rows).map((r) => ({ name: r[idx.name]?.trim() ?? "", email: (r[idx.email] ?? "").match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/)?.[0]?.toLowerCase() ?? "", company: idx.company >= 0 ? r[idx.company]?.trim() : "", role: idx.role >= 0 ? r[idx.role]?.trim() : "", category: idx.category >= 0 ? r[idx.category]?.trim() : "", phone: idx.phone >= 0 ? r[idx.phone]?.trim() : "" })).filter((r) => r.email || r.phone);
 
   async function submit() {
     setLoading(true);
-    const res = await fetch("/api/outreach", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ list, rows: data.map((r) => ({ ...r, name: r.name || r.email.split("@")[0] })) }) }).catch(() => null);
+    const res = await fetch("/api/outreach", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ list, rows: data.map((r) => ({ ...r, email: r.email || undefined, name: r.name || (r.email ? r.email.split("@")[0] : r.phone) })) }) }).catch(() => null);
     setLoading(false);
     if (!res || !res.ok) { toast({ title: "No se pudo importar", description: res ? await readError(res, "Error") : "Sin conexión", variant: "error" }); return; }
     const out = await res.json();
@@ -263,10 +263,10 @@ function ImportCsvModal({ open, onOpenChange, list }: { open: boolean; onOpenCha
   }
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Importar CSV" description="Pega las filas: Nombre, Empresa, Email (o un CSV con encabezados nombre / email / empresa / cargo / categoría / teléfono)." size="lg">
+    <Modal open={open} onOpenChange={onOpenChange} title="Importar CSV" description="Pega las filas: Nombre, Empresa, Email (o un CSV con encabezados nombre / email / teléfono / empresa / cargo / categoría). Cada contacto necesita email o teléfono." size="lg">
       <div className="space-y-4">
         <Textarea rows={10} value={text} onChange={(e) => setText(e.target.value)} placeholder={"Juan Diego, La Industria Inc, jd@laindustria.com\n…"} className="font-mono text-xs" />
-        <p className="text-xs text-ink-muted">{data.length} contactos con email detectados{hasHeader ? " (con encabezados)" : ""}.</p>
+        <p className="text-xs text-ink-muted">{data.length} contactos detectados ({data.filter((r) => r.email).length} con email, {data.filter((r) => !r.email).length} solo con teléfono){hasHeader ? " · con encabezados" : ""}.</p>
         <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button type="button" onClick={submit} loading={loading} disabled={!data.length}>Importar {data.length || ""}</Button>
@@ -278,7 +278,7 @@ function ImportCsvModal({ open, onOpenChange, list }: { open: boolean; onOpenCha
 
 // ─── Send invitation ──────────────────────────────────────
 
-function SendModal({ open, onOpenChange, categories, total, list }: { open: boolean; onOpenChange: (o: boolean) => void; categories: Category[]; total: number; list: string }) {
+function SendModal({ open, onOpenChange, categories, list }: { open: boolean; onOpenChange: (o: boolean) => void; categories: Category[]; list: string }) {
   const router = useRouter();
   const { toast } = useToast();
   const [subject, setSubject] = useState("");
@@ -291,10 +291,9 @@ function SendModal({ open, onOpenChange, categories, total, list }: { open: bool
 
   useEffect(() => {
     if (!open) return;
-    if (!selected.length) { setCount(total); return; }
-    const params = new URLSearchParams(); params.set("count", "1"); params.set("list", list); params.set("categories", selected.join(","));
+    const params = new URLSearchParams(); params.set("count", "1"); params.set("withEmail", "1"); params.set("list", list); if (selected.length) params.set("categories", selected.join(","));
     fetch(`/api/outreach?${params}`).then((r) => r.json()).then((d) => setCount(typeof d.total === "number" ? d.total : null)).catch(() => setCount(null));
-  }, [open, selected, total, list]);
+  }, [open, selected, list]);
 
   async function send(test: boolean) {
     setSending(test ? "test" : "all");
@@ -334,7 +333,7 @@ function SendModal({ open, onOpenChange, categories, total, list }: { open: bool
               })}
             </div>
           </div>
-          <p className="text-sm text-ink-secondary">Destinatarios: <strong>{count ?? "…"}</strong> contactos activos.</p>
+          <p className="text-sm text-ink-secondary">Destinatarios: <strong>{count ?? "…"}</strong> contactos activos con email.</p>
           <FormActions>
             <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button type="button" variant="secondary" onClick={() => send(true)} loading={sending === "test"} disabled={!ready}>Enviarme una prueba</Button>

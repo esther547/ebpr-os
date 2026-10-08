@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 const optText = z.string().trim().max(500).nullable().optional().transform((v) => (v === undefined ? undefined : v ? v : null));
 const updateSchema = z.object({
   name: z.string().trim().min(1, "El nombre es obligatorio").optional(),
-  email: z.string().trim().toLowerCase().email("Email inválido").optional(),
+  email: z.string().trim().toLowerCase().nullable().optional().transform((v) => (v === undefined ? undefined : v ? v : null)).refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "Email inválido"),
   company: optText,
   role: optText,
   category: optText,
@@ -26,8 +26,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
   if (!canManageOutreach(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const parsed = updateSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 });
-  const existing = await db.outreachContact.findUnique({ where: { id: params.id }, select: { id: true, email: true } });
+  const existing = await db.outreachContact.findUnique({ where: { id: params.id }, select: { id: true, email: true, phone: true } });
   if (!existing) return NextResponse.json({ error: "Contacto no encontrado" }, { status: 404 });
+  const nextEmail = parsed.data.email === undefined ? existing.email : parsed.data.email;
+  const nextPhone = parsed.data.phone === undefined ? existing.phone : parsed.data.phone;
+  if (!nextEmail && !nextPhone) return NextResponse.json({ error: "Pon un email o un teléfono" }, { status: 400 });
   if (parsed.data.email && parsed.data.email !== existing.email) {
     const clash = await db.outreachContact.findFirst({ where: { id: { not: params.id }, email: parsed.data.email }, select: { name: true } });
     if (clash) return NextResponse.json({ error: `${clash.name} ya usa este email` }, { status: 409 });

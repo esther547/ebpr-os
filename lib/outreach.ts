@@ -10,9 +10,10 @@ export const DEFAULT_LIST = "Music Industry";
 const BCC_BATCH = 50;
 const MAX_PER_SEND = 1500;
 
-export function outreachWhere(opts: { list?: string; search?: string | null; category?: string | null; categories?: string[]; tags?: string[]; includeInactive?: boolean }): Prisma.OutreachContactWhereInput {
+export function outreachWhere(opts: { list?: string; search?: string | null; category?: string | null; categories?: string[]; tags?: string[]; includeInactive?: boolean; withEmail?: boolean }): Prisma.OutreachContactWhereInput {
   const where: Prisma.OutreachContactWhereInput = { list: opts.list ?? DEFAULT_LIST };
   if (!opts.includeInactive) where.isActive = true;
+  if (opts.withEmail) where.email = { not: null };
   const search = opts.search?.trim();
   if (search) {
     where.OR = [
@@ -75,8 +76,8 @@ export async function sendOutreach(opts: { list?: string; subject: string; body:
     const ok = await sendEmail({ to: opts.testTo, replyTo: opts.replyTo, subject: `[Prueba] ${opts.subject}`, html, text, attachments });
     return ok ? { ok: true, recipients: 1, batches: 1, skipped: 0 } : { ok: false, error: "Gmail rechazó la prueba." };
   }
-  const contacts = await db.outreachContact.findMany({ where: outreachWhere({ list: opts.list, categories: opts.categories, tags: opts.tags }), select: { email: true }, orderBy: { name: "asc" } });
-  const emails = [...new Set(contacts.map((c) => c.email.trim().toLowerCase()).filter((e) => /\S+@\S+\.\S+/.test(e)))];
+  const contacts = await db.outreachContact.findMany({ where: outreachWhere({ list: opts.list, categories: opts.categories, tags: opts.tags, withEmail: true }), select: { email: true }, orderBy: { name: "asc" } });
+  const emails = [...new Set(contacts.map((c) => (c.email ?? "").trim().toLowerCase()).filter((e) => /\S+@\S+\.\S+/.test(e)))];
   if (!emails.length) return { ok: false, error: "No hay contactos activos que coincidan con el filtro." };
   const send = emails.slice(0, MAX_PER_SEND);
   let sent = 0, batches = 0;
