@@ -8,7 +8,7 @@ import { canManageJournalists, canManageOutreach } from "./permissions";
 export type ContactDatabase = { slug: string; label: string; list: string; description: string; ownersOnly: boolean };
 
 export const OUTREACH_DATABASES: ContactDatabase[] = [
-  { slug: "industria-musical", label: "Industria musical", list: "Music Industry", description: "Managers, disqueras, promotores, venues, DSPs, marcas y agencias. Solo visible para ti.", ownersOnly: true },
+  { slug: "industria-musical", label: "Industria musical", list: "Music Industry", description: "Managers, disqueras, promotores, venues, DSPs, marcas y agencias. Solo la ven Esther, Ana y Pao.", ownersOnly: true },
 ];
 
 export function databaseBySlug(slug: string): ContactDatabase | null {
