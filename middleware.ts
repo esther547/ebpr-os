@@ -15,6 +15,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/digest(.*)",   // weekly digest cron (protected by CRON_SECRET)
   "/api/pitch-reminders(.*)", // strategists' pitch reminders (protected by CRON_SECRET / SUPER_ADMIN)
   "/api/calendar(.*)", // iCal feed (protected by per-user token)
+  "/api/press-releases/inbox(.*)", // press@ inbox check (GET: CRON_SECRET / super admin; POST: press team session)
 ]);
 
 const isPortalRoute = createRouteMatcher(["/portal(.*)"]);
