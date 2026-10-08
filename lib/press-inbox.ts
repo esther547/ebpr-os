@@ -93,19 +93,30 @@ export async function processPressInbox(): Promise<InboxResult> {
   const result: InboxResult = { checked: 0, created: [], skipped: [] };
   const user = process.env.GMAIL_USER, pass = process.env.GMAIL_APP_PASSWORD;
   if (!user || !pass) return { ...result, error: "El correo no está configurado (GMAIL_USER / GMAIL_APP_PASSWORD)." };
-  const client = new ImapFlow({ host: "imap.gmail.com", port: 993, secure: true, auth: { user, pass }, logger: false });
-  const messages: { uid: number; mail: ParsedMail }[] = [];
-  try {
+  const t0 = Date.now(); const log = (m: string) => console.log(`[press-inbox] +${Date.now() - t0}ms ${m}`);
+  const client = new ImapFlow({ host: "imap.gmail.com", port: 993, secure: true, auth: { user, pass }, logger: false, connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 40000 });
+  const timeout = new Promise<InboxResult>((resolve) => setTimeout(() => resolve({ ...result, error: "IMAP tardó demasiado (más de 45 s). Revisa que IMAP esté activo en press@ y vuelve a intentar." }), 45000));
+  const work = (async (): Promise<InboxResult> => {
+    const allowed = await allowedSenders();
+    log(`connecting as ${user}; ${allowed.size} allowed senders`);
     await client.connect();
+    log("connected");
     const lock = await client.getMailboxLock("INBOX");
     try {
-      for await (const msg of client.fetch({ seen: false }, { uid: true, source: true })) {
-        if (!msg.source) continue;
-        messages.push({ uid: msg.uid, mail: await simpleParser(msg.source) });
-        if (messages.length >= 25) break;
+      // Server-side search: unseen, recent, from a known sender (cheap even on a huge inbox).
+      const since = new Date(Date.now() - 14 * 86400000);
+      const froms = [...allowed].map((a) => ({ from: a }));
+      const orTree = froms.length === 1 ? froms[0] : { or: froms };
+      const uids = (await client.search({ seen: false, since, ...orTree }, { uid: true })) || [];
+      log(`search → ${uids.length} message(s)`);
+      const pick = uids.slice(-10);
+      const messages: { uid: number; mail: ParsedMail }[] = [];
+      for (const uid of pick) {
+        const msg = await client.fetchOne(String(uid), { source: true }, { uid: true });
+        if (msg && msg.source) messages.push({ uid, mail: await simpleParser(msg.source) });
       }
+      log(`fetched ${messages.length}`);
       result.checked = messages.length;
-      const allowed = await allowedSenders();
       const admin = await db.user.findFirst({ where: { role: "SUPER_ADMIN", isActive: true }, select: { id: true, email: true }, orderBy: { createdAt: "asc" } });
       for (const { uid, mail } of messages) {
         const from = (mail.from?.value?.[0]?.address ?? "").toLowerCase();
@@ -140,12 +151,14 @@ export async function processPressInbox(): Promise<InboxResult> {
         }
         result.created.push({ id: release.id, title: release.title, client: matched?.name ?? null, from, testTo });
         await markSeen();
+        log(`created "${release.title}" (test → ${testTo ?? "no"})`);
       }
     } finally { lock.release(); }
     await client.logout();
-  } catch (err) {
-    try { await client.logout(); } catch { /* ignore */ }
-    return { ...result, error: err instanceof Error ? err.message : String(err) };
-  }
-  return result;
+    log("done");
+    return result;
+  })().catch((err) => { console.error("[press-inbox]", err); return { ...result, error: err instanceof Error ? err.message : String(err) }; });
+  const out = await Promise.race([work, timeout]);
+  try { client.close(); } catch { /* ignore */ }
+  return out;
 }
