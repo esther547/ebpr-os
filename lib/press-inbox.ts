@@ -12,7 +12,7 @@ import { releaseHtml } from "@/lib/press-release-send";
 import { PRESS_EXCLUDED_EMAILS } from "@/lib/permissions";
 
 /** Words/brands never allowed in a release we distribute (the writer's own company). */
-const STRIP_TERMS = ["GMS"];
+const STRIP_TERMS = ["GMS", "MS Agency", "GMS Agency"];
 const PORTAL_URL = process.env.NEXT_PUBLIC_APP_URL || "https://os.ebpublicrelations.com";
 
 export type InboxResult = {
@@ -31,27 +31,50 @@ export function cleanSubject(subject: string): string {
 }
 
 /** Forwarded email text → clean release body. */
-export function cleanForwardedRelease(raw: string, stripTerms: string[] = STRIP_TERMS): string {
-  let lines = raw.replace(/\r\n?/g, "\n").split("\n").map((l) => l.replace(/^(\s*>)+\s?/, "").replace(/\s+$/, ""));
-  // Drop everything above the forwarded-message marker, then its header block.
-  const marker = lines.findIndex((l) => /^-{2,}\s*(forwarded message|mensaje reenviado|original message|mensaje original)\s*-{0,}$/i.test(l.trim()) || /^begin forwarded message:?$/i.test(l.trim()) || /^-{2,}\s*(forwarded message|mensaje reenviado)/i.test(l.trim()));
+export function cleanForwardedRelease(raw: string, stripTerms: string[] = STRIP_TERMS, title = ""): string {
+  const INVISIBLE = /[\u00ad\u034f\u200b\u200c\u200d\u2060\ufeff]/g;
+  let lines = raw.replace(/\r\n?/g, "\n").replace(INVISIBLE, "").split("\n").map((l) => l.replace(/^(\s*>)+\s?/, "").replace(/\s+$/, ""));
+  // Drop everything above the forwarded-message marker and the header block that follows it (ends at the first blank line).
+  const marker = lines.findIndex((l) => /^-{2,}\s*(forwarded message|mensaje reenviado|original message|mensaje original)/i.test(l.trim()) || /^begin forwarded message:?$/i.test(l.trim()));
   if (marker >= 0) {
     lines = lines.slice(marker + 1);
-    while (lines.length && (/^\s*(from|de|date|fecha|subject|asunto|to|para|cc|cco|bcc|sent|enviado|enviada)\s*:/i.test(lines[0]) || !lines[0].trim())) lines.shift();
+    const blank = lines.findIndex((l) => !l.trim());
+    if (blank >= 0 && blank <= 12) lines = lines.slice(blank + 1);
   } else {
-    // Plain header block at the top (Outlook style)
     let i = 0; while (i < lines.length && /^\s*(from|de|date|fecha|subject|asunto|to|para|cc|sent|enviado)\s*:/i.test(lines[i])) i++;
     if (i > 1) lines = lines.slice(i);
   }
-  // Cut the signature block ("-- ") and device footers.
   const sig = lines.findIndex((l) => /^--\s*$/.test(l));
   if (sig >= 0) lines = lines.slice(0, sig);
-  const termRe = new RegExp(`\\b(${stripTerms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`, "i");
-  lines = lines.filter((l) => !termRe.test(l) && !/(enviado desde mi|sent from my|unsubscribe|darse de baja|cancelar suscripci[oó]n|view (this|in) browser|ver en el navegador)/i.test(l));
-  // Tidy whitespace: at most one blank line between paragraphs.
-  const out: string[] = [];
-  for (const l of lines) { if (!l.trim() && (!out.length || !out[out.length - 1].trim())) continue; out.push(l.trim() ? l : ""); }
-  return out.join("\n").trim();
+  const termRe = new RegExp(`(^|[^\\p{L}])(${stripTerms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})([^\\p{L}]|$)`, "iu");
+  const junk = (l: string) =>
+    termRe.test(l) ||
+    /(enviado desde mi|sent from my|unsubscribe|darse de baja|cancelar (la )?suscripci[oó]n|si no desea recibir|view (this|in) browser|ver en el navegador|comunicado distribuido por|distributed by)/i.test(l) ||
+    /^\*?\s*(comunicado de prensa|press release|nota de prensa)\s*\*?$/i.test(l.trim()) ||
+    /^<?https?:\/\/\S+>?$/i.test(l.trim()) ||
+    /^[\w.+-]+@[\w.-]+\.\w+\s*(<[^>]*>)?$/.test(l.trim());
+  // A distributor credit ("Comunicado distribuido por X para Y.") may wrap onto following lines: drop them up to the blank line.
+  const kept: string[] = []; let skipping = false;
+  for (const l of lines) {
+    if (skipping) { if (!l.trim()) skipping = false; continue; }
+    if (/(comunicado distribuido por|distributed by)/i.test(l)) { skipping = true; continue; }
+    if (!junk(l)) kept.push(l);
+  }
+  lines = kept.map((l) => l.replace(/<https?:\/\/[^>\s]+>/g, "").replace(/\s{2,}/g, " ").replace(/^\*+|\*+$/g, "").trim());
+  // Unwrap hard-wrapped paragraphs: consecutive lines form one paragraph when they read as flowing text.
+  const paras: string[] = []; let block: string[] = [];
+  const flush = () => { if (!block.length) return; const avg = block.reduce((a, l) => a + l.length, 0) / block.length; paras.push(block.length > 1 && avg > 45 ? block.join(" ").replace(/\s+/g, " ") : block.join("\n")); block = []; };
+  for (const l of lines) { if (!l.trim()) flush(); else block.push(l); }
+  flush();
+  let out = paras.filter((p) => p.trim());
+  const norm = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  // The headline usually repeats the subject (sometimes with a word or two of difference): keep it once, as the title.
+  if (title && out.length) {
+    const a = new Set(norm(out[0]).split(" ")), b = new Set(norm(title).split(" "));
+    const common = [...a].filter((w) => b.has(w)).length;
+    if (common >= 0.8 * Math.max(a.size, b.size)) out = out.slice(1);
+  }
+  return out.join("\n\n").trim();
 }
 
 /** Pick the client the release is about, by name, if any. */
@@ -89,6 +112,30 @@ function testEmailHtml(release: { id: string; title: string; content: string }, 
 }
 
 /** Read press@ and turn each forwarded release into a pending PressRelease + a test email. */
+/** Diagnostic: raw text of the latest messages from known senders (seen or not), nothing is created. */
+export async function peekPressInbox(limit = 3): Promise<{ from: string; subject: string; date: string | null; text: string; html: string | null }[] | { error: string }> {
+  const user = process.env.GMAIL_USER, pass = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !pass) return { error: "mail not configured" };
+  const client = new ImapFlow({ host: "imap.gmail.com", port: 993, secure: true, auth: { user, pass }, logger: false, connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 40000 });
+  try {
+    const allowed = await allowedSenders();
+    await client.connect();
+    const lock = await client.getMailboxLock("INBOX");
+    try {
+      const froms = [...allowed].map((a) => ({ from: a }));
+      const uids = (await client.search({ since: new Date(Date.now() - 14 * 86400000), ...(froms.length === 1 ? froms[0] : { or: froms }) }, { uid: true })) || [];
+      const out: { from: string; subject: string; date: string | null; text: string; html: string | null }[] = [];
+      for (const uid of uids.slice(-limit)) {
+        const msg = await client.fetchOne(String(uid), { source: true }, { uid: true });
+        if (!msg || !msg.source) continue;
+        const mail = await simpleParser(msg.source);
+        out.push({ from: mail.from?.value?.[0]?.address ?? "", subject: mail.subject ?? "", date: mail.date?.toISOString() ?? null, text: mail.text ?? "", html: mail.html ? String(mail.html) : null });
+      }
+      return out;
+    } finally { lock.release(); await client.logout(); }
+  } catch (err) { try { client.close(); } catch { /* ignore */ } return { error: err instanceof Error ? err.message : String(err) }; }
+}
+
 export async function processPressInbox(): Promise<InboxResult> {
   const result: InboxResult = { checked: 0, created: [], skipped: [] };
   const user = process.env.GMAIL_USER, pass = process.env.GMAIL_APP_PASSWORD;
@@ -125,20 +172,18 @@ export async function processPressInbox(): Promise<InboxResult> {
         if (!allowed.has(from)) { result.skipped.push({ from, subject, reason: `remitente no autorizado (${from})` }); await markSeen(); continue; }
         const text = (mail.text ?? "").trim() || (mail.html ? String(mail.html).replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&") : "");
         let title = cleanSubject(subject);
-        let content = cleanForwardedRelease(text);
+        let content = cleanForwardedRelease(text, STRIP_TERMS, title);
         if (!content) { result.skipped.push({ from, subject, reason: "correo sin texto" }); await markSeen(); continue; }
         const firstLine = content.split("\n")[0].trim();
         if ((!title || /^(comunicado|press release|nota de prensa|noticia)$/i.test(title)) && firstLine.length <= 140) { title = firstLine; content = content.split("\n").slice(1).join("\n").trim(); }
         if (!title) title = "Comunicado sin título";
-        // The headline usually repeats the subject as the first line: keep it once (as the title).
-        if (content.split("\n")[0].trim().toLowerCase() === title.toLowerCase()) content = content.split("\n").slice(1).join("\n").trim();
         const dup = await db.pressRelease.findFirst({ where: { sourceSubject: subject, sourceFrom: from, createdAt: { gte: new Date(Date.now() - 7 * 86400000) } }, select: { id: true } });
         if (dup) { result.skipped.push({ from, subject, reason: "ya se había recibido este mismo correo" }); await markSeen(); continue; }
         const matched = await matchClient(`${title}\n${content}`);
         const sender = await db.user.findFirst({ where: { email: from }, select: { id: true, email: true } });
         const creatorId = sender?.id ?? admin?.id;
         if (!creatorId) { result.skipped.push({ from, subject, reason: "no hay usuario para registrarlo" }); continue; }
-        const release = await db.pressRelease.create({ data: { title, content, status: "PENDING_APPROVAL", clientId: matched?.id ?? null, createdById: creatorId, sourceFrom: from, sourceSubject: subject, sourceReceivedAt: mail.date ?? new Date(), tags: [] }, select: { id: true, title: true, content: true } });
+        const release = await db.pressRelease.create({ data: { title, content, status: "PENDING_APPROVAL", clientId: matched?.id ?? null, createdById: creatorId, sourceFrom: from, sourceSubject: subject, sourceReceivedAt: mail.date ?? new Date(), sourceRaw: text.slice(0, 200_000), tags: [] }, select: { id: true, title: true, content: true } });
         const images = (mail.attachments ?? []).filter((a) => /^image\//.test(a.contentType)).length;
         let testTo: string | null = null;
         if (isEmailConfigured()) {
@@ -161,4 +206,19 @@ export async function processPressInbox(): Promise<InboxResult> {
   const out = await Promise.race([work, timeout]);
   try { client.close(); } catch { /* ignore */ }
   return out;
+}
+
+/** Re-clean a release from the email text we stored and send the test again (after improving the cleaner). */
+export async function recleanRelease(id: string, raw?: string): Promise<{ ok: boolean; error?: string; title?: string; testTo?: string | null }> {
+  const r = await db.pressRelease.findUnique({ where: { id }, select: { id: true, sourceRaw: true, sourceSubject: true, sourceFrom: true, client: { select: { name: true } }, createdBy: { select: { email: true } } } });
+  if (!r) return { ok: false, error: "release not found" };
+  const text = raw ?? r.sourceRaw ?? "";
+  if (!text) return { ok: false, error: "no raw text stored" };
+  const title = cleanSubject(r.sourceSubject ?? "") || "Comunicado";
+  const content = cleanForwardedRelease(text, STRIP_TERMS, title);
+  const release = await db.pressRelease.update({ where: { id }, data: { title, content, sourceRaw: raw ?? r.sourceRaw }, select: { id: true, title: true, content: true } });
+  const testTo = r.createdBy.email;
+  const ok = isEmailConfigured() ? await sendEmail({ to: testTo, subject: `[PRUEBA] ${release.title}`, html: testEmailHtml(release, r.client?.name ?? null, r.sourceFrom ?? "", 0), text: `${release.title}\n\n${release.content}` }) : false;
+  if (ok) await db.pressRelease.update({ where: { id }, data: { testSentAt: new Date() } });
+  return { ok: true, title, testTo: ok ? testTo : null };
 }

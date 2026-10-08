@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { canManagePressReleases } from "@/lib/permissions";
 import { authorizeCron, NO_STORE } from "@/lib/cron-auth";
-import { processPressInbox } from "@/lib/press-inbox";
+import { peekPressInbox, processPressInbox, recleanRelease } from "@/lib/press-inbox";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -21,6 +21,9 @@ export async function POST() {
 export async function GET(req: NextRequest) {
   const denied = await authorizeCron(req);
   if (denied) return denied;
+  const reclean = req.nextUrl.searchParams.get("reclean");
+  if (reclean) return NextResponse.json(await recleanRelease(reclean), { headers: NO_STORE });
+  if (req.nextUrl.searchParams.get("peek") === "1") return NextResponse.json(await peekPressInbox(Number(req.nextUrl.searchParams.get("limit") || 3)), { headers: NO_STORE });
   const result = await processPressInbox();
   return NextResponse.json(result, { status: result.error ? 400 : 200, headers: NO_STORE });
 }
