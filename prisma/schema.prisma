@@ -583,6 +583,9 @@ model RunnerAssignment {
   isGold            Boolean        @default(false)
   /// A proposal, not a confirmed opportunity (imported doc rows marked "Pending"): never counts as a goal.
   isProposal        Boolean        @default(false)
+  /// Cancelled last minute by the client: the runner is freed, but it stays in the talent's agenda as
+  /// \"No asistió – Cancelación last minute\" and still counts toward the goal (Esther, Oct 8 2026).
+  cancelLastMinute  Boolean        @default(false)
 
   // Auto-scheduling
   autoAssigned Boolean   @default(false) // true when lib/runner-assign.ts picked the runner

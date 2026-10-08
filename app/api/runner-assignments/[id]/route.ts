@@ -35,6 +35,7 @@ const updateSchema = z.object({
   notes: z.string().nullable().optional(),
   internalNotes: z.string().nullable().optional(),
   status: z.enum(["SCHEDULED", "CONFIRMED", "COMPLETED", "CANCELLED"]).optional(),
+  cancelLastMinute: z.boolean().optional(),
 });
 
 type Params = { params: { id: string } };
@@ -73,6 +74,7 @@ async function handleUpdate(req: NextRequest, { params }: Params) {
 
   const d = parsed.data;
   const data: Record<string, unknown> = {};
+  if (d.cancelLastMinute !== undefined) { data.cancelLastMinute = d.cancelLastMinute; if (d.cancelLastMinute) data.status = "CANCELLED"; }
 
   if (d.runnerId !== undefined) {
     if (d.runnerId) {

@@ -15,7 +15,7 @@ import { AgendaMonthSection, type PeriodOption } from "./agenda-month-section";
 import { MONTH_NAMES_ES } from "@/lib/agenda-months";
 
 type AgendaItem = React.ComponentProps<typeof AgendaMonthSection>["items"][number];
-type UnitState = "scheduled" | "closed_pending" | "executed" | "cancelled";
+type UnitState = "scheduled" | "closed_pending" | "executed" | "cancelled" | "no_show";
 export type GoalOnlyUnit = { goalId: string; title: string; state: UnitState; coversPeriod: boolean; periodNote: string | null; periodId: string | null; closedAt: string | null; executedAt: string | null; goalValue: number };
 export type PeriodCard = PeriodOption & { refYear: number; refMonth: number; note: string | null; achieved: number; closedPending: number; executed: number; missing: number; toReview: number; items: AgendaItem[]; goalOnly: GoalOnlyUnit[] };
 
@@ -24,6 +24,7 @@ const STATE: Record<UnitState, { label: string; tone: BadgeTone }> = {
   closed_pending: { label: "Cerrada · pendiente de ejecución", tone: "warning" },
   executed: { label: "Ejecutada", tone: "success" },
   cancelled: { label: "Cancelada", tone: "danger" },
+  no_show: { label: "No asistió – Cancelación last minute", tone: "warning" },
 };
 const monthName = (m: number) => `${MONTH_NAMES_ES[m - 1].charAt(0)}${MONTH_NAMES_ES[m - 1].slice(1).toLowerCase()}`;
 

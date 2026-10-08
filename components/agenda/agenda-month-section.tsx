@@ -30,7 +30,9 @@ type AgendaItem = {
   internalNotes?: string | null;
   runner: { id: string; name: string } | null;
   /** Service-period data (lib/service-periods.ts). */
-  unitState?: "scheduled" | "closed_pending" | "executed" | "cancelled";
+  unitState?: "scheduled" | "closed_pending" | "executed" | "cancelled" | "no_show";
+  /** Cancelled last minute by the client: shown as "No asistió", still counts. */
+  cancelLastMinute?: boolean;
   periodId?: string | null;
   coversPeriod?: boolean;
   periodNote?: string | null;
@@ -70,6 +72,7 @@ const UNIT_STATE: Record<string, { label: string; tone: BadgeTone }> = {
   closed_pending: { label: "Cerrada · pendiente de ejecución", tone: "warning" },
   executed: { label: "Ejecutada", tone: "success" },
   cancelled: { label: "Cancelada", tone: "danger" },
+  no_show: { label: "No asistió – Cancelación last minute", tone: "warning" },
 };
 
 const STATUS_TONES: Record<string, BadgeTone> = {
@@ -146,7 +149,7 @@ function AgendaItemRow({ item, seq, seqLabel, clientId, runners, periods, patchC
   const router = useRouter();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
-  const [confirm, setConfirm] = useState<"COMPLETED" | "CANCELLED" | null>(null);
+  const [confirm, setConfirm] = useState<"COMPLETED" | "CANCELLED" | "LAST_MINUTE" | null>(null);
   const [busy, setBusy] = useState(false);
   const [covers, setCovers] = useState(false);
   const [coverNote, setCoverNote] = useState(item.periodNote ?? "");
@@ -160,16 +163,17 @@ function AgendaItemRow({ item, seq, seqLabel, clientId, runners, periods, patchC
     router.refresh();
   }
 
-  async function setStatus(status: "COMPLETED" | "CANCELLED") {
+  async function setStatus(status: "COMPLETED" | "CANCELLED" | "LAST_MINUTE") {
     if (!clientId) return;
     setBusy(true);
     try {
+      const body = status === "LAST_MINUTE" ? { status: "CANCELLED", cancelLastMinute: true } : { status, cancelLastMinute: false };
       const res = await fetch(`/api/clients/${clientId}/agenda/${item.id}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) { toast({ title: apiErrorMessage(data, "No se pudo actualizar"), variant: "error" }); return; }
-      toast({ title: status === "COMPLETED" ? "Pauta completada" : "Pauta cancelada", variant: "success" });
+      toast({ title: status === "COMPLETED" ? "Pauta completada" : status === "LAST_MINUTE" ? "Registrada como cancelación last minute del cliente" : "Pauta cancelada", variant: "success" });
       router.refresh();
     } finally { setBusy(false); setConfirm(null); }
   }
@@ -262,7 +266,7 @@ function AgendaItemRow({ item, seq, seqLabel, clientId, runners, periods, patchC
           </div>
         ) : (
           <Badge size="xs" tone={STATUS_TONES[item.status] ?? "neutral"} dot>
-            {STATUS_LABELS[item.status] ?? item.status}
+            {item.status === "CANCELLED" && item.cancelLastMinute ? "No asistió – Cancelación last minute" : STATUS_LABELS[item.status] ?? item.status}
           </Badge>
         )}
       </Td>
@@ -326,6 +330,9 @@ function AgendaItemRow({ item, seq, seqLabel, clientId, runners, periods, patchC
               {item.status !== "COMPLETED" && (
                 <DropdownMenuItem icon={<Check />} onSelect={() => setConfirm("COMPLETED")}>Marcar completada</DropdownMenuItem>
               )}
+              {!(item.status === "CANCELLED" && item.cancelLastMinute) && (
+                <DropdownMenuItem icon={<XCircle />} onSelect={() => setConfirm("LAST_MINUTE")}>Cancelación last minute del cliente</DropdownMenuItem>
+              )}
               {item.status !== "CANCELLED" && (
                 <DropdownMenuItem icon={<XCircle />} destructive onSelect={() => setConfirm("CANCELLED")}>Cancelar pauta</DropdownMenuItem>
               )}
@@ -362,9 +369,9 @@ function AgendaItemRow({ item, seq, seqLabel, clientId, runners, periods, patchC
           <ConfirmModal
             open={!!confirm}
             onOpenChange={(o) => { if (!o) setConfirm(null); }}
-            title={confirm === "COMPLETED" ? "¿Marcar la pauta como completada?" : "¿Cancelar esta pauta?"}
-            description={item.eventName ?? undefined}
-            confirmLabel={confirm === "COMPLETED" ? "Completar" : "Cancelar pauta"}
+            title={confirm === "COMPLETED" ? "¿Marcar la pauta como completada?" : confirm === "LAST_MINUTE" ? "¿Cancelación last minute del cliente?" : "¿Cancelar esta pauta?"}
+            description={confirm === "LAST_MINUTE" ? `${item.eventName}. El runner queda liberado y la pauta sale de su semana. En la agenda del talento queda como «No asistió – Cancelación last minute» y sigue contando para la meta, porque la cancelación no fue nuestra.` : confirm === "CANCELLED" ? `${item.eventName}. El runner queda liberado y la pauta sale de su semana. En la agenda del talento queda como cancelada y no cuenta para la meta.` : item.eventName ?? undefined}
+            confirmLabel={confirm === "COMPLETED" ? "Completar" : confirm === "LAST_MINUTE" ? "Registrar" : "Cancelar pauta"}
             destructive={confirm === "CANCELLED"}
             loading={busy}
             onConfirm={async () => { if (confirm) await setStatus(confirm); }}

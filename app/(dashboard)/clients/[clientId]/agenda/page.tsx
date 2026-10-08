@@ -70,6 +70,7 @@ export default async function AgendaPage({ params }: Props) {
     monthNumber: item.monthNumber,
     createdAt: item.createdAt,
     isProposal: item.isProposal,
+    cancelLastMinute: item.cancelLastMinute,
     reportMonth: (item.deliverableId ? goalMonths.get(item.deliverableId) : null) ?? (item.agendaMonth && item.agendaYear ? { month: item.agendaMonth, year: item.agendaYear } : null),
     runner: item.runner ? { id: item.runner.id, name: item.runner.name } : null,
   }));
@@ -79,7 +80,7 @@ export default async function AgendaPage({ params }: Props) {
   const unitByPauta = new Map(board.periods.flatMap((pp) => pp.units).concat(board.pending).filter((u) => u.pautaId).map((u) => [u.pautaId!, u]));
   const withUnit = (it: (typeof items)[number]) => {
     const u = unitByPauta.get(it.id);
-    return { ...it, unitState: u?.state, periodId: u?.periodId ?? null, coversPeriod: u?.coversPeriod ?? false, periodNote: u?.periodNote ?? null, goalValue: u?.goalValue ?? 1, needsReview: u?.needsReview ?? false, isProposal: it.isProposal, isGold: u?.isGold ?? false };
+    return { ...it, unitState: u?.state, periodId: u?.periodId ?? null, coversPeriod: u?.coversPeriod ?? false, periodNote: u?.periodNote ?? null, goalValue: u?.goalValue ?? 1, needsReview: u?.needsReview ?? false, isProposal: it.isProposal, isGold: u?.isGold ?? false, cancelLastMinute: it.cancelLastMinute };
   };
   const goalOnly = (units: typeof board.pending): GoalOnlyUnit[] =>
     units.filter((u) => !u.pautaId && u.goalId).map((u) => ({ goalId: u.goalId!, title: u.title, state: u.state, coversPeriod: u.coversPeriod, periodNote: u.periodNote, periodId: u.periodId, closedAt: u.closedAt?.toISOString() ?? null, executedAt: u.executedAt?.toISOString() ?? null, goalValue: u.goalValue }));

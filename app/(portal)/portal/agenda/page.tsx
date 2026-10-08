@@ -19,8 +19,9 @@ const UNIT_LABELS: Record<string, string> = {
   closed_pending: "Confirmed · pending execution",
   executed: "Executed",
   cancelled: "Cancelled",
+  no_show: "No asistió – Cancelación last minute",
 };
-const UNIT_TONES: Record<string, BadgeTone> = { scheduled: "neutral", closed_pending: "warning", executed: "success", cancelled: "danger" };
+const UNIT_TONES: Record<string, BadgeTone> = { scheduled: "neutral", closed_pending: "warning", executed: "success", cancelled: "danger", no_show: "warning" };
 
 const STATUS_LABELS: Record<string, string> = {
   SCHEDULED: "Goal",
@@ -71,7 +72,8 @@ export default async function PortalAgendaPage({ searchParams }: { searchParams?
 
   // Calendar view: the same pautas grouped by the month they actually happen (upcoming months first).
   const byMonth = new Map<string, typeof items>();
-  for (const it of items.filter((i) => i.status !== "CANCELLED")) {
+  // Cancelled activities stay on the talent's agenda (marked), they are only removed from the runner's week.
+  for (const it of items) {
     const d = new Date(it.eventDate);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     byMonth.set(key, [...(byMonth.get(key) ?? []), it]);
@@ -259,7 +261,7 @@ function AgendaRow({
           {unit?.coversPeriod && <Badge tone="purple" size="xs">Covers the full month</Badge>}
           {unit && !unit.coversPeriod && unit.goalValue > 1 && <Badge tone="purple" size="xs">Counts as {unit.goalValue} goals</Badge>}
           <Badge tone={unit ? UNIT_TONES[unit.state] : STATUS_TONES[item.status] ?? "neutral"} dot className="shrink-0">
-            {unit ? UNIT_LABELS[unit.state] : STATUS_LABELS[item.status] ?? item.status}
+            {unit ? UNIT_LABELS[unit.state] : item.status === "CANCELLED" && item.cancelLastMinute ? "No asistió – Cancelación last minute" : STATUS_LABELS[item.status] ?? item.status}
           </Badge>
         </div>
       </div>

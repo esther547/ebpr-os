@@ -24,7 +24,7 @@ import { dayKeyInTz } from "@/components/runners/miami-time";
 export type PeriodDTO = { id: string; number: number; label: string; refYear: number; refMonth: number; target: number; note: string | null };
 
 /** Status of a unit inside its period, as the team and the client read it. */
-export type UnitState = "scheduled" | "closed_pending" | "executed" | "cancelled";
+export type UnitState = "scheduled" | "closed_pending" | "executed" | "cancelled" | "no_show";
 
 export type PeriodUnit = {
   key: string;
@@ -65,7 +65,9 @@ export async function listPeriods(clientId: string): Promise<PeriodDTO[]> {
   return db.servicePeriod.findMany({ where: { clientId }, select: periodSelect, orderBy: { number: "asc" } });
 }
 
-function stateOf(status: string | null | undefined, pautaStatus: string | null | undefined, hasGoal: boolean): UnitState {
+function stateOf(status: string | null | undefined, pautaStatus: string | null | undefined, hasGoal: boolean, lastMinute = false): UnitState {
+  // Client cancelled at the last minute: not our fault, so it counts; the agenda shows "No asistió".
+  if (pautaStatus === "CANCELLED" && lastMinute) return "no_show";
   if (status === "CANCELLED" || pautaStatus === "CANCELLED") return "cancelled";
   if (hasGoal) {
     // Executed when the goal is completed OR the pauta itself was marked done (runner / team).
@@ -81,8 +83,8 @@ export async function clientUnits(clientId: string): Promise<PeriodUnit[]> {
   const [pautas, goals] = await Promise.all([
     db.runnerAssignment.findMany({
       // Proposals ("Pending" rows) are not confirmed opportunities: they never count.
-      where: { clientId, status: { not: "CANCELLED" }, isProposal: false },
-      select: { id: true, deliverableId: true, eventName: true, eventDate: true, status: true, periodId: true, coversPeriod: true, periodNote: true, goalValue: true, periodSource: true, isGold: true, createdAt: true },
+      where: { clientId, isProposal: false, OR: [{ status: { not: "CANCELLED" } }, { cancelLastMinute: true }] },
+      select: { id: true, deliverableId: true, eventName: true, eventDate: true, status: true, cancelLastMinute: true, periodId: true, coversPeriod: true, periodNote: true, goalValue: true, periodSource: true, isGold: true, createdAt: true },
       orderBy: [{ eventDate: "asc" }, { createdAt: "asc" }],
     }),
     db.deliverable.findMany({
@@ -104,7 +106,7 @@ export async function clientUnits(clientId: string): Promise<PeriodUnit[]> {
       eventDate: p.eventDate,
       closedAt: g?.closedAt ?? null,
       executedAt: g?.completedAt ?? (p.status === "COMPLETED" ? p.eventDate : null),
-      state: stateOf(g?.status, p.status, !!g),
+      state: stateOf(g?.status, p.status, !!g, p.cancelLastMinute),
       coversPeriod: g?.coversPeriod ?? p.coversPeriod,
       periodNote: g?.periodNote ?? p.periodNote,
       periodId: g?.periodId ?? p.periodId,

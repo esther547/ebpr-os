@@ -74,7 +74,7 @@ export type AgendaRow = {
   hora: string;
   lugar: string;
   item: string;
-  estado: "Goal" | "Pending" | "Passed by client" | "GOLD";
+  estado: "Goal" | "Pending" | "Passed by client" | "GOLD" | "No asistió – Cancelación last minute";
 };
 
 export type AgendaSection = {
@@ -103,10 +103,11 @@ type AssignmentLike = {
   runnerId: string | null;
   isGold?: boolean;
   isProposal?: boolean;
+  cancelLastMinute?: boolean;
 };
 
 function estadoFor(a: AssignmentLike, now: Date): AgendaRow["estado"] {
-  if (a.status === "CANCELLED") return "Passed by client";
+  if (a.status === "CANCELLED") return a.cancelLastMinute ? "No asistió – Cancelación last minute" : "Passed by client";
   if (a.isGold) return "GOLD";
   if (a.isProposal) return "Pending";
   return "Goal";
@@ -173,6 +174,7 @@ export async function buildAgendaSections(clientId: string, now = new Date()): P
         deliverableId: true,
         isGold: true,
         isProposal: true,
+        cancelLastMinute: true,
       },
     }),
     db.servicePeriod.findMany({ where: { clientId }, orderBy: { number: "asc" }, select: { id: true, number: true, label: true, refMonth: true, target: true } }),
@@ -198,9 +200,9 @@ export async function buildAgendaSections(clientId: string, now = new Date()): P
     .map((p) => {
       const monthName = MONTH_NAMES_ES[p.refMonth - 1];
       const month = p.refMonth;
-      const rows = assignments.filter((a) => a.status !== "CANCELLED" && a.periodId === p.id).map((a, i) => { const g = a.deliverableId ? linkedGoal.get(a.deliverableId) : undefined; const r = row({ ...a, isGold: a.isGold || !!g?.isGold }, i); return { ...r, value: a.coversPeriod || g?.coversPeriod ? p.target : Math.max(a.goalValue ?? 1, g?.goalValue ?? 1) }; });
+      const rows = assignments.filter((a) => (a.status !== "CANCELLED" || a.cancelLastMinute) && a.periodId === p.id).map((a, i) => { const g = a.deliverableId ? linkedGoal.get(a.deliverableId) : undefined; const r = row({ ...a, isGold: a.isGold || !!g?.isGold }, i); return { ...r, value: a.coversPeriod || g?.coversPeriod ? p.target : Math.max(a.goalValue ?? 1, g?.goalValue ?? 1) }; });
       // "Passed by client" rows stay on record, listed under the block of their calendar month.
-      for (const a of assignments.filter((x) => x.status === "CANCELLED" && Number(dayKeyInTz(x.eventDate).split("-")[1]) === month)) rows.push({ ...row(a, rows.length), estado: "Passed by client", value: 0 });
+      for (const a of assignments.filter((x) => x.status === "CANCELLED" && !x.cancelLastMinute && Number(dayKeyInTz(x.eventDate).split("-")[1]) === month)) rows.push({ ...row(a, rows.length), estado: "Passed by client", value: 0 });
       for (const g of goalOnly.filter((x) => x.periodId === p.id)) {
         const when = g.dueDate ?? g.closedAt;
         rows.push({ number: rows.length + 1, fecha: when ? formatFecha(dayKeyInTz(when)) : "—", hora: formatHora(g.eventTime), lugar: joinLines(g.venueName, g.venueAddress), item: g.title, estado: g.isGold ? "GOLD" : "Goal", value: g.coversPeriod ? p.target : g.goalValue });

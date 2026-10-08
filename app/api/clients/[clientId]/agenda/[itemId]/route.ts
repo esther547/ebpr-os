@@ -46,6 +46,8 @@ const patchSchema = z.object({
   status: z
     .enum(["SCHEDULED", "CONFIRMED", "COMPLETED", "CANCELLED"])
     .optional(),
+  /** true = the client cancelled last minute: runner freed, stays in the talent's agenda as "No asistió", still counts. */
+  cancelLastMinute: z.boolean().optional(),
 });
 
 // PATCH — update a single agenda item
@@ -131,6 +133,8 @@ export async function PATCH(
   if (d.isProposal !== undefined) updateData.isProposal = d.isProposal;
   if (d.agendaSequence !== undefined) updateData.agendaSequence = d.agendaSequence;
   if (d.status !== undefined) updateData.status = d.status;
+  if (d.cancelLastMinute !== undefined) { updateData.cancelLastMinute = d.cancelLastMinute; if (d.cancelLastMinute) updateData.status = "CANCELLED"; }
+  if (d.status !== undefined && d.status !== "CANCELLED" && d.cancelLastMinute === undefined) updateData.cancelLastMinute = false;
 
   const timeChanged =
     d.eventDate !== undefined || d.eventTime !== undefined || d.arrivalTime !== undefined;

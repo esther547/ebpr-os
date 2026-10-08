@@ -44,6 +44,7 @@ const MAX_ROWS_PER_RUN = 40;
 
 type Pauta = {
   id: string;
+  cancelLastMinute?: boolean;
   eventDate: Date;
   eventTime: Date | null;
   eventName: string;
@@ -108,7 +109,7 @@ function dayKeyFromFecha(text: string): string | null {
 }
 
 function estadoFor(a: Pauta, now: Date): string {
-  if (a.status === "CANCELLED") return "Passed by client";
+  if (a.status === "CANCELLED") return a.cancelLastMinute ? "No asistió – Cancelación last minute" : "Passed by client";
   if (!a.runnerId && a.eventDate.getTime() > now.getTime()) return "Pending";
   return "Goal";
 }
@@ -173,7 +174,7 @@ export async function appendNewPautasToDoc(clientId: string, opts: { dryRun?: bo
     orderBy: [{ eventDate: "asc" }, { createdAt: "asc" }],
     select: {
       id: true, eventDate: true, eventTime: true, eventName: true, venueName: true, venueAddress: true,
-      notes: true, status: true, runnerId: true, createdAt: true, deliverableId: true, agendaMonth: true, agendaYear: true,
+      notes: true, status: true, cancelLastMinute: true, runnerId: true, createdAt: true, deliverableId: true, agendaMonth: true, agendaYear: true,
     },
   });
 
