@@ -103,12 +103,30 @@ async function allowedSenders(): Promise<Set<string>> {
   return set;
 }
 
-function testEmailHtml(release: { id: string; title: string; content: string }, clientName: string | null, from: string, imageCount: number): string {
+/** Photo URLs in the email body (hosted by the writer's mailer), skipping trackers and logos. */
+export function extractImages(html: string | null): string[] {
+  if (!html) return [];
+  const out: string[] = [];
+  for (const m of html.matchAll(/<img\b[^>]*>/gi)) {
+    const tag = m[0]; const src = tag.match(/\ssrc=["']([^"']+)["']/i)?.[1]; if (!src || !/^https?:\/\//.test(src)) continue;
+    if (/list-manage|open\.php|track|pixel|\.gif(\?|$)/i.test(src)) continue;
+    const w = Number(tag.match(/\swidth=["']?(\d+)/i)?.[1] ?? 0);
+    if (w && w < 300) continue; // logos / icons
+    if (!out.includes(src)) out.push(src.replace(/&amp;/g, "&"));
+  }
+  return out.slice(0, 8);
+}
+
+export function htmlToText(html: string): string {
+  return html.replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|tr|h\d|li)>/gi, "\n\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+}
+
+function testEmailHtml(release: { id: string; title: string; content: string; images?: string[] }, clientName: string | null, from: string, imageCount: number): string {
   const note = `<div style="max-width:640px;margin:0 auto 14px;background:#fff7e6;border:1px solid #f5d08a;border-radius:8px;padding:14px 18px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;color:#5b4400">
   <strong>PRUEBA · así lo recibirían los medios.</strong><br>Comunicado recibido en press@ de ${esc(from)}${clientName ? ` · cliente detectado: <strong>${esc(clientName)}</strong>` : " · sin cliente asociado"}.${imageCount ? `<br>El correo original traía ${imageCount} imagen(es); por ahora el comunicado sale solo con texto.` : ""}
-  <br><br>Para difundirlo a la base de Medios: <a href="${PORTAL_URL}/press-releases" style="color:#0a0a0a;font-weight:600">Press Releases</a> → «${esc(release.title)}» → <strong>Send to journalists</strong>. Ahí mismo puedes editar el texto o el título antes de enviarlo.
+  ${release.images?.length ? `<br>Lleva ${release.images.length} foto(s) del comunicado original.` : ""}<br><br>Para difundirlo a la base de Medios: <a href="${PORTAL_URL}/press-releases" style="color:#0a0a0a;font-weight:600">Press Releases</a> → «${esc(release.title)}» → <strong>Send to journalists</strong>. Ahí mismo puedes editar el texto o el título antes de enviarlo.
 </div>`;
-  return releaseHtml(release.title, release.content, clientName ?? "EB Public Relations").replace('<div style="max-width:640px;margin:0 auto;background:#fff">', `${note}<div style="max-width:640px;margin:0 auto;background:#fff">`);
+  return releaseHtml(release.title, release.content, clientName ?? "EB Public Relations", release.images ?? []).replace('<div style="max-width:640px;margin:0 auto;background:#fff">', `${note}<div style="max-width:640px;margin:0 auto;background:#fff">`);
 }
 
 /** Read press@ and turn each forwarded release into a pending PressRelease + a test email. */
@@ -170,7 +188,9 @@ export async function processPressInbox(): Promise<InboxResult> {
         const subject = mail.subject ?? "";
         const markSeen = () => client.messageFlagsAdd({ uid }, ["\\Seen"], { uid: true }).catch(() => null);
         if (!allowed.has(from)) { result.skipped.push({ from, subject, reason: `remitente no autorizado (${from})` }); await markSeen(); continue; }
-        const text = (mail.text ?? "").trim() || (mail.html ? String(mail.html).replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&") : "");
+        const html = mail.html ? String(mail.html) : null;
+        const text = (mail.text ?? "").trim() || (html ? htmlToText(html) : "");
+        const imageUrls = extractImages(html);
         let title = cleanSubject(subject);
         let content = cleanForwardedRelease(text, STRIP_TERMS, title);
         if (!content) { result.skipped.push({ from, subject, reason: "correo sin texto" }); await markSeen(); continue; }
@@ -183,8 +203,8 @@ export async function processPressInbox(): Promise<InboxResult> {
         const sender = await db.user.findFirst({ where: { email: from }, select: { id: true, email: true } });
         const creatorId = sender?.id ?? admin?.id;
         if (!creatorId) { result.skipped.push({ from, subject, reason: "no hay usuario para registrarlo" }); continue; }
-        const release = await db.pressRelease.create({ data: { title, content, status: "PENDING_APPROVAL", clientId: matched?.id ?? null, createdById: creatorId, sourceFrom: from, sourceSubject: subject, sourceReceivedAt: mail.date ?? new Date(), sourceRaw: text.slice(0, 200_000), tags: [] }, select: { id: true, title: true, content: true } });
-        const images = (mail.attachments ?? []).filter((a) => /^image\//.test(a.contentType)).length;
+        const release = await db.pressRelease.create({ data: { title, content, status: "PENDING_APPROVAL", clientId: matched?.id ?? null, createdById: creatorId, sourceFrom: from, sourceSubject: subject, sourceReceivedAt: mail.date ?? new Date(), sourceRaw: (html ?? text).slice(0, 400_000), images: imageUrls, tags: [] }, select: { id: true, title: true, content: true, images: true } });
+        const images = (mail.attachments ?? []).filter((a) => /^image\//.test(a.contentType)).length + imageUrls.length;
         let testTo: string | null = null;
         if (isEmailConfigured()) {
           testTo = sender?.email ?? admin?.email ?? null;
@@ -212,11 +232,14 @@ export async function processPressInbox(): Promise<InboxResult> {
 export async function recleanRelease(id: string, raw?: string): Promise<{ ok: boolean; error?: string; title?: string; testTo?: string | null }> {
   const r = await db.pressRelease.findUnique({ where: { id }, select: { id: true, sourceRaw: true, sourceSubject: true, sourceFrom: true, client: { select: { name: true } }, createdBy: { select: { email: true } } } });
   if (!r) return { ok: false, error: "release not found" };
-  const text = raw ?? r.sourceRaw ?? "";
-  if (!text) return { ok: false, error: "no raw text stored" };
+  const stored = raw ?? r.sourceRaw ?? "";
+  if (!stored) return { ok: false, error: "no raw text stored" };
+  const isHtml = /<(html|body|div|table)[\s>]/i.test(stored);
+  const text = isHtml ? htmlToText(stored) : stored;
+  const images = isHtml ? extractImages(stored) : undefined;
   const title = cleanSubject(r.sourceSubject ?? "") || "Comunicado";
   const content = cleanForwardedRelease(text, STRIP_TERMS, title);
-  const release = await db.pressRelease.update({ where: { id }, data: { title, content, sourceRaw: raw ?? r.sourceRaw }, select: { id: true, title: true, content: true } });
+  const release = await db.pressRelease.update({ where: { id }, data: { title, content, sourceRaw: raw ?? r.sourceRaw, ...(images ? { images } : {}) }, select: { id: true, title: true, content: true, images: true } });
   const testTo = r.createdBy.email;
   const ok = isEmailConfigured() ? await sendEmail({ to: testTo, subject: `[PRUEBA] ${release.title}`, html: testEmailHtml(release, r.client?.name ?? null, r.sourceFrom ?? "", 0), text: `${release.title}\n\n${release.content}` }) : false;
   if (ok) await db.pressRelease.update({ where: { id }, data: { testSentAt: new Date() } });

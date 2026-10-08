@@ -15,7 +15,9 @@ function esc(v: string): string {
 }
 
 /** Plain-text release → simple HTML paragraphs (blank line = new paragraph). */
-export function releaseHtml(title: string, content: string, clientName: string): string {
+export function releaseHtml(title: string, content: string, clientName: string, images: string[] = []): string {
+  const [hero, ...rest] = images.filter((u) => /^https?:\/\//.test(u));
+  const img = (u: string) => `<img src="${esc(u)}" alt="" style="display:block;width:100%;height:auto;border:0;margin:0 0 16px">`;
   const paragraphs = content
     .split(/\n\s*\n/)
     .map((p) => p.trim())
@@ -26,8 +28,11 @@ export function releaseHtml(title: string, content: string, clientName: string):
 <div style="max-width:640px;margin:0 auto;background:#fff">
   <div style="background:#0a0a0a;color:#fff;padding:22px 28px"><div style="font-size:16px;font-weight:600;letter-spacing:2px">EB PUBLIC RELATIONS</div><div style="font-size:12px;color:#999;margin-top:4px">Press release · ${esc(clientName)}</div></div>
   <div style="padding:26px 28px">
-    <h1 style="font-size:20px;line-height:1.3;margin:0 0 18px">${esc(title)}</h1>
+    <div style="font-size:11px;letter-spacing:2px;color:#b45309;font-weight:600;margin:0 0 10px">COMUNICADO DE PRENSA</div>
+    <h1 style="font-size:22px;line-height:1.3;margin:0 0 18px">${esc(title)}</h1>
+    ${hero ? img(hero) : ""}
     ${paragraphs}
+    ${rest.length ? `<div style="margin-top:8px">${rest.map(img).join("")}</div>` : ""}
     <p style="margin-top:22px;font-size:12px;color:#6b7280">Contacto de prensa: EB Public Relations · press@ebmanagement.io</p>
   </div>
 </div></body></html>`;
@@ -41,7 +46,7 @@ export async function distributePressRelease(releaseId: string): Promise<Distrib
   if (!isEmailConfigured()) return { ok: false, error: "El correo no está configurado (GMAIL_USER / GMAIL_APP_PASSWORD)." };
   const release = await db.pressRelease.findUnique({
     where: { id: releaseId },
-    select: { title: true, content: true, tags: true, client: { select: { name: true } } },
+    select: { title: true, content: true, tags: true, images: true, client: { select: { name: true } } },
   });
   if (!release) return { ok: false, error: "Press release no encontrado." };
 
@@ -55,7 +60,7 @@ export async function distributePressRelease(releaseId: string): Promise<Distrib
   const send = emails.slice(0, MAX_PER_SEND);
   const skipped = emails.length - send.length;
 
-  const html = releaseHtml(release.title, release.content, release.client?.name ?? "EB Public Relations");
+  const html = releaseHtml(release.title, release.content, release.client?.name ?? "EB Public Relations", release.images);
   const text = `${release.title}\n\n${release.content}\n\nContacto de prensa: EB Public Relations · press@ebmanagement.io`;
   let sent = 0;
   let batches = 0;

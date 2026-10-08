@@ -894,6 +894,8 @@ model PressRelease {
   sourceSubject    String?
   sourceReceivedAt DateTime?
   sourceRaw        String? // the email text as received, to re-clean later
+  /// Photos that came with the release (hosted URLs), shown in the email to the journalists.
+  images           String[]
   testSentAt       DateTime?
   createdById      String
   createdBy        User               @relation("PressReleaseCreator", fields: [createdById], references: [id])
