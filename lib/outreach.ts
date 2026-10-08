@@ -47,7 +47,8 @@ export type Flyer = { filename: string; content: Buffer; contentType: string };
 export type Brand = { fromName?: string; header?: string; footer?: string };
 
 export function invitationHtml(subject: string, body: string, flyer?: Flyer | null, brand: Brand = {}): string {
-  const header = (brand.header || "EB PUBLIC RELATIONS").trim();
+  // header "" = no band at all (flyer + text only); undefined = EB Public Relations.
+  const header = brand.header === undefined ? "EB PUBLIC RELATIONS" : brand.header.trim();
   const footer = brand.footer === undefined ? "EB Public Relations · press@ebmanagement.io" : brand.footer.trim();
   const linkify = (t: string) => esc(t).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#0a0a0a">$1</a>');
   const paragraphs = body
@@ -58,7 +59,7 @@ export function invitationHtml(subject: string, body: string, flyer?: Flyer | nu
     .join("");
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1a1a1a">
 <div style="max-width:640px;margin:0 auto;background:#fff">
-  <div style="background:#0a0a0a;color:#fff;padding:22px 28px"><div style="font-size:16px;font-weight:600;letter-spacing:2px">${esc(header)}</div></div>
+  ${header ? `<div style="background:#0a0a0a;color:#fff;padding:22px 28px"><div style="font-size:16px;font-weight:600;letter-spacing:2px">${esc(header)}</div></div>` : ""}
   ${flyer ? `<img src="cid:flyer" alt="${esc(subject)}" style="display:block;width:100%;height:auto">` : ""}
   <div style="padding:26px 28px">
     <h1 style="font-size:20px;line-height:1.3;margin:0 0 18px">${esc(subject)}</h1>

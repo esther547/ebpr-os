@@ -290,6 +290,7 @@ function SendModal({ open, onOpenChange, categories, list }: { open: boolean; on
   const [flyer, setFlyer] = useState<File | null>(null);
   const [fromName, setFromName] = useState("");
   const [footer, setFooter] = useState("EB Public Relations · press@ebmanagement.io");
+  const [noHeader, setNoHeader] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -302,7 +303,8 @@ function SendModal({ open, onOpenChange, categories, list }: { open: boolean; on
     const form = new FormData();
     form.set("list", list); form.set("subject", subject); form.set("body", body); form.set("categories", selected.join(",")); form.set("test", String(test));
     if (flyer) form.set("flyer", flyer);
-    if (fromName.trim()) { form.set("fromName", fromName.trim()); form.set("header", fromName.trim().toUpperCase()); }
+    if (fromName.trim()) form.set("fromName", fromName.trim());
+    if (noHeader) form.set("header", ""); else if (fromName.trim()) form.set("header", fromName.trim().toUpperCase());
     form.set("footer", footer.trim());
     const res = await fetch("/api/outreach/send", { method: "POST", body: form }).catch(() => null);
     setSending(null);
@@ -324,6 +326,7 @@ function SendModal({ open, onOpenChange, categories, list }: { open: boolean; on
             <FormGroup label="Remitente" htmlFor="s-from" hint="opcional" description="Nombre que ve el invitado y encabezado del correo. Vacío = EB Public Relations."><Input id="s-from" value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="CMN Events & La Industria Inc." /></FormGroup>
             <FormGroup label="Pie del correo" htmlFor="s-footer" hint="opcional" description="Línea final en gris. Déjalo vacío para no poner nada."><Input id="s-footer" value={footer} onChange={(e) => setFooter(e.target.value)} /></FormGroup>
           </div>
+          <label className="flex items-center gap-2 text-sm text-ink-secondary"><input type="checkbox" checked={noHeader} onChange={(e) => setNoHeader(e.target.checked)} /> Sin banda de encabezado (solo flyer y texto)</label>
           <FormGroup label="Flyer" htmlFor="s-flyer" hint="opcional" description="PNG o JPG hasta 5 MB. Va arriba del mensaje, como imagen del correo.">
             <input id="s-flyer" type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => setFlyer(e.target.files?.[0] ?? null)} className="block w-full text-sm text-ink-secondary file:mr-3 file:rounded-md file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-xs file:font-medium" />
           </FormGroup>

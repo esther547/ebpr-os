@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     const form = await req.formData().catch(() => null);
     if (!form) return NextResponse.json({ error: "Formulario inválido" }, { status: 400 });
     const str = (k: string) => String(form.get(k) ?? "");
-    raw = { list: str("list") || undefined, subject: str("subject"), body: str("body"), categories: str("categories").split(",").map((c) => c.trim()).filter(Boolean), tags: str("tags").split(",").map((t) => t.trim()).filter(Boolean), test: str("test") === "true", fromName: str("fromName") || undefined, header: str("header") || undefined, footer: form.has("footer") ? str("footer") : undefined };
+    raw = { list: str("list") || undefined, subject: str("subject"), body: str("body"), categories: str("categories").split(",").map((c) => c.trim()).filter(Boolean), tags: str("tags").split(",").map((t) => t.trim()).filter(Boolean), test: str("test") === "true", fromName: str("fromName") || undefined, header: form.has("header") ? str("header") : undefined, footer: form.has("footer") ? str("footer") : undefined };
     const file = form.get("flyer");
     if (file instanceof File && file.size > 0) {
       if (!/^image\/(png|jpe?g|webp|gif)$/.test(file.type)) return NextResponse.json({ error: "El flyer debe ser una imagen (PNG, JPG, WebP o GIF)." }, { status: 400 });
