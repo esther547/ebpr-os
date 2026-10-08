@@ -32,7 +32,7 @@ const title = (s: string) => s.replace(/(^|\s)[.\-_]+(?=\s|$)/g, " ").trim().rep
     const c = byEmail.get(email); if (c) { cargo = c.role ?? ""; empresa = c.company ?? ""; fromDb++; }
     const t = byName.get(norm(name)) ?? byName.get(norm(`${last} ${first}`)); if (t && (!empresa || !cargo)) { cargo ||= t.cargo; empresa ||= t.empresa; fromTabs++; }
     if (!empresa && /@([a-z0-9-]+)\./.test(email) && !/gmail|hotmail|yahoo|icloud|outlook|me\.com|mac\.com|live\./.test(email)) { const d = email.match(/@([a-z0-9-]+)\./)![1]; empresa = d.charAt(0).toUpperCase() + d.slice(1); }
-    rows.push([name, "", cargo && cargo !== "." ? cargo : "Cargo por validar", empresa || "Empresa por validar"]);
+    rows.push([name, "", cargo && cargo !== "." ? cargo : "", empresa]);
   }
   rows.sort((a, b) => a[0].localeCompare(b[0]));
   console.log(`${src.length} filas en la lista de CMN → ${rows.length} confirmados únicos (cargo/empresa: ${fromDb} desde la base EBPR, ${fromTabs} desde las pestañas de invitados)`);
