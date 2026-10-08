@@ -36,7 +36,9 @@
     "date-fns": "^3.6.0",
     "geist": "^1.7.0",
     "googleapis": "^171.4.0",
+    "imapflow": "^2.3.0",
     "lucide-react": "^0.390.0",
+    "mailparser": "^3.9.37",
     "next": "14.2.4",
     "nodemailer": "^8.0.5",
     "react": "^18",
@@ -47,6 +49,7 @@
     "zustand": "^4.5.2"
   },
   "devDependencies": {
+    "@types/mailparser": "^3.9.0",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.0",
     "@types/react": "^18",

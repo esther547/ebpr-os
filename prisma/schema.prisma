@@ -883,14 +883,19 @@ enum PressReleaseStatus {
 }
 
 model PressRelease {
-  id          String             @id @default(cuid())
-  clientId    String
-  client      Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  title       String
-  content     String // the actual press release text
-  status      PressReleaseStatus @default(DRAFT)
-  createdById String
-  createdBy   User               @relation("PressReleaseCreator", fields: [createdById], references: [id])
+  id               String             @id @default(cuid())
+  clientId         String? // null = agency-wide release (e.g. forwarded from the writer)
+  client           Client?            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title            String
+  content          String // the actual press release text
+  status           PressReleaseStatus @default(DRAFT)
+  /// Set when the release came in by email to press@ (forwarded by the team / sent by the writer).
+  sourceFrom       String?
+  sourceSubject    String?
+  sourceReceivedAt DateTime?
+  testSentAt       DateTime?
+  createdById      String
+  createdBy        User               @relation("PressReleaseCreator", fields: [createdById], references: [id])
 
   // Approval
   approvedAt DateTime?

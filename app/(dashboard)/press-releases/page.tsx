@@ -57,6 +57,7 @@ export default async function PressReleasesPage({ searchParams }: { searchParams
       />
       {fullAccess && (
         <PressReleasesClient
+          canInbox={fullAccess}
           releases={JSON.parse(JSON.stringify(releases))}
           clients={clients}
           canSend={canSendPressReleases(user)}

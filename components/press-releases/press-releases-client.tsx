@@ -31,8 +31,7 @@ import {
   ThumbsUp,
   Ban,
   Trash2,
-  RotateCcw,
-} from "lucide-react";
+  RotateCcw, Inbox } from "lucide-react";
 
 type Release = {
   id: string;
@@ -44,7 +43,7 @@ type Release = {
   approvedAt: string | null;
   approvedBy: string | null;
   recipientCount: number | null;
-  client: { id: string; name: string };
+  client: { id: string; name: string } | null;
   createdBy: { id: string; name: string };
   createdAt: string;
   tags: string[];
@@ -71,6 +70,8 @@ const STATUS_LABELS: Record<string, string> = {
 interface Props {
   /** Only Esther can distribute (send) a release. */
   canSend?: boolean;
+  /** May pull forwarded releases from the press@ inbox. */
+  canInbox?: boolean;
   releases: Release[];
   clients: { id: string; name: string }[];
 }
@@ -99,7 +100,28 @@ function nextWeekdayYmd(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function PressReleasesClient({ releases, clients, canSend = false }: Props) {
+export function PressReleasesClient({ releases, clients, canSend = false, canInbox = false }: Props) {
+  const [checkingInbox, setCheckingInbox] = useState(false);
+  // Each visit quietly checks press@ for forwarded releases; a toast appears only when something new came in.
+  useEffect(() => {
+    if (!canInbox) return;
+    fetch("/api/press-releases/inbox", { method: "POST" }).then((r) => r.json()).then((data) => {
+      const created = (data?.created ?? []) as { title: string }[];
+      if (created.length) { toast({ title: `${created.length} comunicado${created.length === 1 ? "" : "s"} nuevo${created.length === 1 ? "" : "s"} desde press@: ${created.map((c) => c.title).join(" · ")}`, description: "Te llegó una prueba por correo.", variant: "success" }); router.refresh(); }
+    }).catch(() => null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canInbox]);
+  async function checkInbox() {
+    setCheckingInbox(true);
+    try {
+      const res = await fetch("/api/press-releases/inbox", { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) { toast({ title: "No se pudo revisar press@", description: data?.error ?? "Error", variant: "error" }); return; }
+      const created = (data?.created ?? []) as { title: string }[];
+      toast({ title: created.length ? `${created.length} comunicado${created.length === 1 ? "" : "s"} nuevo${created.length === 1 ? "" : "s"}: ${created.map((c) => c.title).join(" · ")}` : "No hay comunicados nuevos en press@", description: created.length ? "Te llegó una prueba por correo de cada uno." : data?.skipped?.length ? `${data.skipped.length} correo(s) ignorado(s): ${data.skipped.map((s: { reason: string }) => s.reason).join("; ")}` : undefined, variant: created.length ? "success" : undefined });
+      router.refresh();
+    } finally { setCheckingInbox(false); }
+  }
   const [showCreate, setShowCreate] = useState(false);
   const [scheduling, setScheduling] = useState<Release | null>(null);
   const [sending, setSending] = useState<Release | null>(null);
@@ -157,9 +179,16 @@ export function PressReleasesClient({ releases, clients, canSend = false }: Prop
         <p className="max-w-prose text-xs text-ink-muted">
           Drafts move through approval, scheduling and distribution. Recipients come from the journalist database.
         </p>
-        <Button onClick={() => setShowCreate(true)} leftIcon={<Plus className="h-4 w-4" />}>
-          New Press Release
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {canInbox && (
+            <Button variant="secondary" onClick={() => void checkInbox()} loading={checkingInbox} leftIcon={<Inbox className="h-4 w-4" />}>
+              Buscar comunicados en press@
+            </Button>
+          )}
+          <Button onClick={() => setShowCreate(true)} leftIcon={<Plus className="h-4 w-4" />}>
+            New Press Release
+          </Button>
+        </div>
       </div>
 
       {/* Pipeline stats */}
@@ -217,7 +246,7 @@ export function PressReleasesClient({ releases, clients, canSend = false }: Prop
                             {r.tags.length > 0 ? ` · targets: ${r.tags.join(", ")}` : " · targets: all journalists"}
                           </p>
                         </Td>
-                        <Td className="text-ink-secondary">{r.client.name}</Td>
+                        <Td className="text-ink-secondary">{r.client?.name ?? "EB Public Relations"}</Td>
                         <Td>
                           <Badge tone={STATUS_TONES[r.status] ?? "neutral"} dot>
                             {STATUS_LABELS[r.status] || r.status}

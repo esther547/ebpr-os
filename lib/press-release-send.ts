@@ -55,7 +55,7 @@ export async function distributePressRelease(releaseId: string): Promise<Distrib
   const send = emails.slice(0, MAX_PER_SEND);
   const skipped = emails.length - send.length;
 
-  const html = releaseHtml(release.title, release.content, release.client.name);
+  const html = releaseHtml(release.title, release.content, release.client?.name ?? "EB Public Relations");
   const text = `${release.title}\n\n${release.content}\n\nContacto de prensa: EB Public Relations · press@ebmanagement.io`;
   let sent = 0;
   let batches = 0;

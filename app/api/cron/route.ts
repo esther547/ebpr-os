@@ -12,6 +12,7 @@ import {
 import { syncAllAgendaDocs, type AgendaDocSyncReport } from "@/lib/google-docs-writer";
 import { runEventReminders, type EventReminderSummary } from "@/lib/industry-events";
 import { reminderModeForToday, sendPitchReminders, type PitchReminderResult } from "@/lib/pitch-reminders";
+import { processPressInbox, type InboxResult } from "@/lib/press-inbox";
 import { purgeDonePriorities, rollOverPendingPriorities } from "@/lib/priorities";
 import { redistributeClient } from "@/lib/service-periods";
 
@@ -265,6 +266,15 @@ export async function GET(req: NextRequest) {
     pitch = { error: err instanceof Error ? err.message : String(err) };
   }
 
+  // ── 4d. Press releases forwarded to press@ → pending releases + test emails ──
+  let pressInbox: InboxResult | { error: string };
+  try {
+    pressInbox = await processPressInbox();
+  } catch (err) {
+    console.error("Cron: press inbox failed:", err);
+    pressInbox = { error: err instanceof Error ? err.message : String(err) };
+  }
+
   // ── 5. Mirror every active client's agenda into its Google Doc ────
   // The portal is the source of truth: each "Agenda 2026" doc is regenerated
   // from the RunnerAssignment rows every night. This rides along with the daily
@@ -280,7 +290,7 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json(
-    { message: "Cron completed", timestamp: now.toISOString(), today: todayKey, results, events, pitch, agendaDocs },
+    { message: "Cron completed", timestamp: now.toISOString(), today: todayKey, results, events, pitch, pressInbox, agendaDocs },
     { headers: NO_STORE }
   );
 }
