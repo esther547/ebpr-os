@@ -33,6 +33,7 @@ export async function sendEmail({
   html,
   text,
   attachments,
+  fromName,
 }: {
   to: string | string[];
   /** Hidden recipients (press-release distribution). */
@@ -43,6 +44,8 @@ export async function sendEmail({
   text?: string;
   /** Files to attach; give `cid` to embed one inline (<img src="cid:...">). */
   attachments?: { filename: string; content: Buffer; contentType?: string; cid?: string }[];
+  /** Display name of the sender (the address is always the Gmail account). */
+  fromName?: string;
 }): Promise<boolean> {
   if (!transporter) {
     console.log("[Email] Not configured — set GMAIL_USER + GMAIL_APP_PASSWORD");
@@ -57,7 +60,7 @@ export async function sendEmail({
 
   try {
     await transporter.sendMail({
-      from: `"EB Public Relations" <${process.env.GMAIL_USER}>`,
+      from: `"${(fromName || "EB Public Relations").replace(/"/g, "")}" <${process.env.GMAIL_USER}>`,
       to: recipients.join(", "),
       bcc: bcc && bcc.length ? bcc.join(", ") : undefined,
       replyTo,

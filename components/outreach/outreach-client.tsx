@@ -288,6 +288,8 @@ function SendModal({ open, onOpenChange, categories, list }: { open: boolean; on
   const [sending, setSending] = useState<"test" | "all" | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [flyer, setFlyer] = useState<File | null>(null);
+  const [fromName, setFromName] = useState("");
+  const [footer, setFooter] = useState("EB Public Relations · press@ebmanagement.io");
 
   useEffect(() => {
     if (!open) return;
@@ -300,6 +302,8 @@ function SendModal({ open, onOpenChange, categories, list }: { open: boolean; on
     const form = new FormData();
     form.set("list", list); form.set("subject", subject); form.set("body", body); form.set("categories", selected.join(",")); form.set("test", String(test));
     if (flyer) form.set("flyer", flyer);
+    if (fromName.trim()) { form.set("fromName", fromName.trim()); form.set("header", fromName.trim().toUpperCase()); }
+    form.set("footer", footer.trim());
     const res = await fetch("/api/outreach/send", { method: "POST", body: form }).catch(() => null);
     setSending(null);
     if (!res || !res.ok) { toast({ title: test ? "No se pudo enviar la prueba" : "No se pudo enviar", description: res ? await readError(res, "Error") : "Sin conexión", variant: "error" }); return; }
@@ -312,10 +316,14 @@ function SendModal({ open, onOpenChange, categories, list }: { open: boolean; on
   const ready = subject.trim().length > 0 && body.trim().length > 0;
   return (
     <>
-      <Modal open={open && !confirm} onOpenChange={onOpenChange} title="Enviar invitación" description="Sale desde press@ebmanagement.io en copia oculta; las respuestas te llegan a ti." size="lg">
+      <Modal open={open && !confirm} onOpenChange={onOpenChange} title="Enviar invitación" description="Sale desde press@ebmanagement.io en copia oculta, con el remitente que elijas; las respuestas te llegan a ti." size="lg">
         <div className="space-y-4">
           <FormGroup label="Asunto" htmlFor="s-subject" required><Input id="s-subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Invitación · Off The Record Miami" /></FormGroup>
           <FormGroup label="Mensaje" htmlFor="s-body" required description="Texto plano. Deja una línea en blanco entre párrafos; los links se vuelven clicables."><Textarea id="s-body" rows={9} value={body} onChange={(e) => setBody(e.target.value)} /></FormGroup>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormGroup label="Remitente" htmlFor="s-from" hint="opcional" description="Nombre que ve el invitado y encabezado del correo. Vacío = EB Public Relations."><Input id="s-from" value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="CMN Events & La Industria Inc." /></FormGroup>
+            <FormGroup label="Pie del correo" htmlFor="s-footer" hint="opcional" description="Línea final en gris. Déjalo vacío para no poner nada."><Input id="s-footer" value={footer} onChange={(e) => setFooter(e.target.value)} /></FormGroup>
+          </div>
           <FormGroup label="Flyer" htmlFor="s-flyer" hint="opcional" description="PNG o JPG hasta 5 MB. Va arriba del mensaje, como imagen del correo.">
             <input id="s-flyer" type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => setFlyer(e.target.files?.[0] ?? null)} className="block w-full text-sm text-ink-secondary file:mr-3 file:rounded-md file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-xs file:font-medium" />
           </FormGroup>
