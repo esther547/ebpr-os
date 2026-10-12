@@ -11,18 +11,31 @@ import nodemailer from "nodemailer";
 //    GMAIL_APP_PASSWORD=the-16-char-app-password
 // 5. Redeploy
 
-const transporter = process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD
-  ? nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD,
-      },
-    })
-  : null;
+import { getMailPassword } from "@/lib/app-secrets";
 
+// The app password can also be saved from Settings (stored encrypted); it takes precedence over the env var.
+const transporters = new Map<string, nodemailer.Transporter>();
+async function getTransporter(): Promise<nodemailer.Transporter | null> {
+  const user = process.env.GMAIL_USER;
+  const pass = await getMailPassword();
+  if (!user || !pass) return null;
+  const k = `${user}:${pass}`;
+  let t = transporters.get(k);
+  if (!t) { t = nodemailer.createTransport({ service: "gmail", auth: { user, pass } }); transporters.set(k, t); }
+  return t;
+}
+
+/** Try the credentials against Gmail without sending anything. */
+export async function verifyMailPassword(pass: string): Promise<{ ok: boolean; error?: string }> {
+  const user = process.env.GMAIL_USER;
+  if (!user) return { ok: false, error: "GMAIL_USER no está configurado" };
+  try { await nodemailer.createTransport({ service: "gmail", auth: { user, pass } }).verify(); return { ok: true }; }
+  catch (err) { return { ok: false, error: err instanceof Error ? err.message.split("\n")[0] : String(err) }; }
+}
+
+/** A sender account exists (the password is resolved at send time: Settings first, then the env var). */
 export function isEmailConfigured(): boolean {
-  return !!transporter;
+  return !!process.env.GMAIL_USER && (!!process.env.GMAIL_APP_PASSWORD || true);
 }
 
 export async function sendEmail({
@@ -49,8 +62,9 @@ export async function sendEmail({
   fromName?: string;
   cc?: string[];
 }): Promise<boolean> {
+  const transporter = await getTransporter();
   if (!transporter) {
-    console.log("[Email] Not configured — set GMAIL_USER + GMAIL_APP_PASSWORD");
+    console.log("[Email] Not configured — set GMAIL_USER and save the app password in Settings (or GMAIL_APP_PASSWORD)");
     return false;
   }
 

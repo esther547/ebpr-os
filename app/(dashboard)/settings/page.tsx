@@ -3,6 +3,8 @@ import { canManageUsers } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/layout/header";
 import { SettingsPageClient } from "@/components/settings/settings-page-client";
+import { MailSettingsCard } from "@/components/settings/mail-settings-card";
+import { secretInfo } from "@/lib/app-secrets";
 
 export const metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
@@ -33,12 +35,17 @@ export default async function SettingsPage() {
     createdAt: createdAt.toISOString(),
   }));
 
+  const mail = await secretInfo("GMAIL_APP_PASSWORD");
+
   return (
     <>
       <PageHeader
         title="Settings"
         subtitle="Team members & system configuration"
       />
+      <div className="mb-6">
+        <MailSettingsCard sender={process.env.GMAIL_USER ?? null} source={mail.source} updatedAt={mail.updatedAt ? mail.updatedAt.toISOString() : null} />
+      </div>
       <SettingsPageClient users={rows} currentUserId={user.id} />
     </>
   );

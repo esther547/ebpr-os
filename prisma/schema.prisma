@@ -832,6 +832,17 @@ model Journalist {
   @@map("journalists")
 }
 
+// ─── APP SETTINGS (secrets the admin can change from the portal, encrypted at rest) ───────────
+
+model AppSetting {
+  id          String   @id // e.g. "GMAIL_APP_PASSWORD"
+  value       String // AES-256-GCM, base64 (see lib/app-secrets.ts)
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
 // ─── OUTREACH (Music Industry database — Esther only, Oct 7 2026) ───────────
 
 /// Non-press contacts (managers, labels, promoters, venues, brands, DSPs…) Esther invites from the portal.

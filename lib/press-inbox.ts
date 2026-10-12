@@ -10,6 +10,7 @@ import { db } from "@/lib/db";
 import { isEmailConfigured, sendEmail } from "@/lib/email";
 import { releaseHtml } from "@/lib/press-release-send";
 import { PRESS_EXCLUDED_EMAILS } from "@/lib/permissions";
+import { getMailPassword } from "@/lib/app-secrets";
 
 /** Words/brands never allowed in a release we distribute (the writer's own company). */
 const STRIP_TERMS = ["GMS", "MS Agency", "GMS Agency"];
@@ -132,7 +133,7 @@ function testEmailHtml(release: { id: string; title: string; content: string; im
 /** Read press@ and turn each forwarded release into a pending PressRelease + a test email. */
 /** Diagnostic: raw text of the latest messages from known senders (seen or not), nothing is created. */
 export async function peekPressInbox(limit = 3): Promise<{ from: string; subject: string; date: string | null; text: string; html: string | null }[] | { error: string }> {
-  const user = process.env.GMAIL_USER, pass = process.env.GMAIL_APP_PASSWORD;
+  const user = process.env.GMAIL_USER, pass = await getMailPassword();
   if (!user || !pass) return { error: "mail not configured" };
   const client = new ImapFlow({ host: "imap.gmail.com", port: 993, secure: true, auth: { user, pass }, logger: false, connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 40000 });
   try {
@@ -156,7 +157,7 @@ export async function peekPressInbox(limit = 3): Promise<{ from: string; subject
 
 export async function processPressInbox(): Promise<InboxResult> {
   const result: InboxResult = { checked: 0, created: [], skipped: [] };
-  const user = process.env.GMAIL_USER, pass = process.env.GMAIL_APP_PASSWORD;
+  const user = process.env.GMAIL_USER, pass = await getMailPassword();
   if (!user || !pass) return { ...result, error: "El correo no está configurado (GMAIL_USER / GMAIL_APP_PASSWORD)." };
   const t0 = Date.now(); const log = (m: string) => console.log(`[press-inbox] +${Date.now() - t0}ms ${m}`);
   const client = new ImapFlow({ host: "imap.gmail.com", port: 993, secure: true, auth: { user, pass }, logger: false, connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 40000 });
