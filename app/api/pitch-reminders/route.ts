@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authorizeCron, NO_STORE } from "@/lib/cron-auth";
-import { buildPitchReminder, pitchReminderHtml, sendPitchReminders, type ReminderMode } from "@/lib/pitch-reminders";
+import { buildPitchReminder, pitchReminderHtml, sendEventPitchMilestones, sendPitchReminders, type ReminderMode } from "@/lib/pitch-reminders";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const denied = await authorizeCron(req);
   if (denied) return denied;
-  const result = await sendPitchReminders(modeFrom(req));
+  // ?milestones=1 — the individual 40/30/20/15/7-day event reminders instead of the weekly overview.
+  const result = req.nextUrl.searchParams.get("milestones") === "1" ? await sendEventPitchMilestones() : await sendPitchReminders(modeFrom(req));
   return NextResponse.json(result, { headers: NO_STORE });
 }

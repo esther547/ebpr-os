@@ -11,7 +11,7 @@ import {
 } from "@/components/runners/miami-time";
 import { syncAllAgendaDocs, type AgendaDocSyncReport } from "@/lib/google-docs-writer";
 import { runEventReminders, type EventReminderSummary } from "@/lib/industry-events";
-import { reminderModeForToday, sendPitchReminders, type PitchReminderResult } from "@/lib/pitch-reminders";
+import { reminderModeForToday, sendPitchReminders, sendEventPitchMilestones, type MilestoneResult, type PitchReminderResult } from "@/lib/pitch-reminders";
 import { processPressInbox, type InboxResult } from "@/lib/press-inbox";
 import { linkEventGroups } from "@/lib/event-groups";
 import { purgeDonePriorities, rollOverPendingPriorities } from "@/lib/priorities";
@@ -267,6 +267,10 @@ export async function GET(req: NextRequest) {
     pitch = { error: err instanceof Error ? err.message : String(err) };
   }
 
+  // ── 4c1. Individual pitch reminders at 40/30/20/15/7 days of each event (Pao, Ayax, Ani) ──
+  let pitchMilestones: MilestoneResult | { error: string };
+  try { pitchMilestones = await sendEventPitchMilestones(now); } catch (err) { pitchMilestones = { error: err instanceof Error ? err.message : String(err) }; }
+
   // ── 4c2. Same-event pautas of several clients get linked as one event ──
   let eventGroups: { linked: number; groups: number } | { error: string };
   try { eventGroups = await linkEventGroups(45); } catch (err) { eventGroups = { error: err instanceof Error ? err.message : String(err) }; }
@@ -295,7 +299,7 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json(
-    { message: "Cron completed", timestamp: now.toISOString(), today: todayKey, results, events, pitch, eventGroups, pressInbox, agendaDocs },
+    { message: "Cron completed", timestamp: now.toISOString(), today: todayKey, results, events, pitch, pitchMilestones, eventGroups, pressInbox, agendaDocs },
     { headers: NO_STORE }
   );
 }

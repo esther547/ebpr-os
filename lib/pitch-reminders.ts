@@ -21,6 +21,10 @@ export const EVENT_URGENT_DAYS = 60;
 export const EVENT_MIN_DAYS = 7;
 export const EVENT_WINDOW_DAYS = 120;
 export const WISHLIST_STALE_DAYS = 14;
+/** Who gets the pitch reminders (Esther, Oct 12 2026: only Pao, Ayax and Ani, each their own email). */
+export const PITCH_RECIPIENT_EMAILS = ["paolaprecilla@ebmanagement.io", "ayax@ebmanagement.io", "aduran@ebmanagement.io"];
+/** Days before an event on which each strategist gets an individual "haz el pitch" reminder. */
+export const EVENT_MILESTONES = [40, 30, 20, 15, 7];
 
 export type ReminderMode = "full" | "urgent";
 
@@ -256,10 +260,7 @@ export type PitchReminderResult = {
 /** Emails every active strategist (and Esther) and drops the same reminder in their bell. */
 export async function sendPitchReminders(mode: ReminderMode, now: Date = new Date()): Promise<PitchReminderResult> {
   const data = await buildPitchReminder(mode, now);
-  const team = await db.user.findMany({
-    where: { isActive: true, role: { in: ["SUPER_ADMIN", "STRATEGIST"] } },
-    select: { id: true, email: true },
-  });
+  const team = await pitchRecipients();
   const recipients = team.map((u) => u.email);
   const counts = {
     eventsLate: data.eventsLate.length,
@@ -271,7 +272,8 @@ export async function sendPitchReminders(mode: ReminderMode, now: Date = new Dat
 
   let emailSent = false;
   if (!nothing && isEmailConfigured() && recipients.length) {
-    emailSent = await sendEmail({ to: recipients, subject: pitchReminderSubject(data), html: pitchReminderHtml(data), text: pitchReminderText(data) });
+    // One email per strategist (never a shared "to" list).
+    for (const u of team) emailSent = (await sendEmail({ to: u.email, subject: pitchReminderSubject(data), html: pitchReminderHtml(data), text: pitchReminderText(data) })) || emailSent;
   }
 
   // In-app mirror, once per user per day/mode (the link doubles as the idempotency key).
@@ -295,4 +297,57 @@ export async function sendPitchReminders(mode: ReminderMode, now: Date = new Dat
   }
 
   return { mode, recipients, emailConfigured: isEmailConfigured(), emailSent, notifications, counts };
+}
+
+
+/** The strategists who get pitch reminders: the configured emails that are active users. */
+export async function pitchRecipients(): Promise<{ id: string; email: string; name: string }[]> {
+  return db.user.findMany({ where: { isActive: true, email: { in: PITCH_RECIPIENT_EMAILS } }, select: { id: true, email: true, name: true }, orderBy: { name: "asc" } });
+}
+
+export type MilestoneResult = { todayKey: string; events: { name: string; daysUntil: number; occursKey: string }[]; recipients: string[]; emailsSent: number; notifications: number; skipped?: string };
+
+function milestoneHtml(firstName: string, todayKey: string, events: UpcomingEventItem[]): string {
+  const rows = events.map((e) => `
+    <tr>
+      <td style="padding:10px 10px;border-bottom:1px solid #eee;font-size:14px;"><strong>${esc(e.name)}</strong>${e.city ? ` <span style="color:#6b7280">· ${esc(e.city)}</span>` : ""}${e.url ? `<br><a href="${esc(e.url)}" style="font-size:12px;color:#2563eb">${esc(e.url)}</a>` : ""}${e.notes ? `<br><span style="font-size:12px;color:#6b7280">${esc(e.notes)}</span>` : ""}</td>
+      <td style="padding:10px 10px;border-bottom:1px solid #eee;font-size:13px;white-space:nowrap;">${fmtKey(e.occursKey, e.day == null)}</td>
+      <td style="padding:10px 10px;border-bottom:1px solid #eee;font-size:13px;white-space:nowrap;font-weight:700;color:${e.daysUntil <= 15 ? "#b91c1c" : "#111"}">faltan ${e.daysUntil} días</td>
+    </tr>`).join("");
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1a1a1a">
+<div style="max-width:640px;margin:0 auto;background:#fff">
+  <div style="background:#0a0a0a;color:#fff;padding:22px 28px"><div style="font-size:16px;font-weight:600;letter-spacing:2px">EB PUBLIC RELATIONS</div><div style="font-size:12px;color:#999;margin-top:4px">Recordatorio de pitch · ${fmtKey(todayKey, false)}</div></div>
+  <div style="padding:26px 28px">
+    <p style="font-size:15px;margin:0 0 14px">Hola ${esc(firstName)},</p>
+    <p style="font-size:14px;color:#444;margin:0 0 18px">${events.length === 1 ? "Este evento" : "Estos eventos"} se acerca${events.length === 1 ? "" : "n"}: revisa a cuáles de tus clientes puedes pitchear y mándalo hoy. Si ya está pitcheado, haz seguimiento.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:8px">${rows}</table>
+    <p style="margin-top:22px"><a href="${APP_URL}/events" style="display:inline-block;background:#0a0a0a;color:#fff;text-decoration:none;padding:9px 18px;border-radius:6px;font-size:13px;font-weight:600;margin-right:8px">Calendario de eventos</a><a href="${APP_URL}/priorities" style="display:inline-block;background:#fff;color:#0a0a0a;border:1px solid #0a0a0a;text-decoration:none;padding:9px 18px;border-radius:6px;font-size:13px;font-weight:600">Prioridades</a></p>
+  </div>
+  <div style="background:#f9f9f9;padding:16px 28px;text-align:center;font-size:11px;color:#999">EBPR OS · recordatorio automático a ${EVENT_MILESTONES.join(", ")} días de cada evento</div>
+</div></body></html>`;
+}
+
+/**
+ * Individual "haz el pitch" reminders: on the day an event is exactly 40, 30, 20, 15 or 7 days away,
+ * each configured strategist gets their own email (and a bell notification) listing those events.
+ */
+export async function sendEventPitchMilestones(now: Date = new Date()): Promise<MilestoneResult> {
+  const todayKey = dayKeyInTz(now);
+  const all = await upcomingEvents(Math.max(...EVENT_MILESTONES) + 1, now);
+  const events = all.filter((e) => EVENT_MILESTONES.includes(e.daysUntil)).sort((a, b) => a.daysUntil - b.daysUntil);
+  const team = await pitchRecipients();
+  const base: MilestoneResult = { todayKey, events: events.map((e) => ({ name: e.name, daysUntil: e.daysUntil, occursKey: e.occursKey })), recipients: team.map((u) => u.email), emailsSent: 0, notifications: 0 };
+  if (!events.length) return { ...base, skipped: "no event hits a milestone today" };
+  const subject = events.length === 1 ? `Pitch: ${events[0].name} · faltan ${events[0].daysUntil} días` : `Pitch: ${events.length} eventos se acercan (${events.map((e) => e.daysUntil).join("/")} días)`;
+  const text = [subject, "", ...events.map((e) => `- ${e.name} · ${fmtKey(e.occursKey, e.day == null)} · faltan ${e.daysUntil} días`), "", `${APP_URL}/events`].join("\n");
+  const link = `/events?pitch-milestone=${todayKey}`;
+  for (const u of team) {
+    const exists = await db.notification.findFirst({ where: { userId: u.id, link }, select: { id: true } });
+    if (exists) continue; // already sent today (the cron ran twice)
+    if (isEmailConfigured() && (await sendEmail({ to: u.email, subject, html: milestoneHtml(u.name.split(" ")[0], todayKey, events), text }))) base.emailsSent++;
+    await db.notification.create({ data: { userId: u.id, type: "pitch_reminder", title: subject, message: events.map((e) => `${e.name} (${e.daysUntil} días)`).join(" · "), link } }).catch(() => undefined);
+    base.notifications++;
+  }
+  return base;
 }
