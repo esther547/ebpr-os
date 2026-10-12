@@ -4,6 +4,8 @@ import { Badge, humanize, statusTone } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ClientWishlistButton } from "./client-wishlist-button";
 import { StrategyItemContact } from "./contact-field";
+import { AssigneeSelect, type Strategist } from "./assignee-select";
+
 
 type Item = {
   id: string;
@@ -17,6 +19,7 @@ type Item = {
   contactNotes: string | null;
   contactSource: string | null;
   contactUpdatedAt: Date | string | null;
+  assigneeId?: string | null;
 };
 
 const CATEGORY_ES: Record<string, string> = {
@@ -37,7 +40,7 @@ function fmt(d: Date | string | null) {
  * Ideas the client called in with (StrategyItem.source = CLIENT). With
  * `showContacts`, each row carries its internal "Contacto / fuente".
  */
-export function ClientWishlist({ clientId, items, showContacts = false }: { clientId: string; items: Item[]; showContacts?: boolean }) {
+export function ClientWishlist({ clientId, items, showContacts = false, strategists = [] }: { clientId: string; items: Item[]; showContacts?: boolean; strategists?: Strategist[] }) {
   return (
     <Card padding="none" className="overflow-hidden">
       <CardHeader
@@ -61,6 +64,7 @@ export function ClientWishlist({ clientId, items, showContacts = false }: { clie
                 {showContacts && <StrategyItemContact item={it} className="mt-2" />}
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                {strategists.length > 0 && <AssigneeSelect clientId={clientId} itemId={it.id} assigneeId={it.assigneeId ?? null} strategists={strategists} />}
                 <Badge tone="info" size="xs">{CATEGORY_ES[it.category] ?? humanize(it.category)}</Badge>
                 <Badge tone={statusTone(it.status)} size="xs">{humanize(it.status)}</Badge>
                 <span className="text-2xs text-ink-muted">{fmt(it.requestedAt ?? it.createdAt)}</span>

@@ -5,8 +5,10 @@ import { Card } from "@/components/ui/card";
 import { Badge, humanize, statusTone } from "@/components/ui/badge";
 import { SectionHeader } from "@/components/layout/header";
 import { ContactToggle, StrategyItemContact, useRowContact } from "./contact-field";
+import { AssigneeSelect, type Strategist } from "./assignee-select";
 
-export function StrategyBigWins({ items, showContacts = false }: { items: StrategyItem[]; showContacts?: boolean }) {
+
+export function StrategyBigWins({ items, showContacts = false, strategists = [] }: { items: StrategyItem[]; showContacts?: boolean; strategists?: Strategist[] }) {
   return (
     <section>
       <SectionHeader
@@ -16,7 +18,7 @@ export function StrategyBigWins({ items, showContacts = false }: { items: Strate
       <Card padding="none">
         <ul className="divide-y divide-border">
           {items.map((item) => (
-            <BigWinRow key={item.id} item={item} showContacts={showContacts} />
+            <BigWinRow key={item.id} item={item} showContacts={showContacts} strategists={strategists} />
           ))}
         </ul>
       </Card>
@@ -24,7 +26,7 @@ export function StrategyBigWins({ items, showContacts = false }: { items: Strate
   );
 }
 
-function BigWinRow({ item, showContacts }: { item: StrategyItem; showContacts: boolean }) {
+function BigWinRow({ item, showContacts, strategists }: { item: StrategyItem; showContacts: boolean; strategists: Strategist[] }) {
   const contact = useRowContact(item);
   return (
     <li className="transition-colors hover:bg-surface-1">
@@ -32,6 +34,7 @@ function BigWinRow({ item, showContacts }: { item: StrategyItem; showContacts: b
         <p className="min-w-0 flex-1 text-sm font-medium text-ink-primary">{item.targetName ?? item.title}</p>
         {item.notes && <p className="max-w-xs truncate text-xs text-ink-muted">{item.notes}</p>}
         <div className="flex shrink-0 items-center gap-2">
+          {strategists.length > 0 && <AssigneeSelect clientId={item.clientId} itemId={item.id} assigneeId={item.assigneeId} strategists={strategists} />}
           {showContacts && <ContactToggle open={contact.open} onToggle={contact.toggle} hasContact={contact.hasContact} />}
           <Badge size="xs" tone={statusTone(item.status)}>
             {humanize(item.status)}

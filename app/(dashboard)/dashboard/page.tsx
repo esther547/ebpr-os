@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight, Target, Users } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { STRATEGIST_ROLES } from "@/lib/strategist-report";
 import { currentPeriodProgress } from "@/lib/service-periods";
 import { isClosedGoal, isOpenGoal } from "@/lib/goal-status";
 import { cn } from "@/lib/utils";
@@ -76,7 +77,9 @@ export default async function DashboardPage() {
 
   // Who closed what in each client's current period (Esther, Oct 6 2026: "cuántas son por estratega").
   const goalIds = [...current.values()].flatMap((p) => p.units.map((u) => u.goalId).filter((x): x is string => !!x));
-  const closers = new Map((await db.deliverable.findMany({ where: { id: { in: goalIds } }, select: { id: true, closedBy: { select: { name: true } }, assignee: { select: { name: true } } } })).map((g) => [g.id, g.closedBy?.name ?? g.assignee?.name ?? null]));
+  // Only strategists (not runners who closed a pauta) are credited by name — Diana is a runner (Esther, Oct 12 2026).
+  const isStrategist = (u: { role: string } | null) => !!u && (STRATEGIST_ROLES as string[]).includes(u.role);
+  const closers = new Map((await db.deliverable.findMany({ where: { id: { in: goalIds } }, select: { id: true, closedBy: { select: { name: true, role: true } }, assignee: { select: { name: true, role: true } } } })).map((g) => [g.id, isStrategist(g.closedBy) ? g.closedBy!.name : isStrategist(g.assignee) ? g.assignee!.name : null]));
   const byStrategist = new Map<string, number>();
   const perClient = new Map<string, { name: string; goals: number }[]>();
   for (const [clientId, p] of current) {

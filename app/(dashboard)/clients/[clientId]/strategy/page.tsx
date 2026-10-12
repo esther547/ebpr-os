@@ -17,6 +17,7 @@ import { StrategyEventsList } from "@/components/strategy/strategy-events-list";
 import { StrategyDocLink } from "@/components/strategy/strategy-doc-link";
 import { StrategyAddItemButton } from "@/components/strategy/strategy-actions";
 import { StrategyDocumentEditButton } from "@/components/strategy/strategy-document-modal";
+import { STRATEGIST_ROLES } from "@/lib/strategist-report";
 import { Button } from "@/components/ui/form-field";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -65,6 +66,9 @@ export default async function StrategyPage({ params }: Props) {
       assignee: { select: { id: true, name: true } },
     },
   });
+
+  // Who can be "a cargo" of an item (mirrored on their to-dos).
+  const strategists = await db.user.findMany({ where: { isActive: true, role: { in: STRATEGIST_ROLES } }, select: { id: true, name: true }, orderBy: { name: "asc" } });
 
   // Categorize items
   const clientWishlist = [...items.filter((i) => i.source === "CLIENT")].sort((a, b) => new Date(b.requestedAt ?? b.createdAt).getTime() - new Date(a.requestedAt ?? a.createdAt).getTime());
@@ -136,24 +140,24 @@ export default async function StrategyPage({ params }: Props) {
         {/* Phase banners */}
         {doc && (doc.phase1Name || doc.phase2Name) && <StrategyPhaseBanner doc={doc} />}
 
-        <ClientWishlist clientId={client.id} items={clientWishlist} showContacts={showContacts} />
+        <ClientWishlist clientId={client.id} items={clientWishlist} showContacts={showContacts} strategists={strategists} />
 
-        {bigWins.length > 0 && <StrategyBigWins items={bigWins} showContacts={showContacts} />}
+        {bigWins.length > 0 && <StrategyBigWins items={bigWins} showContacts={showContacts} strategists={strategists} />}
 
-        {brandDeals.length > 0 && <StrategyBrandDeals groups={brandDealGroups} showContacts={showContacts} />}
+        {brandDeals.length > 0 && <StrategyBrandDeals groups={brandDealGroups} showContacts={showContacts} strategists={strategists} />}
 
         {mediaTargets.length > 0 && (
-          <StrategyOutletList title="Press & Media Targets" items={mediaTargets} category="MEDIA_TARGET" showContacts={showContacts} />
+          <StrategyOutletList title="Press & Media Targets" items={mediaTargets} category="MEDIA_TARGET" showContacts={showContacts} strategists={strategists} />
         )}
 
         {influencers.length > 0 && (
-          <StrategyOutletList title="Influencer Targets" items={influencers} category="INFLUENCER" showContacts={showContacts} />
+          <StrategyOutletList title="Influencer Targets" items={influencers} category="INFLUENCER" showContacts={showContacts} strategists={strategists} />
         )}
 
-        {events.length > 0 && <StrategyEventsList items={events} showContacts={showContacts} />}
+        {events.length > 0 && <StrategyEventsList items={events} showContacts={showContacts} strategists={strategists} />}
 
         {positioning.length > 0 && (
-          <StrategyOutletList title="Positioning Angles" items={positioning} category="POSITIONING" showContacts={showContacts} />
+          <StrategyOutletList title="Positioning Angles" items={positioning} category="POSITIONING" showContacts={showContacts} strategists={strategists} />
         )}
 
         {tasks.length > 0 && <StrategyWorkflowTable tasks={tasks} />}

@@ -8,14 +8,17 @@ import { Card } from "@/components/ui/card";
 import { Badge, humanize, statusTone } from "@/components/ui/badge";
 import { SectionHeader } from "@/components/layout/header";
 import { ContactToggle, StrategyItemContact, type ContactValue } from "./contact-field";
+import { AssigneeSelect, type Strategist } from "./assignee-select";
+
 
 type Props = {
   groups: { category: string; items: StrategyItem[] }[];
   /** Per-brand internal "Contacto / fuente" toggle (admins/strategists only). */
   showContacts?: boolean;
+  strategists?: Strategist[];
 };
 
-export function StrategyBrandDeals({ groups, showContacts = false }: Props) {
+export function StrategyBrandDeals({ groups, showContacts = false, strategists = [] }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const toggle = (cat: string) => {
@@ -85,7 +88,7 @@ export function StrategyBrandDeals({ groups, showContacts = false }: Props) {
                   </div>
                 </button>
 
-                {isOpen && <BrandGroupItems items={items} showContacts={showContacts} />}
+                {isOpen && <BrandGroupItems items={items} showContacts={showContacts} strategists={strategists} />}
               </div>
             );
           })}
@@ -96,7 +99,7 @@ export function StrategyBrandDeals({ groups, showContacts = false }: Props) {
 }
 
 /** Brand chips of one category; the chip's contact toggle opens its field below. */
-function BrandGroupItems({ items, showContacts }: { items: StrategyItem[]; showContacts: boolean }) {
+function BrandGroupItems({ items, showContacts, strategists }: { items: StrategyItem[]; showContacts: boolean; strategists: Strategist[] }) {
   const [selected, setSelected] = useState<string | null>(null);
   // Contacts saved while this group is open (so re-opening a chip shows them).
   const [contacts, setContacts] = useState<Record<string, ContactValue>>({});
@@ -120,6 +123,7 @@ function BrandGroupItems({ items, showContacts }: { items: StrategyItem[]; showC
               <Badge size="xs" tone={statusTone(item.status)}>
                 {humanize(item.status)}
               </Badge>
+              {strategists.length > 0 && <AssigneeSelect clientId={item.clientId} itemId={item.id} assigneeId={item.assigneeId} strategists={strategists} className="h-6" />}
               {showContacts && (
                 <ContactToggle
                   open={selected === item.id}

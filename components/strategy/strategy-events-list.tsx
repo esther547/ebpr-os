@@ -5,8 +5,10 @@ import { Card } from "@/components/ui/card";
 import { Badge, humanize, statusTone } from "@/components/ui/badge";
 import { SectionHeader } from "@/components/layout/header";
 import { ContactToggle, StrategyItemContact, useRowContact } from "./contact-field";
+import { AssigneeSelect, type Strategist } from "./assignee-select";
 
-export function StrategyEventsList({ items, showContacts = false }: { items: StrategyItem[]; showContacts?: boolean }) {
+
+export function StrategyEventsList({ items, showContacts = false, strategists = [] }: { items: StrategyItem[]; strategists?: Strategist[]; showContacts?: boolean }) {
   const sorted = [...items].sort((a, b) => {
     if (!a.scheduledDate) return 1;
     if (!b.scheduledDate) return -1;
@@ -25,12 +27,12 @@ export function StrategyEventsList({ items, showContacts = false }: { items: Str
       />
 
       <Card padding="none" className="overflow-hidden">
-        {phase1.length > 0 && <EventPhaseGroup label="Phase 1" items={phase1} showContacts={showContacts} />}
-        {phase2.length > 0 && <EventPhaseGroup label="Phase 2" items={phase2} showContacts={showContacts} />}
+        {phase1.length > 0 && <EventPhaseGroup label="Phase 1" items={phase1} showContacts={showContacts} strategists={strategists} />}
+        {phase2.length > 0 && <EventPhaseGroup label="Phase 2" items={phase2} showContacts={showContacts} strategists={strategists} />}
         {noPhase.length > 0 && (
           <ul className="divide-y divide-border">
             {noPhase.map((item) => (
-              <EventRow key={item.id} item={item} showContacts={showContacts} />
+              <EventRow key={item.id} item={item} showContacts={showContacts} strategists={strategists} />
             ))}
           </ul>
         )}
@@ -39,7 +41,7 @@ export function StrategyEventsList({ items, showContacts = false }: { items: Str
   );
 }
 
-function EventPhaseGroup({ label, items, showContacts }: { label: string; items: StrategyItem[]; showContacts: boolean }) {
+function EventPhaseGroup({ label, items, showContacts, strategists }: { label: string; items: StrategyItem[]; strategists: Strategist[]; showContacts: boolean }) {
   return (
     <div>
       <div className="border-b border-border bg-surface-2/60 px-5 py-2">
@@ -47,14 +49,14 @@ function EventPhaseGroup({ label, items, showContacts }: { label: string; items:
       </div>
       <ul className="divide-y divide-border">
         {items.map((item) => (
-          <EventRow key={item.id} item={item} showContacts={showContacts} />
+          <EventRow key={item.id} item={item} showContacts={showContacts} strategists={strategists} />
         ))}
       </ul>
     </div>
   );
 }
 
-function EventRow({ item, showContacts }: { item: StrategyItem; showContacts: boolean }) {
+function EventRow({ item, showContacts, strategists }: { item: StrategyItem; showContacts: boolean; strategists: Strategist[] }) {
   const name = item.targetName ?? item.title;
   const contact = useRowContact(item);
 
@@ -82,6 +84,7 @@ function EventRow({ item, showContacts }: { item: StrategyItem; showContacts: bo
           </div>
         </div>
 
+        {strategists.length > 0 && <AssigneeSelect clientId={item.clientId} itemId={item.id} assigneeId={item.assigneeId} strategists={strategists} />}
         {showContacts && <ContactToggle open={contact.open} onToggle={contact.toggle} hasContact={contact.hasContact} />}
         <Badge size="xs" tone={statusTone(item.status)} className="shrink-0">
           {humanize(item.status)}

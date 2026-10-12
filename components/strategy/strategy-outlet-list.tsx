@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Badge, humanize, statusTone } from "@/components/ui/badge";
 import { SectionHeader } from "@/components/layout/header";
 import { ContactToggle, StrategyItemContact, useRowContact } from "./contact-field";
+import { AssigneeSelect, type Strategist } from "./assignee-select";
+
 
 type Props = {
   title: string;
@@ -14,11 +16,12 @@ type Props = {
   defaultExpanded?: boolean;
   /** Per-row internal "Contacto / fuente" toggle (admins/strategists only). */
   showContacts?: boolean;
+  strategists?: Strategist[];
 };
 
 const COLLAPSE_AT = 12;
 
-export function StrategyOutletList({ title, items, category: _category, defaultExpanded = false, showContacts = false }: Props) {
+export function StrategyOutletList({ title, items, category: _category, defaultExpanded = false, showContacts = false, strategists = [] }: Props) {
   const [showAll, setShowAll] = useState(defaultExpanded || items.length <= COLLAPSE_AT);
 
   const activeCount = items.filter((i) =>
@@ -58,12 +61,12 @@ export function StrategyOutletList({ title, items, category: _category, defaultE
       <Card padding="none" className="overflow-hidden">
         {hasPhases ? (
           <>
-            {phase1.length > 0 && <PhaseGroup label="Phase 1" items={phase1} showContacts={showContacts} />}
-            {phase2.length > 0 && <PhaseGroup label="Phase 2" items={phase2} showContacts={showContacts} />}
+            {phase1.length > 0 && <PhaseGroup label="Phase 1" items={phase1} showContacts={showContacts} strategists={strategists} />}
+            {phase2.length > 0 && <PhaseGroup label="Phase 2" items={phase2} showContacts={showContacts} strategists={strategists} />}
             {noPhase.length > 0 && (
               <ul className="divide-y divide-border">
                 {noPhase.map((item) => (
-                  <OutletRow key={item.id} item={item} showContacts={showContacts} />
+                  <OutletRow key={item.id} item={item} showContacts={showContacts} strategists={strategists} />
                 ))}
               </ul>
             )}
@@ -71,7 +74,7 @@ export function StrategyOutletList({ title, items, category: _category, defaultE
         ) : (
           <ul className="divide-y divide-border">
             {visible.map((item) => (
-              <OutletRow key={item.id} item={item} showContacts={showContacts} />
+              <OutletRow key={item.id} item={item} showContacts={showContacts} strategists={strategists} />
             ))}
           </ul>
         )}
@@ -90,7 +93,7 @@ export function StrategyOutletList({ title, items, category: _category, defaultE
   );
 }
 
-function PhaseGroup({ label, items, showContacts }: { label: string; items: StrategyItem[]; showContacts: boolean }) {
+function PhaseGroup({ label, items, showContacts, strategists }: { label: string; items: StrategyItem[]; showContacts: boolean; strategists: Strategist[] }) {
   return (
     <div>
       <div className="flex items-center gap-2 border-b border-border bg-surface-2/60 px-5 py-2">
@@ -99,14 +102,14 @@ function PhaseGroup({ label, items, showContacts }: { label: string; items: Stra
       </div>
       <ul className="divide-y divide-border">
         {items.map((item) => (
-          <OutletRow key={item.id} item={item} showContacts={showContacts} />
+          <OutletRow key={item.id} item={item} showContacts={showContacts} strategists={strategists} />
         ))}
       </ul>
     </div>
   );
 }
 
-function OutletRow({ item, showContacts }: { item: StrategyItem; showContacts: boolean }) {
+function OutletRow({ item, showContacts, strategists }: { item: StrategyItem; showContacts: boolean; strategists: Strategist[] }) {
   const name = item.targetName ?? item.title;
   const contact = useRowContact(item);
 
@@ -128,6 +131,7 @@ function OutletRow({ item, showContacts }: { item: StrategyItem; showContacts: b
           )}
           {item.notes && <p className="truncate text-2xs text-ink-muted">{item.notes}</p>}
         </div>
+        {strategists.length > 0 && <AssigneeSelect clientId={item.clientId} itemId={item.id} assigneeId={item.assigneeId} strategists={strategists} />}
         {showContacts && <ContactToggle open={contact.open} onToggle={contact.toggle} hasContact={contact.hasContact} />}
         <Badge size="xs" tone={statusTone(item.status)} className="shrink-0">
           {humanize(item.status)}
