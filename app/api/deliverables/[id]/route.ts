@@ -7,6 +7,7 @@ import { assignPeriod, placeNewUnit } from "@/lib/service-periods";
 import { isClosedGoal } from "@/lib/goal-status";
 import { closingReportMonth } from "@/lib/report-month";
 import { requireUser } from "@/lib/auth";
+import { queueRescheduleTodo } from "@/lib/reschedule-todo";
 import { canManageDeliverables } from "@/lib/permissions";
 import { parseDateInput, recordStatusTransition } from "../_lib/status-transition";
 import { resolveCloser, type Closer } from "../_lib/closer";
@@ -231,6 +232,7 @@ export async function PUT(
         closedBy: { select: { id: true, name: true } },
       },
     });
+    if (parsed.data.status === "CANCELLED" && existing.status !== "CANCELLED") await queueRescheduleTodo({ deliverableId: id, byUserId: user.id, byUserName: user.name });
 
     // Keep the linked agenda item (client agenda + runner schedule) in step with
     // the goal's date, time, place and title; re-check the runner if the time moved.

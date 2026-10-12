@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { canManageRunners } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { notifyClientPautaChanges, notifyClientPautaRemoved } from "@/lib/client-notify";
+import { queueRescheduleTodo } from "@/lib/reschedule-todo";
 
 import { mergeInternalNotes, splitClientNotes } from "@/lib/client-safe-notes";
 import { isEmailConfigured, sendEmail } from "@/lib/email";
@@ -126,6 +127,7 @@ async function handleUpdate(req: NextRequest, { params }: Params) {
   }
 
   await db.runnerAssignment.update({ where: { id: params.id }, data });
+  if (data.status === "CANCELLED" && !data.cancelLastMinute && existing.status !== "CANCELLED") await queueRescheduleTodo({ pautaId: params.id, byUserId: user.id, byUserName: user.name });
 
   // The time moved: an auto-assigned runner who is no longer available gets
   // replaced by whoever is, and the team is notified if nobody is.
@@ -194,10 +196,11 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (!canManageRunners(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const existing = await db.runnerAssignment.findUnique({
     where: { id: params.id },
-    select: { id: true, runnerId: true, eventName: true, eventDate: true, clientId: true },
+    select: { id: true, runnerId: true, eventName: true, eventDate: true, clientId: true, status: true, deliverableId: true },
   });
   if (!existing) return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
   const snap = await db.runnerAssignment.findUnique({ where: { id: params.id }, select: snapshotSelect });
+  if (existing.status !== "CANCELLED" && existing.status !== "COMPLETED") await queueRescheduleTodo({ deliverableId: existing.deliverableId, pautaName: existing.eventName, clientId: existing.clientId, byUserId: user.id, byUserName: user.name });
   await db.runnerAssignment.delete({ where: { id: params.id } });
   if (snap) await notifyClientPautaRemoved(snap).catch((err) => console.error("notifyClientPautaRemoved:", err));
   if (existing.runnerId) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notifyClientPautaChanges, notifyClientPautaRemoved } from "@/lib/client-notify";
+import { queueRescheduleTodo } from "@/lib/reschedule-todo";
 import { assignPeriod, placeNewUnit } from "@/lib/service-periods";
 
 import { mergeInternalNotes, splitClientNotes } from "@/lib/client-safe-notes";
@@ -140,6 +141,8 @@ export async function PATCH(
     d.eventDate !== undefined || d.eventTime !== undefined || d.arrivalTime !== undefined;
 
   await db.runnerAssignment.update({ where: { id: itemId }, data: updateData });
+  // Cancelled by us (not a client last-minute cancellation): the strategist gets a "Reagendar" to-do.
+  if (updateData.status === "CANCELLED" && !updateData.cancelLastMinute && existing.status !== "CANCELLED") await queueRescheduleTodo({ pautaId: itemId, byUserId: user.id, byUserName: user.name });
   // A proposal that just became a confirmed opportunity starts counting: place it now.
   if (d.isProposal === false && existing.isProposal) await placeNewUnit(clientId, { pautaId: itemId }, new Date());
 
@@ -178,7 +181,7 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ clientId: string; itemId: string }> }
 ) {
-  await requireUser();
+  const user = await requireUser();
   const { clientId, itemId } = await params;
 
   const existing = await db.runnerAssignment.findFirst({
@@ -189,6 +192,8 @@ export async function DELETE(
   }
 
   const snap = await db.runnerAssignment.findUnique({ where: { id: itemId }, select: snapshotSelect });
+  // Removing a pauta is not giving up on the goal: it goes back to the strategist to reschedule.
+  if (existing.status !== "CANCELLED" && existing.status !== "COMPLETED") await queueRescheduleTodo({ deliverableId: existing.deliverableId, pautaName: existing.eventName, clientId, byUserId: user.id, byUserName: user.name });
   await db.runnerAssignment.delete({ where: { id: itemId } });
   if (snap) await notifyClientPautaRemoved(snap).catch((err) => console.error("notifyClientPautaRemoved:", err));
 

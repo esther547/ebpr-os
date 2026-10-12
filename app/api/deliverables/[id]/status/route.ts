@@ -8,6 +8,7 @@ import { closingReportMonth } from "@/lib/report-month";
 import { requireUser } from "@/lib/auth";
 import { canManageDeliverables } from "@/lib/permissions";
 import { recordStatusTransition } from "../../_lib/status-transition";
+import { queueRescheduleTodo } from "@/lib/reschedule-todo";
 import { resolveCloser, type Closer } from "../../_lib/closer";
 
 const updateStatusSchema = z.object({
@@ -108,6 +109,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       },
       include: { closedBy: { select: { id: true, name: true } } },
     });
+    // A cancelled goal goes back to the strategist as a "Reagendar" to-do (Esther, Oct 12 2026).
+    if (to === "CANCELLED" && existing.status !== "CANCELLED") await queueRescheduleTodo({ deliverableId: params.id, byUserId: user.id, byUserName: user.name });
 
     await recordStatusTransition({
       deliverable: existing,
