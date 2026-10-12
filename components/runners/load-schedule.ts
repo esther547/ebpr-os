@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import { dayKeyInTz } from "./miami-time";
 import type { ScheduleItem } from "./my-schedule-view";
+import { attachEventGroups } from "@/lib/event-groups";
 
 /**
  * Load runner assignments shaped for MyScheduleView.
@@ -34,6 +35,7 @@ export async function loadScheduleItems(
       status: true,
       accompanistCount: true,
       clientId: true,
+      eventGroupId: true,
       runner: { select: { id: true, name: true } },
     },
   });
@@ -49,8 +51,9 @@ export async function loadScheduleItems(
     : [];
   const clientName = new Map(clients.map((c) => [c.id, c.name]));
 
-  return rows.map((r) => ({
+  return attachEventGroups(rows.map((r) => ({
     id: r.id,
+    eventGroupId: r.eventGroupId,
     eventName: r.eventName,
     eventDate: r.eventDate.toISOString(),
     dayKey: dayKeyInTz(r.eventDate),
@@ -66,5 +69,5 @@ export async function loadScheduleItems(
     accompanistCount: r.accompanistCount,
     clientName: r.clientId ? clientName.get(r.clientId) ?? null : null,
     runner: r.runner,
-  }));
+  })));
 }

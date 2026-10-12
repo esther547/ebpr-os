@@ -586,6 +586,8 @@ model RunnerAssignment {
   /// Cancelled last minute by the client: the runner is freed, but it stays in the talent's agenda as
   /// \"No asistió – Cancelación last minute\" and still counts toward the goal (Esther, Oct 8 2026).
   cancelLastMinute  Boolean        @default(false)
+  /// Pautas of several clients at the same event share a group: one card in the schedule, one runner, edits propagate.
+  eventGroupId      String?
 
   // Auto-scheduling
   autoAssigned Boolean   @default(false) // true when lib/runner-assign.ts picked the runner
@@ -594,6 +596,7 @@ model RunnerAssignment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([eventGroupId])
   @@map("runner_assignments")
 }
 

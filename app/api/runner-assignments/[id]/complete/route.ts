@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { siblingsOf } from "@/lib/event-groups";
 import { z } from "zod";
 import { resolveCloser } from "@/app/api/deliverables/_lib/closer";
 
@@ -51,6 +52,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         : assignment.internalNotes,
     },
   });
+  // The same runner at the same event for other clients: those pautas are done too.
+  for (const s of await siblingsOf(id)) if (s.runnerId === assignment.runnerId && s.status !== "COMPLETED") await db.runnerAssignment.update({ where: { id: s.id }, data: { status: "COMPLETED" } }).catch(() => undefined);
 
   // If linked to a deliverable, update deliverable status too
   if (assignment.deliverableId) {

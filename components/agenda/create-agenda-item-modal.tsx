@@ -65,6 +65,8 @@ export function AgendaAddItemButton({ clientId: fixedClientId, clientStatus = "A
       accompanistCount: parseInt((form.get("accompanistCount") as string) || "0", 10) || 0,
       monthNumber: monthRaw ? parseInt(monthRaw, 10) : undefined,
       status: (form.get("status") as string) || "SCHEDULED",
+      // Other clients going to the same event: one pauta each, linked as one event.
+      alsoClientIds: form.getAll("alsoClientIds").map(String).filter((id) => id && id !== clientId),
     };
 
     try {
@@ -96,7 +98,7 @@ export function AgendaAddItemButton({ clientId: fixedClientId, clientStatus = "A
         });
         return;
       }
-      toast({ title: "Agenda item added", variant: "success" });
+      toast({ title: typeof data?.siblings === "number" && data.siblings > 0 ? `Evento agendado para ${data.siblings + 1} clientes` : "Agenda item added", description: Array.isArray(data?.siblingWarnings) && data.siblingWarnings.length ? data.siblingWarnings.join(" · ") : undefined, variant: "success" });
       setOpen(false);
     } catch {
       toast({ title: "Network error", description: "Could not reach the server", variant: "error" });
@@ -125,6 +127,17 @@ export function AgendaAddItemButton({ clientId: fixedClientId, clientStatus = "A
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </Select>
+            </FormGroup>
+          )}
+          {clientId && clients && clients.filter((c) => c.id !== clientId).length > 0 && (
+            <FormGroup label="También van a este evento" htmlFor="ag-also" hint="opcional" description="Marca los otros clientes que asisten: cada uno queda con su pauta (y su meta), el mismo runner las cubre y los cambios de fecha, hora o lugar se aplican a todos.">
+              <div className="max-h-40 overflow-y-auto rounded-md border border-border p-2">
+                <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+                  {clients.filter((c) => c.id !== clientId).map((c) => (
+                    <label key={c.id} className="flex items-center gap-2 text-sm text-ink-secondary"><input type="checkbox" name="alsoClientIds" value={c.id} /> {c.name}</label>
+                  ))}
+                </div>
+              </div>
             </FormGroup>
           )}
           {runners.length === 0 && (

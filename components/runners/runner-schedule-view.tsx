@@ -9,6 +9,7 @@ import { Badge, statusTone, humanize } from "@/components/ui/badge";
 import { Button } from "@/components/ui/form-field";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { groupByEvent } from "./event-grouping";
 
 type Runner = { id: string; name: string; avatar: string | null };
 
@@ -33,6 +34,10 @@ export type ScheduleAssignment = {
   status: string;
   autoAssigned: boolean;
   runner: { id: string; name: string; avatar: string | null } | null;
+  /** Same-event grouping (lib/event-groups.ts). */
+  eventGroupId?: string | null;
+  eventKey?: string;
+  coClients?: string[];
 };
 
 type Props = {
@@ -220,8 +225,9 @@ export function RunnerScheduleView({
                   {dayAssignments.length === 0 ? (
                     <p className="py-4 text-center text-2xs text-ink-muted">No assignments</p>
                   ) : (
-                    dayAssignments.map((a) => {
-                      const needsRunner = !a.runnerId;
+                    groupByEvent(dayAssignments).map(({ a, members, clients }) => {
+                      const needsRunner = members.some((m) => !m.runnerId);
+                      const runnerNames = Array.from(new Set(members.map((m) => m.runner?.name).filter((n): n is string => !!n)));
                       return (
                         <div
                           key={a.id}
@@ -252,11 +258,16 @@ export function RunnerScheduleView({
                             )}
                           </div>
 
-                          {a.clientName && (
+                          {members.length > 1 ? (
+                            <div className="mb-0.5">
+                              <p className="text-2xs font-semibold uppercase tracking-wide text-accent2-ink">{clients.length} clientes</p>
+                              <p className="text-2xs leading-snug text-ink-secondary" title={clients.join(", ")}>{clients.join(" · ")}</p>
+                            </div>
+                          ) : a.clientName ? (
                             <p className="truncate text-2xs font-semibold uppercase tracking-wide text-accent2-ink" title={a.clientName}>
                               {a.clientName}
                             </p>
-                          )}
+                          ) : null}
                           <p
                             className="truncate text-xs font-medium text-ink-primary"
                             title={a.eventName}
@@ -271,13 +282,13 @@ export function RunnerScheduleView({
                             </p>
                           )}
 
-                          {a.runner ? (
+                          {!needsRunner && a.runner ? (
                             <div className="mt-1.5 flex items-center gap-1.5">
                               <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[9px] font-semibold text-ink-secondary">
                                 {initials(a.runner.name)}
                               </span>
                               <span className="truncate text-2xs text-ink-secondary">
-                                {a.runner.name.split(" ")[0]}
+                                {runnerNames.length > 1 ? runnerNames.map((n) => n.split(" ")[0]).join(" / ") : a.runner.name.split(" ")[0]}
                               </span>
                               {a.autoAssigned && (
                                 <span
@@ -296,9 +307,9 @@ export function RunnerScheduleView({
                                 size="xs"
                                 className="mt-1.5 w-full"
                                 leftIcon={<UserPlus className="h-3 w-3" />}
-                                onClick={(e) => { e.stopPropagation(); onAssign(a); }}
+                                onClick={(e) => { e.stopPropagation(); onAssign(members.find((m) => !m.runnerId) ?? a); }}
                               >
-                                Assign
+                                {members.length > 1 ? `Assign · ${members.filter((m) => !m.runnerId).length} clientes` : "Assign"}
                               </Button>
                             )
                           )}

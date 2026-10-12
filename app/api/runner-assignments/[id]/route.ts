@@ -5,6 +5,7 @@ import { canManageRunners } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { notifyClientPautaChanges, notifyClientPautaRemoved } from "@/lib/client-notify";
 import { queueRescheduleTodo } from "@/lib/reschedule-todo";
+import { siblingsOf } from "@/lib/event-groups";
 
 import { mergeInternalNotes, splitClientNotes } from "@/lib/client-safe-notes";
 import { isEmailConfigured, sendEmail } from "@/lib/email";
@@ -37,6 +38,8 @@ const updateSchema = z.object({
   internalNotes: z.string().nullable().optional(),
   status: z.enum(["SCHEDULED", "CONFIRMED", "COMPLETED", "CANCELLED"]).optional(),
   cancelLastMinute: z.boolean().optional(),
+  /** Also apply runner / date / time / place changes to the other clients' pautas of the same event. */
+  applyToEvent: z.boolean().optional(),
 });
 
 type Params = { params: { id: string } };
@@ -127,6 +130,19 @@ async function handleUpdate(req: NextRequest, { params }: Params) {
   }
 
   await db.runnerAssignment.update({ where: { id: params.id }, data });
+  let eventSiblings = 0;
+  if (d.applyToEvent) {
+    const shared: Record<string, unknown> = {};
+    for (const k of ["runnerId", "autoAssigned", "assignedAt", "eventDate", "weekOf", "arrivalTime", "eventTime", "eventName", "venueName", "venueAddress", "location"]) if (k in data) shared[k] = data[k];
+    if (Object.keys(shared).length) {
+      for (const s of await siblingsOf(params.id)) {
+        const before = await db.runnerAssignment.findUnique({ where: { id: s.id }, select: snapshotSelect });
+        await db.runnerAssignment.update({ where: { id: s.id }, data: shared });
+        eventSiblings++;
+        if (before) { await notifyClientPautaChanges(before).catch(() => undefined); await notifyRunnerOfChanges(before, user.name).catch(() => undefined); }
+      }
+    }
+  }
   if (data.status === "CANCELLED" && !data.cancelLastMinute && existing.status !== "CANCELLED") await queueRescheduleTodo({ pautaId: params.id, byUserId: user.id, byUserName: user.name });
 
   // The time moved: an auto-assigned runner who is no longer available gets
@@ -156,7 +172,7 @@ async function handleUpdate(req: NextRequest, { params }: Params) {
     include: { runner: { select: { id: true, name: true } } },
   });
 
-  return NextResponse.json({ data: updated, reassigned });
+  return NextResponse.json({ data: updated, eventSiblings, reassigned });
 }
 
 export const PATCH = handleUpdate;

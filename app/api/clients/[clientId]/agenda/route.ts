@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { requireUser } from "@/lib/auth";
 import { canManageRunners } from "@/lib/permissions";
 import { db } from "@/lib/db";
@@ -33,6 +34,8 @@ const agendaItemSchema = z.object({
   monthNumber: z.number().int().min(1).optional().nullable(),
   agendaSequence: z.number().int().min(1).optional().nullable(),
   status: z.enum(["SCHEDULED", "CONFIRMED", "COMPLETED", "CANCELLED"]).optional().default("SCHEDULED"),
+  /** Other clients going to the same event: one pauta each, linked as one event (same runner, edits propagate). */
+  alsoClientIds: z.array(z.string()).optional().default([]),
 });
 
 /** "YYYY-MM-DD" -> noon UTC so the calendar day is stable in every timezone. */
@@ -189,8 +192,11 @@ export async function POST(
     const split = splitClientNotes(data.notes);
     const clientNotes = split.client ?? undefined;
     const internalNotes = mergeInternalNotes(data.internalNotes, split.internal);
+    const alsoClientIds = Array.from(new Set(data.alsoClientIds.filter((id) => id && id !== clientId)));
+    const eventGroupId = alsoClientIds.length ? randomUUID().replace(/-/g, "") : null;
     const item = await db.runnerAssignment.create({
       data: {
+        eventGroupId,
         clientId,
         runnerId: runner?.id ?? null,
         assignedAt: runner ? new Date() : null,
@@ -248,7 +254,23 @@ export async function POST(
     });
 
     await placeNewUnit(clientId, { pautaId: item.id });
-    return NextResponse.json({ data: item, conflictWarning, warning: availability.warning }, { status: 201 });
+
+    // The same event for the other clients: one pauta each, same runner, linked by the group.
+    const siblingWarnings: string[] = [];
+    let siblings = 0;
+    for (const otherId of alsoClientIds) {
+      const other = await db.client.findUnique({ where: { id: otherId }, select: { id: true, name: true, status: true } });
+      if (!other || other.status === "PAUSED" || other.status === "CHURNED") { siblingWarnings.push(`${other?.name ?? otherId}: cliente pausado, no se agendó`); continue; }
+      const av = await checkClientDate(otherId, eventDate);
+      if (av.blocked) { siblingWarnings.push(`${other.name}: ${av.warning}`); continue; }
+      const sib = await db.runnerAssignment.create({ data: { eventGroupId, clientId: otherId, runnerId: runner?.id ?? null, assignedAt: runner ? new Date() : null, eventDate, eventName, weekOf, location: data.location, arrivalTime: data.arrivalTime ? new Date(data.arrivalTime) : null, eventTime: data.eventTime ? new Date(data.eventTime) : null, venueName: data.venueName, venueAddress: data.venueAddress, itemType: data.itemType, notes: clientNotes, internalNotes, accompanistCount: data.accompanistCount, status: data.status } });
+      siblings++;
+      try { if (sib.status !== "CANCELLED") await ensureGoalForAgendaItem(sib.id, { id: user.id, role: user.role }); } catch (err) { console.error("goal for sibling:", err); }
+      try { await notifyClientNewPauta(sib.id).catch(() => undefined); if (sib.runnerId) await notifyRunnerAssigned(sib.id); } catch (err) { console.error("sibling notification:", err); }
+      await db.activityLog.create({ data: { clientId: otherId, userId: user.id, action: runner ? "runner_assigned" : "agenda_item_created", description: `Added "${eventName}" to ${other.name}'s agenda (same event as ${client.name})` } }).catch(() => undefined);
+      await placeNewUnit(otherId, { pautaId: sib.id });
+    }
+    return NextResponse.json({ data: item, siblings, siblingWarnings, conflictWarning, warning: availability.warning }, { status: 201 });
   } catch (err) {
     console.error("POST /api/clients/[clientId]/agenda failed:", err);
     return NextResponse.json({ error: "Could not create agenda item" }, { status: 500 });

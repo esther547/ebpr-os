@@ -12,6 +12,7 @@ import {
   tzMidnight,
 } from "@/components/runners/miami-time";
 import { loadScheduleItems } from "@/components/runners/load-schedule";
+import { attachEventGroups } from "@/lib/event-groups";
 import { RunnerScheduleClient } from "@/components/runners/runner-schedule-client";
 import { OpenPautas, type OpenPauta } from "@/components/runners/open-pautas";
 import { CalendarSyncCard } from "@/components/runners/calendar-sync-card";
@@ -46,35 +47,37 @@ export default async function RunnerPortalPage({ searchParams }: { searchParams?
     where: { eventDate: { gte: tzMidnight(weekStartDay), lt: tzMidnight(addDaysKey(weekStartDay, 7)) }, status: { not: "CANCELLED" } },
     select: {
       id: true, runnerId: true, clientId: true, eventName: true, eventDate: true, location: true, venueName: true, venueAddress: true,
-      arrivalTime: true, eventTime: true, itemType: true, notes: true, internalNotes: true, status: true, autoAssigned: true,
+      arrivalTime: true, eventTime: true, itemType: true, notes: true, internalNotes: true, status: true, autoAssigned: true, eventGroupId: true,
       runner: { select: { id: true, name: true, avatar: true } },
     },
     orderBy: { eventDate: "asc" },
   });
   const weekClientIds = Array.from(new Set(weekRows.map((r) => r.clientId).filter((id): id is string => !!id)));
   const weekClientNames = new Map((weekClientIds.length ? await db.client.findMany({ where: { id: { in: weekClientIds } }, select: { id: true, name: true } }) : []).map((c) => [c.id, c.name]));
-  const weekAssignments = weekRows.map(({ clientId, ...a }) => ({
+  const weekAssignments = attachEventGroups(weekRows.map(({ clientId, ...a }) => ({
     ...a,
     clientName: clientId ? weekClientNames.get(clientId) ?? null : null,
     eventDate: a.eventDate.toISOString(),
     arrivalTime: a.arrivalTime ? a.arrivalTime.toISOString() : null,
     eventTime: a.eventTime ? a.eventTime.toISOString() : null,
     dayKey: dayKeyInTz(a.eventDate),
-  }));
+  })));
   const teamRunners = await db.user.findMany({ where: companionWhere, select: { id: true, name: true, role: true, avatar: true }, orderBy: { name: "asc" } });
   const nextWeekKey = addDaysKey(currentWeekKey, 7);
 
   // Every future pauta with nobody on it (any week): what a runner could take.
   const openRows = await db.runnerAssignment.findMany({
     where: { runnerId: null, status: { in: ["SCHEDULED", "CONFIRMED"] }, eventDate: { gte: todayStart } },
-    select: { id: true, eventName: true, eventDate: true, eventTime: true, arrivalTime: true, venueName: true, location: true, itemType: true, status: true, clientId: true },
+    select: { id: true, eventName: true, eventDate: true, eventTime: true, arrivalTime: true, venueName: true, location: true, itemType: true, status: true, clientId: true, eventGroupId: true },
     orderBy: [{ eventDate: "asc" }, { eventTime: "asc" }],
     take: 200,
   });
   const openClientIds = Array.from(new Set(openRows.map((r) => r.clientId).filter((id): id is string => !!id)));
   const openClientNames = new Map((openClientIds.length ? await db.client.findMany({ where: { id: { in: openClientIds } }, select: { id: true, name: true } }) : []).map((c) => [c.id, c.name]));
-  const openPautas: OpenPauta[] = openRows.map((r) => ({
+  const openPautas: OpenPauta[] = attachEventGroups(openRows.map((r) => ({
     id: r.id,
+    eventGroupId: r.eventGroupId,
+    eventDate: r.eventDate,
     eventName: r.eventName,
     dayKey: dayKeyInTz(r.eventDate),
     eventTime: r.eventTime ? r.eventTime.toISOString() : null,
@@ -84,7 +87,7 @@ export default async function RunnerPortalPage({ searchParams }: { searchParams?
     itemType: r.itemType,
     status: r.status,
     clientName: r.clientId ? openClientNames.get(r.clientId) ?? null : null,
-  }));
+  })));
 
   // Only this runner's own assignments. Today's events stay visible for the
   // whole day (and uncompleted ones for a week after) so the runner can mark

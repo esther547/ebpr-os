@@ -20,6 +20,8 @@ export type EditableAgendaItem = {
   notes: string | null;
   internalNotes?: string | null;
   runner: { id: string; name: string } | null;
+  /** Names of the other clients at the same event (edits can propagate to them). */
+  coClients?: string[];
 };
 
 type Companion = { id: string; name: string; role?: string };
@@ -83,6 +85,7 @@ export function EditAgendaItemModal({
     };
     // Only send runnerId when the user changed it, so an unchanged auto-assignment stays automatic.
     if (runnerId !== (item.runner?.id ?? "")) body.runnerId = runnerId || null;
+    if (f.get("applyToEvent") === "on") body.applyToEvent = true;
     try {
       const res = await fetch(clientId ? `/api/clients/${clientId}/agenda/${item.id}` : `/api/runner-assignments/${item.id}`, {
         method: "PATCH",
@@ -162,6 +165,9 @@ export function EditAgendaItemModal({
         <FormGroup label="Notas para el cliente (salen en su portal y en su agenda)" htmlFor="ea-notes">
           <Textarea id="ea-notes" name="notes" rows={2} defaultValue={item.notes ?? ""} />
         </FormGroup>
+        {!!item.coClients?.length && (
+          <label className="flex items-start gap-2 rounded-md bg-surface-2 px-3 py-2 text-sm text-ink-secondary"><input type="checkbox" name="applyToEvent" defaultChecked className="mt-1" /> <span>Aplicar fecha, hora, lugar y runner también a los otros {item.coClients.length} clientes de este evento ({item.coClients.join(", ")}). El estado y las notas son solo de esta pauta.</span></label>
+        )}
         <FormActions>
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button type="submit" loading={saving}>Guardar</Button>

@@ -3,6 +3,7 @@ import { canViewRunnerSchedule } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { companionWhere } from "@/lib/companions";
 import { RunnerScheduleClient } from "@/components/runners/runner-schedule-client";
+import { attachEventGroups, linkEventGroups } from "@/lib/event-groups";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Lock } from "lucide-react";
 import {
@@ -66,8 +67,11 @@ export default async function RunnerSchedulePage({
       internalNotes: true,
       status: true,
       autoAssigned: true,
+      eventGroupId: true,
       runner: { select: { id: true, name: true, avatar: true } },
   } as const;
+  // Same-event pautas of several clients get linked before we read them (cheap; the cron does it nightly too).
+  if (user.role !== "RUNNER") await linkEventGroups(45).catch(() => undefined);
   const rows = await db.runnerAssignment.findMany({ where, select: scheduleSelect, orderBy: { eventDate: "asc" } });
   // Every future pauta with nobody on it (any week) — shown under the week so the team can assign.
   const openRows = await db.runnerAssignment.findMany({
@@ -93,8 +97,8 @@ export default async function RunnerSchedulePage({
     eventTime: a.eventTime ? a.eventTime.toISOString() : null,
     dayKey: dayKeyInTz(a.eventDate),
   });
-  const assignments = rows.map(toAssignment);
-  const openPautas = openRows.map(toAssignment);
+  const assignments = attachEventGroups(rows.map(toAssignment));
+  const openPautas = attachEventGroups(openRows.map(toAssignment));
 
   const runners = await db.user.findMany({
     where: companionWhere,

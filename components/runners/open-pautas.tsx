@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmModal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { formatDayKey, formatInTz } from "@/components/runners/miami-time";
+import { groupByEvent } from "./event-grouping";
 
 export type OpenPauta = {
   id: string;
@@ -22,6 +23,9 @@ export type OpenPauta = {
   itemType?: string | null;
   status: string;
   clientName?: string | null;
+  eventGroupId?: string | null;
+  eventKey?: string;
+  coClients?: string[];
 };
 
 const TIME: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
@@ -45,7 +49,8 @@ export function OpenPautas<T extends OpenPauta>({ pautas, onAssign }: { pautas: 
         toast({ title: typeof data?.error === "string" ? data.error : "Could not take this pauta", variant: "error" });
         return;
       }
-      toast({ title: "It's yours", description: `${p.eventName} · ${formatDayKey(p.dayKey, "EEE, MMM d")}. The team has been notified.`, variant: "success" });
+      const also = typeof data?.data?.alsoClaimed === "number" ? data.data.alsoClaimed : 0;
+      toast({ title: "It's yours", description: `${p.eventName} · ${formatDayKey(p.dayKey, "EEE, MMM d")}${also ? ` · also for ${also} other client${also === 1 ? "" : "s"} at the same event` : ""}. The team has been notified.`, variant: "success" });
       setTarget(null);
       router.refresh();
     } finally {
@@ -68,11 +73,11 @@ export function OpenPautas<T extends OpenPauta>({ pautas, onAssign }: { pautas: 
           <section key={dayKey}>
             <h3 className="eyebrow mb-2">{formatDayKey(dayKey, "EEEE, MMMM d")}</h3>
             <div className="space-y-2">
-              {items.map((p) => (
+              {groupByEvent(items).map(({ a: p, members, clients }) => (
                 <Card key={p.id} padding="sm" className="p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 flex-1">
-                      {p.clientName && <p className="text-xs font-semibold uppercase tracking-wide text-accent2">{p.clientName}</p>}
+                      {members.length > 1 ? <p className="text-xs font-semibold uppercase tracking-wide text-accent2">{clients.length} clientes · {clients.join(", ")}</p> : p.clientName && <p className="text-xs font-semibold uppercase tracking-wide text-accent2">{p.clientName}</p>}
                       <div className="mt-0.5 flex flex-wrap items-center gap-2">
                         <p className="break-words text-base font-semibold leading-snug text-ink-primary">{p.eventName}</p>
                         <Badge tone={statusTone(p.status)} dot>{humanize(p.status)}</Badge>
@@ -94,7 +99,7 @@ export function OpenPautas<T extends OpenPauta>({ pautas, onAssign }: { pautas: 
                     </div>
                     {onAssign ? (
                       <Button size="lg" leftIcon={<UserPlus className="h-4 w-4" />} onClick={() => onAssign(p)} className="h-12 w-full shrink-0 sm:h-10 sm:w-auto">
-                        Assign runner
+                        {members.length > 1 ? `Assign runner · ${members.length} clientes` : "Assign runner"}
                       </Button>
                     ) : (
                       <Button size="lg" variant="secondary" leftIcon={<Hand className="h-4 w-4" />} onClick={() => setTarget(p)} className="h-12 w-full shrink-0 sm:h-10 sm:w-auto">
@@ -112,7 +117,7 @@ export function OpenPautas<T extends OpenPauta>({ pautas, onAssign }: { pautas: 
         open={target !== null}
         onOpenChange={(o) => !o && setTarget(null)}
         title="Take this pauta?"
-        description={target ? `${target.clientName ? target.clientName + " · " : ""}${target.eventName} · ${formatDayKey(target.dayKey, "EEEE, MMMM d")}. You'll be the runner and the team gets notified.` : undefined}
+        description={target ? `${target.coClients?.length ? [target.clientName, ...target.coClients].filter(Boolean).join(", ") + " · " : target.clientName ? target.clientName + " · " : ""}${target.eventName} · ${formatDayKey(target.dayKey, "EEEE, MMMM d")}. You'll be the runner${target.coClients?.length ? " for every client at this event" : ""} and the team gets notified.` : undefined}
         confirmLabel="Yes, I'll take it"
         loading={loading}
         onConfirm={() => { if (target) void claim(target); }}

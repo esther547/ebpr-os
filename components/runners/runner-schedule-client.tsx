@@ -166,6 +166,7 @@ export function RunnerScheduleClient({
             notes: editTarget.notes ?? null,
             internalNotes: editTarget.internalNotes ?? null,
             runner: editTarget.runner ? { id: editTarget.runner.id, name: editTarget.runner.name } : null,
+            coClients: editTarget.coClients,
           }}
           runners={runners}
         />

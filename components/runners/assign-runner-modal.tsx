@@ -6,7 +6,7 @@ import { Modal } from "@/components/ui/modal";
 import { Button, Select, FormGroup, FormActions } from "@/components/ui/form-field";
 import { useToast } from "@/components/ui/toast";
 
-type Target = { id: string; eventName: string; runnerId: string | null } | null;
+type Target = { id: string; eventName: string; runnerId: string | null; coClients?: string[]; clientName?: string | null } | null;
 
 /**
  * Pick a runner by hand for one activity (or clear the one it has).
@@ -28,13 +28,15 @@ export function AssignRunnerModal({
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!assignment) return;
-    const runnerId = (new FormData(e.currentTarget).get("runnerId") as string) || "";
+    const form = new FormData(e.currentTarget);
+    const runnerId = (form.get("runnerId") as string) || "";
+    const applyToEvent = form.get("applyToEvent") === "on";
     setLoading(true);
     try {
       const res = await fetch(`/api/runner-assignments/${assignment.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ runnerId: runnerId || null }),
+        body: JSON.stringify({ runnerId: runnerId || null, applyToEvent }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -92,6 +94,9 @@ export function AssignRunnerModal({
           Picking a runner here marks the activity as hand-scheduled, so the Friday
           auto-assign leaves it alone.
         </p>
+        {!!assignment?.coClients?.length && (
+          <label className="flex items-start gap-2 text-sm text-ink-secondary"><input type="checkbox" name="applyToEvent" defaultChecked className="mt-1" /> <span>Asignar también a los otros {assignment.coClients.length} clientes de este evento ({assignment.coClients.join(", ")}).</span></label>
+        )}
         <FormActions>
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancel

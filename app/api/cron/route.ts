@@ -13,6 +13,7 @@ import { syncAllAgendaDocs, type AgendaDocSyncReport } from "@/lib/google-docs-w
 import { runEventReminders, type EventReminderSummary } from "@/lib/industry-events";
 import { reminderModeForToday, sendPitchReminders, type PitchReminderResult } from "@/lib/pitch-reminders";
 import { processPressInbox, type InboxResult } from "@/lib/press-inbox";
+import { linkEventGroups } from "@/lib/event-groups";
 import { purgeDonePriorities, rollOverPendingPriorities } from "@/lib/priorities";
 import { redistributeClient } from "@/lib/service-periods";
 
@@ -266,6 +267,10 @@ export async function GET(req: NextRequest) {
     pitch = { error: err instanceof Error ? err.message : String(err) };
   }
 
+  // ── 4c2. Same-event pautas of several clients get linked as one event ──
+  let eventGroups: { linked: number; groups: number } | { error: string };
+  try { eventGroups = await linkEventGroups(45); } catch (err) { eventGroups = { error: err instanceof Error ? err.message : String(err) }; }
+
   // ── 4d. Press releases forwarded to press@ → pending releases + test emails ──
   let pressInbox: InboxResult | { error: string };
   try {
@@ -290,7 +295,7 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json(
-    { message: "Cron completed", timestamp: now.toISOString(), today: todayKey, results, events, pitch, pressInbox, agendaDocs },
+    { message: "Cron completed", timestamp: now.toISOString(), today: todayKey, results, events, pitch, eventGroups, pressInbox, agendaDocs },
     { headers: NO_STORE }
   );
 }

@@ -11,6 +11,7 @@ import { Badge, statusTone, humanize } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
 import { addDaysKey, formatDayKey, formatInTz } from "@/components/runners/miami-time";
+import { groupByEvent } from "./event-grouping";
 
 export type ScheduleItem = {
   id: string;
@@ -31,6 +32,9 @@ export type ScheduleItem = {
   /** Display name only — runners never receive client IDs. */
   clientName: string | null;
   runner?: { id: string; name: string } | null;
+  eventGroupId?: string | null;
+  eventKey?: string;
+  coClients?: string[];
 };
 
 const TIME: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
@@ -147,7 +151,7 @@ export function MyScheduleView({
               </div>
 
               <div className="space-y-3">
-                {items.map((a) => (
+                {groupByEvent(items).map(({ a, members, clients }) => (
                   <Card
                     key={a.id}
                     id={`assignment-${a.id}`}
@@ -167,12 +171,19 @@ export function MyScheduleView({
                         </div>
 
                         <div className="mb-3 flex flex-wrap items-center gap-1.5">
-                          {a.clientName && (
+                          {members.length > 1 ? (
+                            clients.map((c) => (
+                              <Badge key={c} tone="outline" size="xs">
+                                <Briefcase className="h-3 w-3 text-ink-muted" />
+                                {c}
+                              </Badge>
+                            ))
+                          ) : a.clientName ? (
                             <Badge tone="outline" size="xs">
                               <Briefcase className="h-3 w-3 text-ink-muted" />
                               {a.clientName}
                             </Badge>
-                          )}
+                          ) : null}
                           {a.itemType && (
                             <Badge size="xs">{a.itemType}</Badge>
                           )}

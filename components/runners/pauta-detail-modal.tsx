@@ -21,6 +21,7 @@ export function PautaDetailModal({ pauta, onClose }: { pauta: ScheduleAssignment
             <Badge tone={p.runnerId ? statusTone(p.status) : "danger"} dot>{p.runnerId ? humanize(p.status) : "Needs runner"}</Badge>
             {p.itemType && <Badge tone="outline" size="xs">{p.itemType}</Badge>}
           </div>
+          {!!p.coClients?.length && <p className="text-sm text-ink-secondary">Mismo evento para: <span className="font-medium text-ink-primary">{[p.clientName, ...p.coClients].filter(Boolean).join(", ")}</span></p>}
 
           <dl className="space-y-2 text-sm">
             <div className="flex items-start gap-2">

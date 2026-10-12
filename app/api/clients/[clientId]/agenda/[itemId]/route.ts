@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notifyClientPautaChanges, notifyClientPautaRemoved } from "@/lib/client-notify";
 import { queueRescheduleTodo } from "@/lib/reschedule-todo";
+import { siblingsOf } from "@/lib/event-groups";
 import { assignPeriod, placeNewUnit } from "@/lib/service-periods";
 
 import { mergeInternalNotes, splitClientNotes } from "@/lib/client-safe-notes";
@@ -49,6 +50,8 @@ const patchSchema = z.object({
     .optional(),
   /** true = the client cancelled last minute: runner freed, stays in the talent's agenda as "No asistió", still counts. */
   cancelLastMinute: z.boolean().optional(),
+  /** Also apply date / time / place / name / runner changes to the other clients' pautas of the same event. */
+  applyToEvent: z.boolean().optional(),
 });
 
 // PATCH — update a single agenda item
@@ -141,6 +144,15 @@ export async function PATCH(
     d.eventDate !== undefined || d.eventTime !== undefined || d.arrivalTime !== undefined;
 
   await db.runnerAssignment.update({ where: { id: itemId }, data: updateData });
+  if (d.applyToEvent) {
+    const shared: Record<string, unknown> = {};
+    for (const k of ["runnerId", "autoAssigned", "assignedAt", "eventDate", "weekOf", "arrivalTime", "eventTime", "eventName", "venueName", "venueAddress", "location"]) if (k in updateData) shared[k] = (updateData as Record<string, unknown>)[k];
+    if (Object.keys(shared).length) for (const s of await siblingsOf(itemId)) {
+      const sb = await db.runnerAssignment.findUnique({ where: { id: s.id }, select: snapshotSelect });
+      await db.runnerAssignment.update({ where: { id: s.id }, data: shared });
+      if (sb) { await notifyClientPautaChanges(sb).catch(() => undefined); await notifyRunnerOfChanges(sb, user.name).catch(() => undefined); }
+    }
+  }
   // Cancelled by us (not a client last-minute cancellation): the strategist gets a "Reagendar" to-do.
   if (updateData.status === "CANCELLED" && !updateData.cancelLastMinute && existing.status !== "CANCELLED") await queueRescheduleTodo({ pautaId: itemId, byUserId: user.id, byUserName: user.name });
   // A proposal that just became a confirmed opportunity starts counting: place it now.

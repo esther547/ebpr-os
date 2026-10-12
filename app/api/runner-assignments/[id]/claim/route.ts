@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notifyTeamRunnerClaimed } from "@/lib/runner-notify";
 import { dayKeyInTz, tzMidnight } from "@/components/runners/miami-time";
+import { siblingsOf } from "@/lib/event-groups";
 
 /**
  * POST — a runner takes an open pauta ("I can take this") from the portal list of future pautas
@@ -27,5 +28,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     data: { clientId: a.clientId ?? undefined, userId: user.id, action: "runner_claimed", description: `${user.name} took "${a.eventName}" from the runner portal`, metadata: { assignmentId: a.id } },
   }).catch(() => undefined);
   await notifyTeamRunnerClaimed(a.id, { name: user.name }).catch(() => undefined);
-  return NextResponse.json({ data: { id: a.id, runnerId: user.id } });
+  // The same event for other clients: the runner takes those too (only the ones still open).
+  let also = 0;
+  for (const s of await siblingsOf(a.id)) if (!s.runnerId) { const r = await db.runnerAssignment.updateMany({ where: { id: s.id, runnerId: null }, data: { runnerId: user.id, autoAssigned: false, assignedAt: new Date() } }); also += r.count; }
+  return NextResponse.json({ data: { id: a.id, runnerId: user.id, alsoClaimed: also } });
 }
