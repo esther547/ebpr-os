@@ -34,7 +34,7 @@ const TIME: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
  * Every future pauta with nobody on it. Runners see "I can take this" (claim); the internal
  * Runner Schedule passes `onAssign` and gets an "Assign runner" button instead.
  */
-export function OpenPautas<T extends OpenPauta>({ pautas, onAssign }: { pautas: T[]; onAssign?: (p: T) => void }) {
+export function OpenPautas<T extends OpenPauta>({ pautas, onAssign }: { pautas: T[]; onAssign?: (p: T, members?: T[]) => void }) {
   const router = useRouter();
   const { toast } = useToast();
   const [target, setTarget] = useState<OpenPauta | null>(null);
@@ -77,7 +77,12 @@ export function OpenPautas<T extends OpenPauta>({ pautas, onAssign }: { pautas: 
                 <Card key={p.id} padding="sm" className="p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 flex-1">
-                      {members.length > 1 ? <p className="text-xs font-semibold uppercase tracking-wide text-accent2">{clients.length} clientes · {clients.join(", ")}</p> : p.clientName && <p className="text-xs font-semibold uppercase tracking-wide text-accent2">{p.clientName}</p>}
+                      {members.length > 1 ? (
+                        <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-accent2">{clients.length} clientes</span>
+                          {clients.map((c) => (<Badge key={c} tone="outline" size="xs">{c}</Badge>))}
+                        </div>
+                      ) : p.clientName && <p className="text-xs font-semibold uppercase tracking-wide text-accent2">{p.clientName}</p>}
                       <div className="mt-0.5 flex flex-wrap items-center gap-2">
                         <p className="break-words text-base font-semibold leading-snug text-ink-primary">{p.eventName}</p>
                         <Badge tone={statusTone(p.status)} dot>{humanize(p.status)}</Badge>
@@ -98,7 +103,7 @@ export function OpenPautas<T extends OpenPauta>({ pautas, onAssign }: { pautas: 
                       </div>
                     </div>
                     {onAssign ? (
-                      <Button size="lg" leftIcon={<UserPlus className="h-4 w-4" />} onClick={() => onAssign(p)} className="h-12 w-full shrink-0 sm:h-10 sm:w-auto">
+                      <Button size="lg" leftIcon={<UserPlus className="h-4 w-4" />} onClick={() => onAssign(p, members)} className="h-12 w-full shrink-0 sm:h-10 sm:w-auto">
                         {members.length > 1 ? `Assign runner · ${members.length} clientes` : "Assign runner"}
                       </Button>
                     ) : (

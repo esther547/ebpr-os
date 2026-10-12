@@ -55,7 +55,7 @@ type Props = {
   /** Tap/click a card to see every detail (notes, contacts, calendar link). */
   onOpen?: (assignment: ScheduleAssignment) => void;
   /** Open the "assign a runner" picker for one activity. */
-  onAssign?: (assignment: ScheduleAssignment) => void;
+  onAssign?: (assignment: ScheduleAssignment, members?: ScheduleAssignment[]) => void;
   /** Strategists/admins: edit (time, place, runner…) or delete a pauta. */
   onEdit?: (assignment: ScheduleAssignment) => void;
   onDelete?: (assignment: ScheduleAssignment) => void;
@@ -259,9 +259,16 @@ export function RunnerScheduleView({
                           </div>
 
                           {members.length > 1 ? (
-                            <div className="mb-0.5">
+                            <div className="mb-1">
                               <p className="text-2xs font-semibold uppercase tracking-wide text-accent2-ink">{clients.length} clientes</p>
-                              <p className="text-2xs leading-snug text-ink-secondary" title={clients.join(", ")}>{clients.join(" · ")}</p>
+                              <ul className="mt-0.5 space-y-0.5">
+                                {members.map((m) => (
+                                  <li key={m.id} className="flex items-center justify-between gap-1 text-2xs leading-snug">
+                                    <span className="truncate font-medium text-ink-primary" title={m.clientName ?? undefined}>{m.clientName ?? "Cliente"}</span>
+                                    <span className={cn("shrink-0", m.runner ? "text-ink-secondary" : "text-red-600")}>{m.runner ? m.runner.name.split(" ")[0] : "sin runner"}</span>
+                                  </li>
+                                ))}
+                              </ul>
                             </div>
                           ) : a.clientName ? (
                             <p className="truncate text-2xs font-semibold uppercase tracking-wide text-accent2-ink" title={a.clientName}>
@@ -307,11 +314,16 @@ export function RunnerScheduleView({
                                 size="xs"
                                 className="mt-1.5 w-full"
                                 leftIcon={<UserPlus className="h-3 w-3" />}
-                                onClick={(e) => { e.stopPropagation(); onAssign(members.find((m) => !m.runnerId) ?? a); }}
+                                onClick={(e) => { e.stopPropagation(); onAssign(members.find((m) => !m.runnerId) ?? a, members); }}
                               >
-                                {members.length > 1 ? `Assign · ${members.filter((m) => !m.runnerId).length} clientes` : "Assign"}
+                                {members.length > 1 ? `Assign runners · ${members.length} clientes` : "Assign"}
                               </Button>
                             )
+                          )}
+                          {!isReadOnly && onAssign && members.length > 1 && !needsRunner && (
+                            <Button variant="ghost" size="xs" className="mt-1 w-full" leftIcon={<UserPlus className="h-3 w-3" />} onClick={(e) => { e.stopPropagation(); onAssign(a, members); }}>
+                              Cambiar runners
+                            </Button>
                           )}
                           {!isReadOnly && (onEdit || onDelete) && (
                             <div className="mt-1.5 flex items-center gap-1">

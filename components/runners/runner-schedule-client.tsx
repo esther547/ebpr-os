@@ -55,7 +55,7 @@ export function RunnerScheduleClient({
   openPautas,
 }: Props) {
   const [showAssign, setShowAssign] = useState(false);
-  const [assignTarget, setAssignTarget] = useState<ScheduleAssignment | null>(null);
+  const [assignTarget, setAssignTarget] = useState<(ScheduleAssignment & { members?: ScheduleAssignment[] }) | null>(null);
   const [editTarget, setEditTarget] = useState<ScheduleAssignment | null>(null);
   const [detailTarget, setDetailTarget] = useState<ScheduleAssignment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ScheduleAssignment | null>(null);
@@ -134,7 +134,7 @@ export function RunnerScheduleClient({
         isReadOnly={isRunner}
         basePath={basePath}
         onOpen={setDetailTarget}
-        onAssign={setAssignTarget}
+        onAssign={(a, members) => setAssignTarget({ ...a, members })}
         onEdit={setEditTarget}
         onDelete={setDeleteTarget}
       />
@@ -146,7 +146,7 @@ export function RunnerScheduleClient({
             description={openPautas.length ? `${openPautas.length} pauta${openPautas.length === 1 ? "" : "s"} futura${openPautas.length === 1 ? "" : "s"} sin runner, de cualquier semana. Los runners también las ven en su portal y pueden tomarlas.` : "Todas las pautas futuras ya tienen runner."}
             className="mb-0"
           />
-          <OpenPautas pautas={openPautas} onAssign={(p) => setAssignTarget(p)} />
+          <OpenPautas pautas={openPautas} onAssign={(p, members) => setAssignTarget({ ...p, members })} />
         </section>
       )}
       {!isRunner && editTarget && (
@@ -193,7 +193,7 @@ export function RunnerScheduleClient({
       )}
       {!isRunner && (
         <AssignRunnerModal
-          assignment={assignTarget}
+          assignment={assignTarget ? { ...assignTarget, members: assignTarget.members?.map((m) => ({ id: m.id, clientName: m.clientName ?? null, runnerId: m.runnerId })) } : null}
           runners={runners}
           onClose={() => setAssignTarget(null)}
         />
