@@ -84,14 +84,17 @@ export default async function AgendaPage({ params }: Props) {
   };
   const goalOnly = (units: typeof board.pending): GoalOnlyUnit[] =>
     units.filter((u) => !u.pautaId && u.goalId).map((u) => ({ goalId: u.goalId!, title: u.title, state: u.state, coversPeriod: u.coversPeriod, periodNote: u.periodNote, periodId: u.periodId, closedAt: u.closedAt?.toISOString() ?? null, executedAt: u.executedAt?.toISOString() ?? null, goalValue: u.goalValue }));
+  // Rows of a block follow the team's manual order (agendaSequence), then the event date.
+  const bySeq = (a: { agendaSequence: number | null; eventDate: Date | string }, b: { agendaSequence: number | null; eventDate: Date | string }) =>
+    (a.agendaSequence ?? 1e9) - (b.agendaSequence ?? 1e9) || new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime();
   const periodCards: PeriodCard[] = board.periods.map((pp) => ({
     id: pp.id, number: pp.number, label: pp.label, target: pp.target, refYear: pp.refYear, refMonth: pp.refMonth, note: pp.note,
     achieved: pp.achieved, closedPending: pp.closedPending, executed: pp.executed, missing: pp.missing, toReview: pp.toReview,
-    items: items.filter((it) => unitByPauta.get(it.id)?.periodId === pp.id).map(withUnit),
+    items: items.filter((it) => unitByPauta.get(it.id)?.periodId === pp.id).sort(bySeq).map(withUnit),
     goalOnly: goalOnly(pp.units),
   }));
   const pendingIds = new Set(board.pending.filter((u) => u.pautaId).map((u) => u.pautaId!));
-  const pendingCard = { items: items.filter((it) => pendingIds.has(it.id)).map(withUnit), goalOnly: goalOnly(board.pending) };
+  const pendingCard = { items: items.filter((it) => pendingIds.has(it.id)).sort(bySeq).map(withUnit), goalOnly: goalOnly(board.pending) };
   const allItems = items.map(withUnit);
   const proposals = allItems.filter((it) => it.isProposal);
 

@@ -6,7 +6,7 @@ import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { SectionHeader } from "@/components/layout/header";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, UserPlus, Check, XCircle, Layers, Star } from "lucide-react";
+import { Pencil, UserPlus, Check, XCircle, Layers, Star, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { DropdownMenu, DropdownMenuDots, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { Button, Textarea, FormGroup, FormActions } from "@/components/ui/form-field";
@@ -94,6 +94,26 @@ const STATUS_LABELS: Record<string, string> = {
 export function AgendaMonthSection({ monthNumber, monthLabel, target = 0, items, runners = [], clientId, canEdit = true, periods, title, description, actions, hideHeader = false }: Props) {
   // Items arrive in report order (lib/agenda-months.ts); the number is the row's place in its MES.
   const sorted = items;
+  const router = useRouter();
+  const { toast } = useToast();
+  const [moving, setMoving] = useState(false);
+  // ▲▼: the team orders the rows of a block by hand; the order is stored as agendaSequence (1..n) and
+  // followed by the portal, the client view and the Google Doc.
+  const canReorder = canEdit && !!clientId && !!periods && sorted.length > 1;
+  async function move(index: number, dir: -1 | 1) {
+    if (!clientId) return;
+    const j = index + dir; if (j < 0 || j >= sorted.length) return;
+    const order = [...sorted]; [order[index], order[j]] = [order[j], order[index]];
+    setMoving(true);
+    try {
+      for (const [i, it] of order.entries()) {
+        if (it.agendaSequence === i + 1) continue;
+        const res = await fetch(`/api/clients/${clientId}/agenda/${it.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ agendaSequence: i + 1 }) });
+        if (!res.ok) { toast({ title: "No se pudo reordenar", variant: "error" }); return; }
+      }
+      router.refresh();
+    } finally { setMoving(false); }
+  }
 
   return (
     <section>
@@ -131,11 +151,11 @@ export function AgendaMonthSection({ monthNumber, monthLabel, target = 0, items,
             {(() => {
               // Goal numbers run through the block: an activity worth k goals takes k consecutive numbers.
               let next = 1;
-              return sorted.map((item) => {
+              return sorted.map((item, index) => {
                 const v = periods ? Math.max(item.coversPeriod ? target : item.goalValue ?? 1, 1) : 1;
                 const first = next; next += v;
                 const label = v === 1 ? String(first) : `${first}–${first + v - 1}`;
-                return <AgendaItemRow key={item.id} item={item} seq={first} seqLabel={label} clientId={canEdit ? clientId : undefined} runners={runners} periods={periods} patchClientId={clientId} />;
+                return <AgendaItemRow key={item.id} item={item} seq={first} seqLabel={label} clientId={canEdit ? clientId : undefined} runners={runners} periods={periods} patchClientId={clientId} reorder={canReorder ? { up: index > 0 ? () => void move(index, -1) : null, down: index < sorted.length - 1 ? () => void move(index, 1) : null, busy: moving } : undefined} />;
               });
             })()}
           </tbody>
@@ -145,11 +165,11 @@ export function AgendaMonthSection({ monthNumber, monthLabel, target = 0, items,
   );
 }
 
-function AgendaItemRow({ item, seq, seqLabel, clientId, runners, periods, patchClientId }: { item: AgendaItem; seq: number; seqLabel?: string; clientId?: string; runners: { id: string; name: string; role?: string }[]; periods?: PeriodOption[]; patchClientId?: string }) {
+function AgendaItemRow({ item, seq, seqLabel, clientId, runners, periods, patchClientId, reorder }: { item: AgendaItem; seq: number; seqLabel?: string; clientId?: string; runners: { id: string; name: string; role?: string }[]; periods?: PeriodOption[]; patchClientId?: string; reorder?: { up: (() => void) | null; down: (() => void) | null; busy: boolean } }) {
   const router = useRouter();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
-  const [confirm, setConfirm] = useState<"COMPLETED" | "CANCELLED" | "LAST_MINUTE" | null>(null);
+  const [confirm, setConfirm] = useState<"COMPLETED" | "CANCELLED" | "LAST_MINUTE" | "DELETE" | null>(null);
   const [busy, setBusy] = useState(false);
   const [covers, setCovers] = useState(false);
   const [coverNote, setCoverNote] = useState(item.periodNote ?? "");
@@ -178,6 +198,18 @@ function AgendaItemRow({ item, seq, seqLabel, clientId, runners, periods, patchC
     } finally { setBusy(false); setConfirm(null); }
   }
 
+  async function remove() {
+    if (!clientId) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/agenda/${item.id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) { toast({ title: apiErrorMessage(data, "No se pudo eliminar"), variant: "error" }); return; }
+      toast({ title: "Pauta eliminada de la agenda", variant: "success" });
+      router.refresh();
+    } finally { setBusy(false); setConfirm(null); }
+  }
+
   const needsRunner =
     !item.runner && (item.status === "SCHEDULED" || item.status === "CONFIRMED");
   const date = new Date(item.eventDate);
@@ -187,7 +219,15 @@ function AgendaItemRow({ item, seq, seqLabel, clientId, runners, periods, patchC
   return (
     <tr className={needsRunner ? "bg-red-50/40" : undefined}>
       <Td numeric className="text-xs font-semibold text-ink-muted">
-        {seqLabel ?? seq}
+        <div className="flex items-center gap-1">
+          <span>{seqLabel ?? seq}</span>
+          {reorder && (
+            <span className="flex flex-col">
+              <button type="button" aria-label="Subir" title="Subir" disabled={!reorder.up || reorder.busy} onClick={reorder.up ?? undefined} className="text-ink-muted hover:text-ink-primary disabled:opacity-20"><ChevronUp className="h-3 w-3" /></button>
+              <button type="button" aria-label="Bajar" title="Bajar" disabled={!reorder.down || reorder.busy} onClick={reorder.down ?? undefined} className="text-ink-muted hover:text-ink-primary disabled:opacity-20"><ChevronDown className="h-3 w-3" /></button>
+            </span>
+          )}
+        </div>
       </Td>
 
       <Td>
@@ -336,6 +376,7 @@ function AgendaItemRow({ item, seq, seqLabel, clientId, runners, periods, patchC
               {item.status !== "CANCELLED" && (
                 <DropdownMenuItem icon={<XCircle />} destructive onSelect={() => setConfirm("CANCELLED")}>Cancelar pauta</DropdownMenuItem>
               )}
+              <DropdownMenuItem icon={<Trash2 />} destructive onSelect={() => setConfirm("DELETE")}>Eliminar de la agenda</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           {editing && (
@@ -369,12 +410,12 @@ function AgendaItemRow({ item, seq, seqLabel, clientId, runners, periods, patchC
           <ConfirmModal
             open={!!confirm}
             onOpenChange={(o) => { if (!o) setConfirm(null); }}
-            title={confirm === "COMPLETED" ? "¿Marcar la pauta como completada?" : confirm === "LAST_MINUTE" ? "¿Cancelación last minute del cliente?" : "¿Cancelar esta pauta?"}
-            description={confirm === "LAST_MINUTE" ? `${item.eventName}. El runner queda liberado y la pauta sale de su semana. En la agenda del talento queda como «No asistió – Cancelación last minute» y sigue contando para la meta, porque la cancelación no fue nuestra.` : confirm === "CANCELLED" ? `${item.eventName}. El runner queda liberado y la pauta sale de su semana. En la agenda del talento queda como cancelada y no cuenta para la meta.` : item.eventName ?? undefined}
-            confirmLabel={confirm === "COMPLETED" ? "Completar" : confirm === "LAST_MINUTE" ? "Registrar" : "Cancelar pauta"}
-            destructive={confirm === "CANCELLED"}
+            title={confirm === "COMPLETED" ? "¿Marcar la pauta como completada?" : confirm === "LAST_MINUTE" ? "¿Cancelación last minute del cliente?" : confirm === "DELETE" ? "¿Eliminar esta pauta de la agenda?" : "¿Cancelar esta pauta?"}
+            description={confirm === "LAST_MINUTE" ? `${item.eventName}. El runner queda liberado y la pauta sale de su semana. En la agenda del talento queda como «No asistió – Cancelación last minute» y sigue contando para la meta, porque la cancelación no fue nuestra.` : confirm === "CANCELLED" ? `${item.eventName}. El runner queda liberado y la pauta sale de su semana. En la agenda del talento queda como cancelada y no cuenta para la meta.` : confirm === "DELETE" ? `${item.eventName}. Se borra del todo (agenda, portal del talento y Google Doc) y deja de contar. Si fue un error de carga o un duplicado, es lo que quieres; si el cliente la canceló, usa «Cancelar pauta».` : item.eventName ?? undefined}
+            confirmLabel={confirm === "COMPLETED" ? "Completar" : confirm === "LAST_MINUTE" ? "Registrar" : confirm === "DELETE" ? "Eliminar" : "Cancelar pauta"}
+            destructive={confirm === "CANCELLED" || confirm === "DELETE"}
             loading={busy}
-            onConfirm={async () => { if (confirm) await setStatus(confirm); }}
+            onConfirm={async () => { if (confirm === "DELETE") await remove(); else if (confirm) await setStatus(confirm); }}
           />
         </Td>
       )}

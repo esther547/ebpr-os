@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil, CalendarDays, Layers, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, CalendarDays, Layers, AlertTriangle, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button, Input, Select, Textarea, FormGroup, FormActions } from "@/components/ui/form-field";
@@ -155,6 +155,29 @@ export function PeriodBoard({ clientId, canEdit, runners, periods, pending, allI
 function GoalOnlyList({ units, periods, canEdit }: { units: GoalOnlyUnit[]; periods: PeriodOption[]; canEdit: boolean }) {
   const router = useRouter();
   const { toast } = useToast();
+  const [editing, setEditing] = useState<GoalOnlyUnit | null>(null);
+  const [removing, setRemoving] = useState<GoalOnlyUnit | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function remove(u: GoalOnlyUnit) {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/deliverables/${u.goalId}`, { method: "DELETE" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) { toast({ title: apiErrorMessage(data, "No se pudo eliminar"), variant: "error" }); return; }
+      toast({ title: "Meta eliminada", variant: "success" }); setRemoving(null); router.refresh();
+    } finally { setBusy(false); }
+  }
+  async function saveEdit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault(); if (!editing) return;
+    const f = new FormData(e.currentTarget); setBusy(true);
+    try {
+      const title = String(f.get("title") ?? "").trim(); const due = String(f.get("dueDate") ?? "");
+      const res = await fetch(`/api/deliverables/${editing.goalId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, dueDate: due || null }) });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) { toast({ title: apiErrorMessage(data, "No se pudo guardar"), variant: "error" }); return; }
+      toast({ title: "Meta actualizada", variant: "success" }); setEditing(null); router.refresh();
+    } finally { setBusy(false); }
+  }
   async function patch(goalId: string, body: Record<string, unknown>) {
     const res = await fetch(`/api/deliverables/${goalId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = await res.json().catch(() => null);
@@ -182,8 +205,27 @@ function GoalOnlyList({ units, periods, canEdit }: { units: GoalOnlyUnit[]; peri
               {periods.map((p) => <option key={p.id} value={p.id}>Mes {p.number} · {p.label}</option>)}
             </select>
           ) : null}
+          {canEdit && (
+            <span className="flex items-center gap-0.5">
+              <button type="button" aria-label="Editar meta" title="Editar" onClick={() => setEditing(u)} className="rounded p-1 text-ink-muted hover:bg-surface-2 hover:text-ink-primary"><Pencil className="h-3.5 w-3.5" /></button>
+              <button type="button" aria-label="Eliminar meta" title="Eliminar" onClick={() => setRemoving(u)} className="rounded p-1 text-ink-muted hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
+            </span>
+          )}
         </li>
       ))}
+      {editing && (
+        <Modal open onOpenChange={(o) => { if (!o) setEditing(null); }} title="Editar meta" description="Meta sin pauta: nombre y fecha.">
+          <form onSubmit={saveEdit} className="space-y-4">
+            <FormGroup label="Nombre" htmlFor="go-title" required><Input id="go-title" name="title" defaultValue={editing.title} required autoFocus /></FormGroup>
+            <FormGroup label="Fecha" htmlFor="go-date" hint="opcional"><Input id="go-date" name="dueDate" type="date" defaultValue={editing.executedAt?.slice(0, 10) ?? editing.closedAt?.slice(0, 10) ?? ""} /></FormGroup>
+            <FormActions>
+              <Button type="button" variant="secondary" onClick={() => setEditing(null)}>Cancelar</Button>
+              <Button type="submit" loading={busy}>Guardar</Button>
+            </FormActions>
+          </form>
+        </Modal>
+      )}
+      <ConfirmModal open={!!removing} onOpenChange={(o) => { if (!o) setRemoving(null); }} title={removing ? `¿Eliminar «${removing.title}»?` : "¿Eliminar?"} description="Se borra la meta de la agenda y deja de contar en el período." confirmLabel="Eliminar" destructive loading={busy} onConfirm={async () => { if (removing) await remove(removing); }} />
     </ul>
   );
 }

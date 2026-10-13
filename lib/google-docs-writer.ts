@@ -200,7 +200,7 @@ export async function buildAgendaSections(clientId: string, now = new Date()): P
     .map((p) => {
       const monthName = MONTH_NAMES_ES[p.refMonth - 1];
       const month = p.refMonth;
-      const rows = assignments.filter((a) => (a.status !== "CANCELLED" || a.cancelLastMinute) && a.periodId === p.id).map((a, i) => { const g = a.deliverableId ? linkedGoal.get(a.deliverableId) : undefined; const r = row({ ...a, isGold: a.isGold || !!g?.isGold }, i); return { ...r, value: a.coversPeriod || g?.coversPeriod ? p.target : Math.max(a.goalValue ?? 1, g?.goalValue ?? 1) }; });
+      const rows = assignments.filter((a) => (a.status !== "CANCELLED" || a.cancelLastMinute) && a.periodId === p.id).sort((x, y) => (x.agendaSequence ?? 1e9) - (y.agendaSequence ?? 1e9) || x.eventDate.getTime() - y.eventDate.getTime()).map((a, i) => { const g = a.deliverableId ? linkedGoal.get(a.deliverableId) : undefined; const r = row({ ...a, isGold: a.isGold || !!g?.isGold }, i); return { ...r, value: a.coversPeriod || g?.coversPeriod ? p.target : Math.max(a.goalValue ?? 1, g?.goalValue ?? 1) }; });
       // "Passed by client" rows stay on record, listed under the block of their calendar month.
       for (const a of assignments.filter((x) => x.status === "CANCELLED" && !x.cancelLastMinute && Number(dayKeyInTz(x.eventDate).split("-")[1]) === month)) rows.push({ ...row(a, rows.length), estado: "Passed by client", value: 0 });
       for (const g of goalOnly.filter((x) => x.periodId === p.id)) {
