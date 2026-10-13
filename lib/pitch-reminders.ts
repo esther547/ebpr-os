@@ -334,6 +334,7 @@ function milestoneHtml(firstName: string, todayKey: string, events: UpcomingEven
  */
 export async function sendEventPitchMilestones(now: Date = new Date()): Promise<MilestoneResult> {
   const todayKey = dayKeyInTz(now);
+  // `now` may be an earlier day (catch-up after an outage): milestones are computed as of that day.
   const all = await upcomingEvents(Math.max(...EVENT_MILESTONES) + 1, now);
   const events = all.filter((e) => EVENT_MILESTONES.includes(e.daysUntil)).sort((a, b) => a.daysUntil - b.daysUntil);
   const team = await pitchRecipients();

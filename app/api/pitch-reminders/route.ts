@@ -12,6 +12,12 @@ function modeFrom(req: NextRequest): ReminderMode {
 export async function GET(req: NextRequest) {
   const denied = await authorizeCron(req);
   if (denied) return denied;
+  // ?milestones=1&send=1[&asOf=yyyy-MM-dd] — send the per-event reminders now (catch-up: as of an earlier day).
+  if (req.nextUrl.searchParams.get("milestones") === "1" && req.nextUrl.searchParams.get("send") === "1") {
+    const asOf = req.nextUrl.searchParams.get("asOf");
+    const now = asOf && /^\d{4}-\d{2}-\d{2}$/.test(asOf) ? new Date(`${asOf}T16:00:00Z`) : new Date();
+    return NextResponse.json(await sendEventPitchMilestones(now), { headers: NO_STORE });
+  }
   const data = await buildPitchReminder(modeFrom(req));
   if (req.nextUrl.searchParams.get("format") === "html") {
     return new NextResponse(pitchReminderHtml(data), { headers: { "Content-Type": "text/html; charset=utf-8", ...NO_STORE } });
