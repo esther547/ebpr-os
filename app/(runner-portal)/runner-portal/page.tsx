@@ -49,13 +49,15 @@ export default async function RunnerPortalPage({ searchParams }: { searchParams?
       id: true, runnerId: true, clientId: true, eventName: true, eventDate: true, location: true, venueName: true, venueAddress: true,
       arrivalTime: true, eventTime: true, itemType: true, notes: true, internalNotes: true, status: true, autoAssigned: true, eventGroupId: true,
       runner: { select: { id: true, name: true, avatar: true } },
+      createdBy: { select: { name: true, email: true, phone: true } },
     },
     orderBy: { eventDate: "asc" },
   });
   const weekClientIds = Array.from(new Set(weekRows.map((r) => r.clientId).filter((id): id is string => !!id)));
   const weekClientNames = new Map((weekClientIds.length ? await db.client.findMany({ where: { id: { in: weekClientIds } }, select: { id: true, name: true } }) : []).map((c) => [c.id, c.name]));
-  const weekAssignments = attachEventGroups(weekRows.map(({ clientId, ...a }) => ({
+  const weekAssignments = attachEventGroups(weekRows.map(({ clientId, createdBy, ...a }) => ({
     ...a,
+    scheduledBy: createdBy ? { name: createdBy.name, email: createdBy.email, phone: createdBy.phone } : null,
     clientName: clientId ? weekClientNames.get(clientId) ?? null : null,
     eventDate: a.eventDate.toISOString(),
     arrivalTime: a.arrivalTime ? a.arrivalTime.toISOString() : null,

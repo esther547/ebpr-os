@@ -42,6 +42,7 @@ export async function ensureGoalForAgendaItem(
   const goal = await db.deliverable.create({
     data: {
       clientId: a.clientId,
+      createdById: creator.id,
       title: a.eventName,
       type: goalTypeFor(a.itemType, a.eventName),
       status: isPast ? "COMPLETED" : "CONFIRMED",

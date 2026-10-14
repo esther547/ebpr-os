@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
   const split = splitClientNotes(d.notes);
   const item = await db.runnerAssignment.create({
     data: {
+      createdById: user.id,
       clientId: null,
       runnerId: d.runnerId || null,
       assignedAt: d.runnerId ? new Date() : null,

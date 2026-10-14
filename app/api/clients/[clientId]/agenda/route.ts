@@ -197,6 +197,7 @@ export async function POST(
     const item = await db.runnerAssignment.create({
       data: {
         eventGroupId,
+        createdById: user.id,
         clientId,
         runnerId: runner?.id ?? null,
         assignedAt: runner ? new Date() : null,
@@ -263,7 +264,7 @@ export async function POST(
       if (!other || other.status === "PAUSED" || other.status === "CHURNED") { siblingWarnings.push(`${other?.name ?? otherId}: cliente pausado, no se agendó`); continue; }
       const av = await checkClientDate(otherId, eventDate);
       if (av.blocked) { siblingWarnings.push(`${other.name}: ${av.warning}`); continue; }
-      const sib = await db.runnerAssignment.create({ data: { eventGroupId, clientId: otherId, runnerId: runner?.id ?? null, assignedAt: runner ? new Date() : null, eventDate, eventName, weekOf, location: data.location, arrivalTime: data.arrivalTime ? new Date(data.arrivalTime) : null, eventTime: data.eventTime ? new Date(data.eventTime) : null, venueName: data.venueName, venueAddress: data.venueAddress, itemType: data.itemType, notes: clientNotes, internalNotes, accompanistCount: data.accompanistCount, status: data.status } });
+      const sib = await db.runnerAssignment.create({ data: { eventGroupId, createdById: user.id, clientId: otherId, runnerId: runner?.id ?? null, assignedAt: runner ? new Date() : null, eventDate, eventName, weekOf, location: data.location, arrivalTime: data.arrivalTime ? new Date(data.arrivalTime) : null, eventTime: data.eventTime ? new Date(data.eventTime) : null, venueName: data.venueName, venueAddress: data.venueAddress, itemType: data.itemType, notes: clientNotes, internalNotes, accompanistCount: data.accompanistCount, status: data.status } });
       siblings++;
       try { if (sib.status !== "CANCELLED") await ensureGoalForAgendaItem(sib.id, { id: user.id, role: user.role }); } catch (err) { console.error("goal for sibling:", err); }
       try { await notifyClientNewPauta(sib.id).catch(() => undefined); if (sib.runnerId) await notifyRunnerAssigned(sib.id); } catch (err) { console.error("sibling notification:", err); }

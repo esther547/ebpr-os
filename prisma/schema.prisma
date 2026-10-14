@@ -141,6 +141,8 @@ model User {
   id        String   @id @default(cuid())
   clerkId   String   @unique
   email     String   @unique
+  /// Phone (WhatsApp) runners can call when they have a question about a pauta this person scheduled.
+  phone     String?
   name      String
   role      UserRole
   avatar    String?
@@ -163,6 +165,8 @@ model User {
   files                 File[]                     @relation("FileUploader")
   pressReleases         PressRelease[]             @relation("PressReleaseCreator")
   outreachSends         OutreachSend[]             @relation("OutreachSender")
+  scheduledPautas       RunnerAssignment[]         @relation("RunnerAssignmentCreator")
+  createdGoals          Deliverable[]              @relation("DeliverableCreator")
   reminders             Reminder[]                 @relation("ReminderCreator")
   notifications         Notification[]             @relation("UserNotifications")
   assignedPriorities    WeeklyPriority[]           @relation("PriorityAssignee")
@@ -463,6 +467,9 @@ model Deliverable {
   strategyItem   StrategyItem? @relation(fields: [strategyItemId], references: [id])
   assigneeId     String? // references User.id
   assignee       User?         @relation("DeliverableAssignee", fields: [assigneeId], references: [id])
+  /// Who created the goal (team member); inherited by the pauta it spawns.
+  createdById    String?
+  createdBy      User?         @relation("DeliverableCreator", fields: [createdById], references: [id])
   // Strategist (SUPER_ADMIN/STRATEGIST) who closed the goal; set whenever status becomes COMPLETED
   closedById     String?
   closedAt       DateTime? // when the strategist secured ("cerró") the goal
@@ -588,6 +595,9 @@ model RunnerAssignment {
   cancelLastMinute  Boolean        @default(false)
   /// Pautas of several clients at the same event share a group: one card in the schedule, one runner, edits propagate.
   eventGroupId      String?
+  /// Who scheduled it (team member): shown to runners so they know whom to call. Never shown to the client.
+  createdById       String?
+  createdBy         User?          @relation("RunnerAssignmentCreator", fields: [createdById], references: [id])
 
   // Auto-scheduling
   autoAssigned Boolean   @default(false) // true when lib/runner-assign.ts picked the runner

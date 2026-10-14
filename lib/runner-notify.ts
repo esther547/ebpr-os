@@ -24,11 +24,13 @@ export type AssignmentSnapshot = {
   status: string;
   notes: string | null;
   internalNotes: string | null;
+  createdBy?: { name: string; email: string; phone: string | null } | null;
 };
 
 export const snapshotSelect = {
   id: true, runnerId: true, clientId: true, eventName: true, eventDate: true, arrivalTime: true, eventTime: true,
   venueName: true, venueAddress: true, location: true, status: true, notes: true, internalNotes: true,
+  createdBy: { select: { name: true, email: true, phone: true } },
 } as const;
 
 const TZ = "America/New_York";
@@ -74,6 +76,7 @@ function detailsHtml(a: AssignmentSnapshot, client: string): string {
     ["Llegada", fmtTime(a.arrivalTime)],
     ["Lugar", [a.venueName, a.venueAddress].filter(Boolean).join(" · ") || a.location || "—"],
     ...(a.internalNotes ? ([["Notas internas", a.internalNotes]] as [string, string][]) : []),
+    ...(a.createdBy ? ([["¿Dudas? Agendó", `${a.createdBy.name} · ${[a.createdBy.phone, a.createdBy.email].filter(Boolean).join(" · ")}`]] as [string, string][]) : []),
   ];
   return `<table cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse">${rows
     .filter(([, v]) => v)

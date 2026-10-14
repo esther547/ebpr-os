@@ -62,6 +62,7 @@ export async function POST(req: Request, { params }: { params: { clientId: strin
     const created = await tx.deliverable.create({
       data: {
         clientId: client.id,
+        createdById: user.id,
         title,
         type: deliverableTypeFor(suggestion.category),
         status: "OUTREACH",

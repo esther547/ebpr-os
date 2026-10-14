@@ -38,6 +38,7 @@ export type ScheduleAssignment = {
   eventGroupId?: string | null;
   eventKey?: string;
   coClients?: string[];
+  scheduledBy?: { name: string; email: string; phone: string | null } | null;
 };
 
 type Props = {

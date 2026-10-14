@@ -37,6 +37,7 @@ export async function loadScheduleItems(
       clientId: true,
       eventGroupId: true,
       runner: { select: { id: true, name: true } },
+      createdBy: { select: { name: true, email: true, phone: true } },
     },
   });
 
@@ -69,5 +70,6 @@ export async function loadScheduleItems(
     accompanistCount: r.accompanistCount,
     clientName: r.clientId ? clientName.get(r.clientId) ?? null : null,
     runner: r.runner,
+    scheduledBy: r.createdBy ? { name: r.createdBy.name, email: r.createdBy.email, phone: r.createdBy.phone } : null,
   })));
 }

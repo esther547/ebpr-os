@@ -69,6 +69,7 @@ export default async function RunnerSchedulePage({
       autoAssigned: true,
       eventGroupId: true,
       runner: { select: { id: true, name: true, avatar: true } },
+      createdBy: { select: { name: true, email: true, phone: true } },
   } as const;
   // Same-event pautas of several clients get linked before we read them (cheap; the cron does it nightly too).
   if (user.role !== "RUNNER") await linkEventGroups(45).catch(() => undefined);
@@ -89,8 +90,9 @@ export default async function RunnerSchedulePage({
     ).map((c) => [c.id, c.name])
   );
 
-  const toAssignment = ({ clientId, ...a }: (typeof rows)[number]) => ({
+  const toAssignment = ({ clientId, createdBy, ...a }: (typeof rows)[number]) => ({
     ...a,
+    scheduledBy: createdBy ? { name: createdBy.name, email: createdBy.email, phone: createdBy.phone } : null,
     clientName: clientId ? clientNames.get(clientId) ?? null : null,
     eventDate: a.eventDate.toISOString(),
     arrivalTime: a.arrivalTime ? a.arrivalTime.toISOString() : null,

@@ -110,6 +110,7 @@ export async function POST(req: NextRequest) {
     const deliverable = await db.deliverable.create({
       data: {
         ...rest,
+        createdById: user.id,
         assigneeId: rest.assigneeId || undefined,
         campaignId: rest.campaignId || undefined,
         month: bodyMonth ?? fallback.month,

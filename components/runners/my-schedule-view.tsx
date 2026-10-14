@@ -35,6 +35,8 @@ export type ScheduleItem = {
   eventGroupId?: string | null;
   eventKey?: string;
   coClients?: string[];
+  /** Team member who scheduled it: whom to call with questions (internal, never the client). */
+  scheduledBy?: { name: string; email: string; phone: string | null } | null;
 };
 
 const TIME: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
@@ -232,6 +234,13 @@ export function MyScheduleView({
 
                         {a.venueAddress && (
                           <p className="mt-1.5 text-xs text-ink-muted">{a.venueAddress}</p>
+                        )}
+                        {a.scheduledBy && (
+                          <p className="mt-1.5 text-xs text-ink-secondary">
+                            <span className="text-ink-muted">¿Dudas? Agendó </span><span className="font-medium text-ink-primary">{a.scheduledBy.name}</span>
+                            {a.scheduledBy.phone && <> · <a href={`https://wa.me/${a.scheduledBy.phone.replace(/\D/g, "")}`} className="underline underline-offset-2" target="_blank" rel="noopener noreferrer">{a.scheduledBy.phone}</a></>}
+                            {" · "}<a href={`mailto:${a.scheduledBy.email}`} className="underline underline-offset-2">{a.scheduledBy.email}</a>
+                          </p>
                         )}
 
                         {(a.internalNotes || a.notes) && (

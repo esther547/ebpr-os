@@ -9,6 +9,7 @@ const updateSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email address").optional(),
   role: z.enum(["SUPER_ADMIN", "STRATEGIST", "RUNNER", "LEGAL", "ASSISTANT", "WRITER", "SELLER"]).optional(),
   isActive: z.boolean().optional(),
+  phone: z.string().trim().max(40).nullable().optional(),
 });
 
 type Params = { params: { id: string } };
@@ -36,7 +37,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Team member not found" }, { status: 404 });
   }
 
-  const data: { name?: string; email?: string; role?: (typeof parsed.data)["role"]; isActive?: boolean } = {};
+  const data: { name?: string; email?: string; role?: (typeof parsed.data)["role"]; isActive?: boolean; phone?: string | null } = {};
+  if (parsed.data.phone !== undefined) data.phone = parsed.data.phone;
   if (parsed.data.name !== undefined) data.name = parsed.data.name;
   if (parsed.data.role !== undefined) data.role = parsed.data.role;
   if (parsed.data.isActive !== undefined) data.isActive = parsed.data.isActive;

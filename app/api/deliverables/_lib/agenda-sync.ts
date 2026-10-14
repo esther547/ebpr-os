@@ -48,7 +48,7 @@ export async function ensureAgendaItemForDeliverable(
   const d = await db.deliverable.findUnique({
     where: { id: deliverableId },
     select: {
-      id: true, clientId: true, title: true, type: true, dueDate: true,
+      id: true, clientId: true, title: true, type: true, dueDate: true, createdById: true,
       eventTime: true, venueName: true, venueAddress: true, needsRunner: true, notes: true,
     },
   });
@@ -73,6 +73,7 @@ export async function ensureAgendaItemForDeliverable(
   const created = await db.runnerAssignment.create({
     data: {
       runnerId: null,
+      createdById: d.createdById ?? null,
       clientId: d.clientId,
       deliverableId: d.id,
       eventDate,

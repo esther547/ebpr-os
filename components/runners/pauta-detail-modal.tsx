@@ -48,6 +48,12 @@ export function PautaDetailModal({ pauta, onClose }: { pauta: ScheduleAssignment
               <User className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted" />
               <p className="text-ink-secondary">{p.runner ? <>Runner: <span className="font-medium text-ink-primary">{p.runner.name}</span>{p.autoAssigned ? " · auto" : ""}</> : "Nadie asignado todavía"}</p>
             </div>
+            {p.scheduledBy && (
+              <div className="flex items-start gap-2">
+                <User className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted" />
+                <p className="text-ink-secondary">¿Dudas? Agendó <span className="font-medium text-ink-primary">{p.scheduledBy.name}</span>{p.scheduledBy.phone && <> · <a href={`https://wa.me/${p.scheduledBy.phone.replace(/\D/g, "")}`} className="underline underline-offset-2" target="_blank" rel="noopener noreferrer">{p.scheduledBy.phone}</a></>} · <a href={`mailto:${p.scheduledBy.email}`} className="underline underline-offset-2">{p.scheduledBy.email}</a></p>
+              </div>
+            )}
           </dl>
 
           {p.internalNotes && (

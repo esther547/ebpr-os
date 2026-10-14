@@ -28,6 +28,7 @@ type UserRow = {
   role: string;
   isActive: boolean;
   hasSignedIn: boolean;
+  phone?: string | null;
   createdAt: string;
 };
 
@@ -379,6 +380,7 @@ function EditUserModal({
     if (!user.hasSignedIn) {
       body.email = String(form.get("email") ?? "").trim().toLowerCase();
     }
+    body.phone = String(form.get("phone") ?? "").trim() || null;
 
     const res = await fetch(`/api/users/${user.id}`, {
       method: "PUT",
@@ -427,6 +429,10 @@ function EditUserModal({
             disabled={user.hasSignedIn}
             required
           />
+        </FormGroup>
+
+        <FormGroup label="Teléfono / WhatsApp" htmlFor="edit-phone" hint="opcional" description="Los runners lo ven en las pautas que esta persona agenda, por si tienen dudas.">
+          <Input id="edit-phone" name="phone" type="tel" defaultValue={user.phone ?? ""} placeholder="+1 305 …" />
         </FormGroup>
 
         <FormGroup
