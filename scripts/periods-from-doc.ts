@@ -34,7 +34,11 @@ async function main() {
   if (apply) for (const p of existing) await db.servicePeriod.update({ where: { id: p.id }, data: { number: 500 + p.number } });
   const placed = new Set<string>();
   for (const b of blocks) {
-    const month = MONTHS.indexOf(b.monthName) + 1; if (!month) { console.log(`  ! bloque sin mes reconocido: ${b.monthName}`); continue; }
+    // Tolerate typos in the doc ("SEPTIMEBRE"): same first 4 letters or at most 2 letters off.
+    const lev = (a: string, c: string) => { const m = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(c.length).fill(0)] as number[]); for (let j = 1; j <= c.length; j++) m[0][j] = j; for (let i = 1; i <= a.length; i++) for (let j = 1; j <= c.length; j++) m[i][j] = Math.min(m[i - 1][j] + 1, m[i][j - 1] + 1, m[i - 1][j - 1] + (a[i - 1] === c[j - 1] ? 0 : 1)); return m[a.length][c.length]; };
+    let month = MONTHS.indexOf(b.monthName) + 1;
+    if (!month) { const i = MONTHS.findIndex((m) => lev(m, b.monthName) <= 2 || (m.slice(0, 4) === b.monthName.slice(0, 4) && m.length > 4)); month = i + 1; }
+    if (!month) { console.log(`  ! bloque sin mes reconocido: ${b.monthName}`); continue; }
     const years = b.rows.map((r) => r.dayKey ? Number(r.dayKey.slice(0, 4)) : null).filter((y): y is number => !!y); const year = years.length ? years.sort()[Math.floor(years.length / 2)] : new Date().getFullYear();
     let period = existing.find((p) => p.refYear === year && p.refMonth === month) ?? null;
     if (!period && apply) period = await db.servicePeriod.create({ data: { clientId: c.id, number: 600 + b.order, label: `${b.monthName.charAt(0)}${b.monthName.slice(1).toLowerCase()} ${year}`, refYear: year, refMonth: month, target: c.monthlyTarget ?? 0 } });

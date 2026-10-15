@@ -48,10 +48,11 @@ async function docRows(docId: string): Promise<{ dayKey: string | null; name: st
 async function main() {
   const apply = process.argv.includes("--apply");
   const force = process.argv.includes("--force");
+  const all = process.argv.includes("--all"); // Esther, Oct 15 2026: every doc mirrors the portal, keep-as-is list included
   const only = process.argv.slice(2).find((a) => !a.startsWith("--"));
   const clients = await db.client.findMany({ where: { status: "ACTIVE", agendaDocUrl: { not: null }, ...(only ? { name: { contains: only, mode: "insensitive" } } : {}) }, select: { id: true, name: true, agendaDocUrl: true }, orderBy: { name: "asc" } });
   for (const c of clients) {
-    if (KEEP_AS_IS.some((k) => c.name.startsWith(k))) { console.log(`— ${c.name}: se deja como está (doc correcto según Esther)`); continue; }
+    if (!all && KEEP_AS_IS.some((k) => c.name.startsWith(k))) { console.log(`— ${c.name}: se deja como está (doc correcto según Esther)`); continue; }
     const docId = c.agendaDocUrl!.match(/\/d\/([A-Za-z0-9_-]+)/)?.[1];
     if (!docId) { console.log(`— ${c.name}: link inválido`); continue; }
     const board = await periodBoard(c.id);
@@ -71,7 +72,10 @@ async function main() {
       pautas.some((p) => !p.id.startsWith("agimp_") && sameName(p.eventName, r.name)) ||
       goalsOnly.some((g) => sameName(g.title, r.name));
     const unknown = rows.filter((r) => (r.dayKey || r.name.trim()) && !known(r)); // blank template rows are not content
-    if (unknown.length) {
+    if (unknown.length && all) {
+      // Portal wins (Esther, Oct 15 2026): rows that only exist in the doc are dropped, but listed so she can re-add any.
+      console.log(`! ${c.name}: ${unknown.length} fila(s) del doc no están en el portal y se quitan: ${unknown.map((r) => `${r.dayKey ?? "sin fecha"} ${r.name.slice(0, 40)}`).join("; ")}`);
+    } else if (unknown.length) {
       console.log(`— ${c.name}: ${unknown.length} fila(s) del doc no están en el portal, se omite para no perderlas:`);
       unknown.slice(0, 5).forEach((u) => console.log(`     ${u.dayKey ?? "sin fecha"} ${u.name.slice(0, 50)}`));
       continue;
