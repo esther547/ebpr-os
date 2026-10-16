@@ -10,6 +10,7 @@
 import { google, docs_v1 } from "googleapis";
 import { readFileSync } from "fs";
 import { db } from "../lib/db";
+import { placeNewUnit } from "../lib/service-periods";
 import { buildAgendaSections, writeAgendaDoc } from "../lib/google-docs-writer";
 import { periodBoard } from "../lib/service-periods";
 import { dayKeyInTz } from "../components/runners/miami-time";
@@ -73,8 +74,19 @@ async function main() {
       goalsOnly.some((g) => sameName(g.title, r.name));
     const unknown = rows.filter((r) => (r.dayKey || r.name.trim()) && !known(r)); // blank template rows are not content
     if (unknown.length && all) {
-      // Portal wins (Esther, Oct 15 2026): rows that only exist in the doc are dropped, but listed so she can re-add any.
-      console.log(`! ${c.name}: ${unknown.length} fila(s) del doc no están en el portal y se quitan: ${unknown.map((r) => `${r.dayKey ?? "sin fecha"} ${r.name.slice(0, 40)}`).join("; ")}`);
+      // Never drop a doc row (Esther, Oct 16 2026: "deja de borrar cosas de la agenda"). Dated rows the portal
+      // doesn't know are imported as pautas first (she can delete them from the portal if they are wrong);
+      // undated rows cannot be imported and block the rewrite of this doc.
+      const undated = unknown.filter((r) => !r.dayKey);
+      if (undated.length) { console.log(`— ${c.name}: ${undated.length} fila(s) sin fecha en el doc que el portal no tiene, se omite para no perderlas: ${undated.map((r) => r.name.slice(0, 40)).join("; ")}`); continue; }
+      for (const r of unknown) {
+        if (!apply) { console.log(`+ ${c.name}: se importaría al portal ${r.dayKey} ${r.name.slice(0, 40)}`); continue; }
+        const when = new Date(`${r.dayKey}T16:00:00Z`);
+        const created = await db.runnerAssignment.create({ data: { clientId: c.id, eventName: r.name, eventDate: when, weekOf: when, status: when < new Date() ? "COMPLETED" : "SCHEDULED", internalNotes: "Importada del Google Doc (detalles por confirmar).", periodSource: "manual" }, select: { id: true } });
+        await placeNewUnit(c.id, { pautaId: created.id }, when);
+        console.log(`+ ${c.name}: importada al portal ${r.dayKey} ${r.name.slice(0, 40)}`);
+      }
+      if (!apply && unknown.length) { console.log(`— ${c.name}: se reescribiría después de importar esas filas`); continue; }
     } else if (unknown.length) {
       console.log(`— ${c.name}: ${unknown.length} fila(s) del doc no están en el portal, se omite para no perderlas:`);
       unknown.slice(0, 5).forEach((u) => console.log(`     ${u.dayKey ?? "sin fecha"} ${u.name.slice(0, 50)}`));
