@@ -30,7 +30,7 @@ export function CampaignsClient({ campaigns, talentCount, meId, isAdmin }: { cam
     // First line is the brand, the rest is what we know (budget, timing, market…)
     const [first, ...rest] = raw.split("\n"); const brand = first.trim(); const brief = rest.join("\n").trim();
     setRunning(true); setCurrent(null);
-    const res = await fetch("/api/campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brand, brief: brief || null }) }).catch(() => null);
+    const res = await fetch("/api/campaign-suggestions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brand, brief: brief || null }) }).catch(() => null);
     setRunning(false);
     if (!res || !res.ok) { toast({ title: "No salió la propuesta", description: res ? await readError(res, "Error") : "Sin conexión", variant: "error" }); return; }
     const data = await res.json();
@@ -40,7 +40,7 @@ export function CampaignsClient({ campaigns, talentCount, meId, isAdmin }: { cam
 
   async function send(c: CampaignRow) {
     setSending(true);
-    const res = await fetch(`/api/campaigns/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "send" }) }).catch(() => null);
+    const res = await fetch(`/api/campaign-suggestions/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "send" }) }).catch(() => null);
     setSending(false);
     if (!res || !res.ok) { toast({ title: "No se pudo enviar", description: res ? await readError(res, "Error") : "Sin conexión", variant: "error" }); return; }
     const data = await res.json();
@@ -50,7 +50,7 @@ export function CampaignsClient({ campaigns, talentCount, meId, isAdmin }: { cam
   }
 
   async function remove(c: CampaignRow) {
-    const res = await fetch(`/api/campaigns/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete" }) }).catch(() => null);
+    const res = await fetch(`/api/campaign-suggestions/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete" }) }).catch(() => null);
     if (!res || !res.ok) { toast({ title: "No se pudo borrar", description: res ? await readError(res, "Error") : "Sin conexión", variant: "error" }); return false; }
     if (current?.id === c.id) setCurrent(null);
     router.refresh(); return true;

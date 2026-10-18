@@ -13,7 +13,7 @@ export function CampaignDecision({ id, status, canApprove }: { id: string; statu
   const { toast } = useToast();
   async function act(action: "send" | "approve" | "reject") {
     setBusy(action);
-    const res = await fetch(`/api/campaigns/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, note: note || null }) }).catch(() => null);
+    const res = await fetch(`/api/campaign-suggestions/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, note: note || null }) }).catch(() => null);
     setBusy(null);
     if (!res || !res.ok) { let msg = "Error"; try { msg = (await res!.json()).error ?? msg; } catch { /* ignore */ } toast({ title: "No se pudo", description: msg, variant: "error" }); return; }
     toast({ title: action === "send" ? "Enviada a Esther y Benjy" : action === "approve" ? "Propuesta aprobada" : "Propuesta rechazada", variant: "success" });
