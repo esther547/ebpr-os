@@ -167,6 +167,7 @@ model User {
   outreachSends         OutreachSend[]             @relation("OutreachSender")
   scheduledPautas       RunnerAssignment[]         @relation("RunnerAssignmentCreator")
   createdGoals          Deliverable[]              @relation("DeliverableCreator")
+  campaignSuggestions   CampaignSuggestion[]       @relation("CampaignSuggestionCreator")
   reminders             Reminder[]                 @relation("ReminderCreator")
   notifications         Notification[]             @relation("UserNotifications")
   assignedPriorities    WeeklyPriority[]           @relation("PriorityAssignee")
@@ -851,6 +852,66 @@ model AppSetting {
   updatedAt   DateTime @updatedAt
 
   @@map("app_settings")
+}
+
+// ─── TALENTS (EBM roster + Esther's list) and campaign suggestions ──────────────────────────
+
+/// A creator / artist the agency represents or can reach for brand deals. Imported from EBM's OS and
+/// from Esther's own list; deduped by ebmId, then Instagram handle, then normalized name.
+model Talent {
+  id                 String    @id @default(cuid())
+  ebmId              String?   @unique
+  name               String
+  nameKey            String    @unique // normalized name, for dedupe across sources
+  /// RETAINER (on retainer), OFF_RETAINER, ACCESS (we can reach them for brand deals), UNSET
+  tier               String    @default("UNSET")
+  source             String? // "EBM" | "EBPR" | "Manual"
+  type               String? // social | influencer | artist | actor | comedian | singer…
+  country            String?
+  location           String?
+  age                Int?
+  languages          String[]
+  verticals          String[]
+  instagramHandle    String?
+  instagramUrl       String?
+  instagramFollowers Int?
+  tiktokHandle       String?
+  tiktokUrl          String?
+  tiktokFollowers    Int?
+  youtubeHandle      String?
+  youtubeFollowers   Int?
+  totalReach         Int?
+  pastBrands         String[]
+  notes              String?
+  /// When the follower numbers were last checked against the live profiles.
+  lastVerifiedAt     DateTime?
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([tier, isActive])
+  @@map("talents")
+}
+
+/// "Type a brand, get a campaign": the model's proposal, sent to Esther/Benjy for approval.
+model CampaignSuggestion {
+  id           String    @id @default(cuid())
+  brand        String
+  brief        String?
+  result       Json
+  status       String    @default("DRAFT") // DRAFT | SENT | APPROVED | REJECTED
+  createdById  String
+  createdBy    User      @relation("CampaignSuggestionCreator", fields: [createdById], references: [id])
+  sentTo       String[]
+  sentAt       DateTime?
+  decidedById  String?
+  decidedAt    DateTime?
+  decisionNote String?
+  model        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("campaign_suggestions")
 }
 
 // ─── OUTREACH (Music Industry database — Esther only, Oct 7 2026) ───────────

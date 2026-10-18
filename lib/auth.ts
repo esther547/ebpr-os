@@ -184,11 +184,11 @@ export const ROLE_HOME: Record<UserRole, string> = {
 
 const ROLE_PREFIXES: Record<UserRole, string[]> = {
   SUPER_ADMIN: ["/"],
-  STRATEGIST: ["/dashboard", "/priorities", "/todos", "/ebm", "/events", "/social", "/clients", "/runners", "/press-releases", "/journalists", "/contactos", "/reports"],
+  STRATEGIST: ["/dashboard", "/priorities", "/todos", "/ebm", "/events", "/social", "/clients", "/runners", "/press-releases", "/journalists", "/contactos", "/talentos", "/reports"],
   LEGAL: ["/legal", "/follow-up", "/paused"],
-  ASSISTANT: ["/todos", "/ebm", "/follow-up", "/assistant-portal", "/paused"],
+  ASSISTANT: ["/todos", "/ebm", "/follow-up", "/assistant-portal", "/paused", "/talentos"],
   WRITER: ["/press-releases"], // Michel: that tab and nothing else (Esther, Sept 27 2026)
-  SELLER: ["/ebm"], // EBM sellers: the brand-deals tracker and nothing else
+  SELLER: ["/ebm", "/talentos"], // EBM sellers: the brand-deals tracker and nothing else
   RUNNER: ["/runner-portal"],
   CLIENT_ADMIN: ["/portal"],
   CLIENT_VIEWER: ["/portal"],
