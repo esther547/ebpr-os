@@ -168,6 +168,9 @@ model User {
   scheduledPautas       RunnerAssignment[]         @relation("RunnerAssignmentCreator")
   createdGoals          Deliverable[]              @relation("DeliverableCreator")
   campaignSuggestions   CampaignSuggestion[]       @relation("CampaignSuggestionCreator")
+  ownerItemsHandled     OwnerItem[]                @relation("OwnerItemHandler")
+  ownerItemsCreated     OwnerItem[]                @relation("OwnerItemCreator")
+  ownerItemUpdates      OwnerItemUpdate[]          @relation("OwnerItemUpdateAuthor")
   reminders             Reminder[]                 @relation("ReminderCreator")
   notifications         Notification[]             @relation("UserNotifications")
   assignedPriorities    WeeklyPriority[]           @relation("PriorityAssignee")
@@ -1258,7 +1261,8 @@ model BrandLead {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  updates BrandLeadUpdate[]
+  updates    BrandLeadUpdate[]
+  ownerItems OwnerItem[]
 
   @@index([status, updatedAt])
   @@index([ownerId])
@@ -1279,6 +1283,50 @@ model BrandLeadUpdate {
 
   @@index([leadId, createdAt])
   @@map("brand_lead_updates")
+}
+
+/// Private tracker for the EBM owners (Esther and Benjy only): team leads, open conversations,
+/// what is pending with legal / brands / talent, and the topics for their weekly.
+model OwnerItem {
+  id          String     @id @default(cuid())
+  title       String
+  /// TEAM | CAMPAIGN | LEGAL | LEAD | OTHER
+  category    String     @default("OTHER")
+  /// OPEN | IN_PROGRESS | WAITING_LEGAL | WAITING_BRAND | WAITING_TALENT | WAITING_TEAM | DONE
+  status      String     @default("OPEN")
+  waitingOn   String? // free text: who/what we are waiting for
+  handlerId   String? // team member handling it
+  handler     User?      @relation("OwnerItemHandler", fields: [handlerId], references: [id], onDelete: SetNull)
+  leadId      String? // the brand lead it is about, if any
+  lead        BrandLead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  nextStep    String?
+  dueAt       DateTime?
+  notes       String?
+  forWeekly   Boolean    @default(false)
+  createdById String
+  createdBy   User       @relation("OwnerItemCreator", fields: [createdById], references: [id])
+  resolvedAt  DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  updates OwnerItemUpdate[]
+
+  @@index([status, updatedAt])
+  @@map("owner_items")
+}
+
+model OwnerItemUpdate {
+  id        String    @id @default(cuid())
+  itemId    String
+  item      OwnerItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User      @relation("OwnerItemUpdateAuthor", fields: [authorId], references: [id])
+  text      String
+  status    String?
+  createdAt DateTime  @default(now())
+
+  @@index([itemId, createdAt])
+  @@map("owner_item_updates")
 }
 
 /// Manual "this month is complete" mark on the dashboard (e.g. the client doubled up last month).
