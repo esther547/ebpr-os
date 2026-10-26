@@ -22,7 +22,7 @@ export const EVENT_MIN_DAYS = 7;
 export const EVENT_WINDOW_DAYS = 120;
 export const WISHLIST_STALE_DAYS = 14;
 /** Who gets the pitch reminders (Esther, Oct 12 2026: only Pao, Ayax and Ani, each their own email). */
-export const PITCH_RECIPIENT_EMAILS = ["paolaprecilla@ebmanagement.io", "ayax@ebmanagement.io", "aduran@ebmanagement.io"];
+export const PITCH_RECIPIENT_EMAILS = ["paolaprecilla@ebmanagement.io", "ayax@ebmanagement.io", "aduran@ebmanagement.io", "pferreira@ebmanagement.io"];
 /** Days before an event on which each strategist gets an individual "haz el pitch" reminder. */
 export const EVENT_MILESTONES = [40, 30, 20, 15, 7];
 
