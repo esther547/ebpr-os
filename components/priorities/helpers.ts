@@ -77,10 +77,14 @@ export function parseQuickAdd(
   const match = MENTION_RE.exec(text);
   if (!match) return { title: text, assigneeId: null };
 
-  const handle = match[2].toLowerCase();
+  const norm = (v: string) => v.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+  const handle = norm(match[2]);
+  // "@paola" → first name; "@paolaf" / "@paolaprecilla" → first name + initial or the full name, so two Paolas can be told apart.
   const found = members.find((m) => {
-    const name = m.name.toLowerCase();
-    return name.split(/\s+/)[0] === handle || name.replace(/\s+/g, "") === handle;
+    const parts = m.name.toLowerCase().split(/\s+/).filter(Boolean).map(norm);
+    const full = parts.join("");
+    const firstPlusInitial = parts.length > 1 ? parts[0] + parts[1][0] : parts[0];
+    return parts[0] === handle || full === handle || firstPlusInitial === handle;
   });
   if (!found) return { title: text, assigneeId: null };
 
