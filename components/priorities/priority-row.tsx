@@ -1,5 +1,6 @@
 "use client";
 
+import { shortName } from "@/lib/short-name";
 import { useState } from "react";
 import { ArrowRightLeft, ChevronDown, Contact, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -140,7 +141,7 @@ export function PriorityRow({ item, teamMembers = [], onAssign, showClient = fal
             <option value="">Sin asignar</option>
             {teamMembers.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.name.split(" ")[0]}
+                {shortName(m.name, teamMembers)}
               </option>
             ))}
           </select>

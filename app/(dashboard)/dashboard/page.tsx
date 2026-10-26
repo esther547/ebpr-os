@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { shortName } from "@/lib/short-name";
 import { ArrowUpRight, Target, Users } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -200,7 +201,7 @@ export default async function DashboardPage() {
                   <p className="mt-1.5 pl-10 text-xs text-ink-muted">
                     <span className="text-ink-secondary">Por estratega:</span>{" "}
                     {r.strategists.map((s, k) => (
-                      <span key={s.name}>{k > 0 ? " · " : ""}{s.name === "Sin estratega" ? "sin estratega" : s.name.split(" ")[0]} <span className="tabular font-medium text-ink-primary">{s.goals}</span></span>
+                      <span key={s.name}>{k > 0 ? " · " : ""}{s.name === "Sin estratega" ? "sin estratega" : shortName(s.name, r.strategists)} <span className="tabular font-medium text-ink-primary">{s.goals}</span></span>
                     ))}
                   </p>
                 )}

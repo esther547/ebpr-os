@@ -1,5 +1,6 @@
 "use client";
 
+import { shortName } from "@/lib/short-name";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -34,7 +35,7 @@ export function AssigneeSelect({ clientId, itemId, assigneeId, strategists, clas
       className={cn("h-7 max-w-[9.5rem] shrink-0 rounded-md border bg-white px-1.5 text-xs text-ink-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ink-primary/25", value ? "border-border" : "border-dashed border-border-strong text-ink-muted", className)}
     >
       <option value="">A cargo…</option>
-      {strategists.map((s) => (<option key={s.id} value={s.id}>{s.name.split(" ")[0]}</option>))}
+      {strategists.map((s) => (<option key={s.id} value={s.id}>{shortName(s.name, strategists)}</option>))}
     </select>
   );
 }
