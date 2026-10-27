@@ -171,6 +171,7 @@ model User {
   ownerItemsHandled     OwnerItem[]                @relation("OwnerItemHandler")
   ownerItemsCreated     OwnerItem[]                @relation("OwnerItemCreator")
   ownerItemUpdates      OwnerItemUpdate[]          @relation("OwnerItemUpdateAuthor")
+  pressPitches          PressPitch[]               @relation("PressPitchPublicist")
   reminders             Reminder[]                 @relation("ReminderCreator")
   notifications         Notification[]             @relation("UserNotifications")
   assignedPriorities    WeeklyPriority[]           @relation("PriorityAssignee")
@@ -261,6 +262,7 @@ model Client {
   socialPosts          SocialPost[]
   pressReleaseRequests PressReleaseRequest[]
   brandLeads           BrandLead[]
+  pressPitches         PressPitch[]
   monthOverrides       ClientMonthOverride[]
 
   @@map("clients")
@@ -827,9 +829,9 @@ model Notification {
 // ─── JOURNALISTS ─────────────────────────────────────────
 
 model Journalist {
-  id       String   @id @default(cuid())
+  id       String       @id @default(cuid())
   name     String
-  email    String   @unique
+  email    String       @unique
   outlet   String? // "People en Español", "Univision", etc.
   beat     String? // "Entertainment", "Music", "Lifestyle"
   phone    String?
@@ -837,13 +839,44 @@ model Journalist {
   country  String?
   language String? // "Spanish", "English", "Both"
   notes    String?
-  isActive Boolean  @default(true)
+  isActive Boolean      @default(true)
   tags     String[]
+  pitches  PressPitch[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("journalists")
+}
+
+// ─── PRESS PITCHES (Prensa · Cliente · Publicista: who pitched whom, so the team never doubles up) ──
+
+model PressPitch {
+  id           String      @id @default(cuid())
+  /// The press contact. Linked to Medios when it exists there; otherwise the free-text name/outlet below.
+  journalistId String?
+  journalist   Journalist? @relation(fields: [journalistId], references: [id], onDelete: SetNull)
+  contactName  String
+  outlet       String?
+  clientId     String
+  client       Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  /// The publicist who pitched (Esther, Pao, Vero…).
+  pitchedById  String
+  pitchedBy    User        @relation("PressPitchPublicist", fields: [pitchedById], references: [id])
+  pitchedAt    DateTime    @default(now())
+  /// PITCHED | FOLLOW_UP | REPLIED | CONFIRMED | DECLINED | NO_RESPONSE
+  status       String      @default("PITCHED")
+  subject      String? // what was pitched (the story / the angle)
+  notes        String?
+  followUpAt   DateTime?
+  createdById  String
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([journalistId, pitchedAt])
+  @@index([clientId, pitchedAt])
+  @@index([pitchedById, pitchedAt])
+  @@map("press_pitches")
 }
 
 // ─── APP SETTINGS (secrets the admin can change from the portal, encrypted at rest) ───────────

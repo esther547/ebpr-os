@@ -22,6 +22,7 @@ import {
   Scale,
   Trophy,
   Sparkles,
+  Send,
   Menu,
   X,
 } from "lucide-react";
@@ -65,6 +66,7 @@ const navGroups: NavGroup[] = [
     label: "Media",
     items: [
       { href: "/press-releases", label: "Press Releases", icon: <Newspaper />, roles: ["SUPER_ADMIN", "STRATEGIST", "WRITER"], excludeEmails: ["diana@ebmanagement.io"] },
+      { href: "/pitches", label: "Pitches de prensa", icon: <Send />, roles: ["SUPER_ADMIN", "STRATEGIST"], excludeEmails: ["diana@ebmanagement.io"] },
       { href: "/contactos", label: "Contactos", icon: <BookOpen />, roles: ["SUPER_ADMIN", "STRATEGIST"], excludeEmails: ["diana@ebmanagement.io"] },
       { href: "/talentos", label: "Talentos", icon: <Sparkles />, roles: ["SUPER_ADMIN", "STRATEGIST", "SELLER"], emails: ["esther@ebmanagement.io", "carolina@ebmanagement.io", "ayax@ebmanagement.io", "benjy@ebmanagement.io", "clara@ebmanagement.io", "aevans@ebmanagement.io"], excludeEmails: ["diana@ebmanagement.io"] },
     ],
