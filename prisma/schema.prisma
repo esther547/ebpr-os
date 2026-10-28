@@ -263,6 +263,7 @@ model Client {
   pressReleaseRequests PressReleaseRequest[]
   brandLeads           BrandLead[]
   pressPitches         PressPitch[]
+  logisticsEvents      LogisticsEventClient[]
   monthOverrides       ClientMonthOverride[]
 
   @@map("clients")
@@ -877,6 +878,50 @@ model PressPitch {
   @@index([clientId, pitchedAt])
   @@index([pitchedById, pitchedAt])
   @@map("press_pitches")
+}
+
+// ─── EVENT LOGISTICS (Latin Grammys…): per event, which clients are approved and their PR / travel logistics ──
+
+model LogisticsEvent {
+  id          String    @id @default(cuid())
+  /// Which board it belongs to, e.g. "LATIN_GRAMMYS" (one tab per group; reusable next year with a new label).
+  group       String    @default("LATIN_GRAMMYS")
+  name        String
+  eventDate   DateTime?
+  eventTime   String?
+  venue       String?
+  /// Who at the event / brand we deal with (name, email, phone — free text).
+  contact     String?
+  notes       String?
+  sortOrder   Int       @default(0)
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  clients LogisticsEventClient[]
+
+  @@index([group, eventDate])
+  @@map("logistics_events")
+}
+
+model LogisticsEventClient {
+  id             String         @id @default(cuid())
+  eventId        String
+  event          LogisticsEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  clientId       String
+  client         Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  /// PENDING | APPROVED | NOT_APPROVED
+  status         String         @default("PENDING")
+  /// PR logistics for this client at this event (who covers it, credentials, +1s…).
+  pr             String?
+  /// Travel expenses: who pays, flights/hotel, amounts…
+  travelExpenses String?
+  notes          String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([eventId, clientId])
+  @@map("logistics_event_clients")
 }
 
 // ─── APP SETTINGS (secrets the admin can change from the portal, encrypted at rest) ───────────
