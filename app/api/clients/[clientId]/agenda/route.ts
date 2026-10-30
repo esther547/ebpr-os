@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { canManageRunners } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import { notifyClientNewPauta } from "@/lib/client-notify";
-import { placeNewUnit } from "@/lib/service-periods";
+import { assignPeriod, placeNewUnit } from "@/lib/service-periods";
 
 import { mergeInternalNotes, splitClientNotes } from "@/lib/client-safe-notes";
 import { notifyRunnerAssigned, notifyRunnersOpenActivity } from "@/lib/runner-notify";
@@ -15,6 +15,8 @@ import { checkClientDate } from "@/lib/client-availability";
 import { ensureGoalForAgendaItem } from "@/lib/agenda-goal";
 
 const agendaItemSchema = z.object({
+  /** Period chosen by hand ("Agregar actividad" inside a Mes card); otherwise placed by date. */
+  periodId: z.string().min(1).nullable().optional(),
   // Optional: an activity with no runner yet is a valid agenda item — it simply
   // "needs a runner" until the auto-scheduler (or a human) picks one.
   runnerId: z.string().trim().min(1).optional().nullable(),
@@ -254,7 +256,9 @@ export async function POST(
       },
     });
 
-    await placeNewUnit(clientId, { pautaId: item.id });
+    const chosenPeriod = parsed.data.periodId ? await db.servicePeriod.findFirst({ where: { id: parsed.data.periodId, clientId }, select: { id: true } }) : null;
+    if (chosenPeriod) await assignPeriod({ pautaId: item.id }, chosenPeriod.id, { source: "manual" });
+    else await placeNewUnit(clientId, { pautaId: item.id });
 
     // The same event for the other clients: one pauta each, same runner, linked by the group.
     const siblingWarnings: string[] = [];

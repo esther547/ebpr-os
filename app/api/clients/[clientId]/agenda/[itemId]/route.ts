@@ -207,6 +207,11 @@ export async function DELETE(
   // Removing a pauta is not giving up on the goal: it goes back to the strategist to reschedule.
   if (existing.status !== "CANCELLED" && existing.status !== "COMPLETED") await queueRescheduleTodo({ deliverableId: existing.deliverableId, pautaName: existing.eventName, clientId, byUserId: user.id, byUserName: user.name });
   await db.runnerAssignment.delete({ where: { id: itemId } });
+  // "Se borra del todo y deja de contar": the goal that was created with this pauta goes too, unless another pauta still points at it.
+  if (existing.deliverableId) {
+    const others = await db.runnerAssignment.count({ where: { deliverableId: existing.deliverableId } });
+    if (others === 0) await db.deliverable.delete({ where: { id: existing.deliverableId } }).catch((err) => console.error("delete linked goal:", err));
+  }
   if (snap) await notifyClientPautaRemoved(snap).catch((err) => console.error("notifyClientPautaRemoved:", err));
 
 

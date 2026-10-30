@@ -22,10 +22,12 @@ interface Props {
   label?: string;
   /** Pre-filled date "yyyy-MM-dd". */
   defaultDate?: string;
+  /** Service period the new activity belongs to (when added from inside a Mes card). */
+  periodId?: string;
 }
 
 /** "+ Add Item" button for the agenda page, with its creation modal. */
-export function AgendaAddItemButton({ clientId: fixedClientId, clientStatus = "ACTIVE", runners, deliverables, clients, label = "Add Item", defaultDate }: Props) {
+export function AgendaAddItemButton({ clientId: fixedClientId, clientStatus = "ACTIVE", runners, deliverables, clients, label = "Add Item", defaultDate, periodId }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -49,6 +51,7 @@ export function AgendaAddItemButton({ clientId: fixedClientId, clientStatus = "A
     const monthRaw = (form.get("monthNumber") as string) || "";
 
     const body = {
+      periodId: periodId ?? undefined,
       // Blank = the activity goes on the agenda needing a runner.
       runnerId: ((form.get("runnerId") as string) || "").trim() || null,
       deliverableId: (form.get("deliverableId") as string) || undefined,

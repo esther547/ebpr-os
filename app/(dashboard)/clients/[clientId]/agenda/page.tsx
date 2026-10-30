@@ -147,6 +147,7 @@ export default async function AgendaPage({ params }: Props) {
         allItems={allItems}
         proposals={proposals}
         defaultTarget={client.monthlyTarget ?? 6}
+        deliverables={linkableDeliverables}
       />
     </>
   );

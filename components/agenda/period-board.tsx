@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
 import { apiErrorMessage } from "@/lib/form-helpers";
 import { AgendaMonthSection, type PeriodOption } from "./agenda-month-section";
+import { AgendaAddItemButton } from "./create-agenda-item-modal";
 import { MONTH_NAMES_ES } from "@/lib/agenda-months";
 
 type AgendaItem = React.ComponentProps<typeof AgendaMonthSection>["items"][number];
@@ -39,12 +40,28 @@ type Props = {
   /** Proposals from the doc ("Pending"): shown apart, never counted. */
   proposals: AgendaItem[];
   defaultTarget: number;
+  /** Goals a new activity can be linked to (for "Agregar actividad" inside a period). */
+  deliverables?: { id: string; title: string }[];
 };
 
 /** The client's agenda by service period: what each paid period holds, what is closed, what is executed. */
-export function PeriodBoard({ clientId, canEdit, runners, periods, pending, allItems, proposals, defaultTarget }: Props) {
+export function PeriodBoard({ clientId, canEdit, runners, periods, pending, allItems, proposals, defaultTarget, deliverables = [] }: Props) {
+  const router = useRouter();
+  const { toast } = useToast();
   const [view, setView] = useState<"periods" | "calendar">("periods");
   const [editing, setEditing] = useState<PeriodCard | "new" | null>(null);
+  const [removing, setRemoving] = useState<PeriodCard | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
+  async function removePeriod(p: PeriodCard) {
+    setRemoveBusy(true);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/periods/${p.id}?detach=1`, { method: "DELETE" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) { toast({ title: apiErrorMessage(data, "No se pudo eliminar el período"), variant: "error" }); return; }
+      toast({ title: `Mes ${p.number} eliminado`, description: p.items.length + p.goalOnly.length ? "Sus pautas quedaron pendientes de asignar a un período." : undefined, variant: "success" });
+      setRemoving(null); router.refresh();
+    } finally { setRemoveBusy(false); }
+  }
   const options: PeriodOption[] = periods.map((p) => ({ id: p.id, number: p.number, label: p.label, target: p.target }));
   const pendingCount = pending.items.length + pending.goalOnly.length;
 
@@ -109,9 +126,11 @@ export function PeriodBoard({ clientId, canEdit, runners, periods, pending, allI
                         )}
                       </div>
                       {canEdit && (
-                        <Button variant="ghost" size="icon-sm" aria-label={`Editar Mes ${p.number}`} onClick={() => setEditing(p)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <AgendaAddItemButton clientId={clientId} runners={runners} deliverables={deliverables} label="Agregar actividad" periodId={p.id} defaultDate={`${p.refYear}-${String(p.refMonth).padStart(2, "0")}-01`} />
+                          <Button variant="ghost" size="sm" leftIcon={<Pencil className="h-4 w-4" />} aria-label={`Editar Mes ${p.number}`} onClick={() => setEditing(p)}>Editar</Button>
+                          <Button variant="ghost" size="sm" leftIcon={<Trash2 className="h-4 w-4" />} aria-label={`Eliminar Mes ${p.number}`} className="text-red-600 hover:text-red-700" onClick={() => setRemoving(p)}>Eliminar</Button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -138,6 +157,16 @@ export function PeriodBoard({ clientId, canEdit, runners, periods, pending, allI
         </Card>
       )}
 
+      <ConfirmModal
+        open={!!removing}
+        onOpenChange={(o) => { if (!o) setRemoving(null); }}
+        title={removing ? `¿Eliminar Mes ${removing.number} · ${removing.label}?` : "¿Eliminar?"}
+        description={removing ? (removing.items.length + removing.goalOnly.length > 0 ? `Tiene ${removing.items.length + removing.goalOnly.length} pauta(s). No se borra ninguna: quedan en «Pendientes de asignar a un período» para que las muevas a otro mes. Los meses siguientes se renumeran.` : "El período está vacío. Los meses siguientes se renumeran.") : ""}
+        confirmLabel="Eliminar período"
+        destructive
+        loading={removeBusy}
+        onConfirm={async () => { if (removing) await removePeriod(removing); }}
+      />
       {editing && (
         <PeriodModal
           clientId={clientId}

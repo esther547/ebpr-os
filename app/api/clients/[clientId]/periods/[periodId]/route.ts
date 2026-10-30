@@ -36,12 +36,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { clientId: 
   return NextResponse.json({ data: period });
 }
 
-/** DELETE — only an empty period; later periods are renumbered so numbering stays consecutive. */
-export async function DELETE(_req: NextRequest, { params }: { params: { clientId: string; periodId: string } }) {
+/** DELETE — an empty period, or any period with ?detach=1 (its units become pending, never deleted); later periods are renumbered. */
+export async function DELETE(req: NextRequest, { params }: { params: { clientId: string; periodId: string } }) {
   const o = await own(params.clientId, params.periodId);
   if ("error" in o) return o.error;
+  const detach = req.nextUrl.searchParams.get("detach") === "1";
   const [p, g] = await Promise.all([db.runnerAssignment.count({ where: { periodId: o.period.id } }), db.deliverable.count({ where: { periodId: o.period.id } })]);
-  if (p + g > 0) return NextResponse.json({ error: "El período tiene metas; muévelas antes de borrarlo" }, { status: 409 });
+  if (p + g > 0 && !detach) return NextResponse.json({ error: "El período tiene metas; muévelas antes de borrarlo" }, { status: 409 });
+  if (p + g > 0) {
+    // Esther: nothing is ever deleted from an agenda automatically — the units go back to "pending a period".
+    await db.runnerAssignment.updateMany({ where: { periodId: o.period.id }, data: { periodId: null } });
+    await db.deliverable.updateMany({ where: { periodId: o.period.id }, data: { periodId: null } });
+  }
   await db.servicePeriod.delete({ where: { id: o.period.id } });
   const later = await db.servicePeriod.findMany({ where: { clientId: params.clientId, number: { gt: o.period.number } }, orderBy: { number: "asc" } });
   for (const l of later) await db.servicePeriod.update({ where: { id: l.id }, data: { number: l.number - 1 } });

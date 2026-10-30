@@ -347,8 +347,11 @@ function AgendaItemRow({ item, seq, seqLabel, clientId, runners, periods, patchC
 
       {clientId && (
         <Td align="right">
+          <div className="flex items-center justify-end gap-0.5">
+          <button type="button" aria-label="Editar pauta" title="Editar" onClick={() => setEditing(true)} className="rounded p-1 text-ink-muted hover:bg-surface-2 hover:text-ink-primary"><Pencil className="h-3.5 w-3.5" /></button>
+          <button type="button" aria-label="Eliminar pauta" title="Eliminar de la agenda" onClick={() => setConfirm("DELETE")} className="rounded p-1 text-ink-muted hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
           <DropdownMenu>
-            <DropdownMenuDots label="Acciones de la pauta" />
+            <DropdownMenuDots label="Más acciones" />
             <DropdownMenuContent>
               <DropdownMenuItem icon={<Pencil />} onSelect={() => setEditing(true)}>Editar pauta</DropdownMenuItem>
               <DropdownMenuItem icon={<UserPlus />} onSelect={() => setEditing(true)}>{item.runner ? "Cambiar runner" : "Asignar runner"}</DropdownMenuItem>
@@ -379,6 +382,7 @@ function AgendaItemRow({ item, seq, seqLabel, clientId, runners, periods, patchC
               <DropdownMenuItem icon={<Trash2 />} destructive onSelect={() => setConfirm("DELETE")}>Eliminar de la agenda</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
           {editing && (
             <EditAgendaItemModal open={editing} onOpenChange={setEditing} clientId={clientId} item={item} runners={runners} />
           )}
