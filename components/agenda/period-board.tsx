@@ -236,8 +236,8 @@ function GoalOnlyList({ units, periods, canEdit }: { units: GoalOnlyUnit[]; peri
           ) : null}
           {canEdit && (
             <span className="flex items-center gap-0.5">
-              <button type="button" aria-label="Editar meta" title="Editar" onClick={() => setEditing(u)} className="rounded p-1 text-ink-muted hover:bg-surface-2 hover:text-ink-primary"><Pencil className="h-3.5 w-3.5" /></button>
-              <button type="button" aria-label="Eliminar meta" title="Eliminar" onClick={() => setRemoving(u)} className="rounded p-1 text-ink-muted hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
+              <button type="button" aria-label="Editar meta" title="Editar esta meta" onClick={() => setEditing(u)} className="inline-flex items-center gap-1 rounded-md border border-border bg-white px-2 py-1 text-xs font-medium text-ink-primary hover:bg-surface-2"><Pencil className="h-3.5 w-3.5" /> Editar</button>
+              <button type="button" aria-label="Eliminar meta" title="Borrar esta meta" onClick={() => setRemoving(u)} className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" /> Eliminar</button>
             </span>
           )}
         </li>

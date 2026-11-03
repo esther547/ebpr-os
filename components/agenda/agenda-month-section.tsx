@@ -144,7 +144,7 @@ export function AgendaMonthSection({ monthNumber, monthLabel, target = 0, items,
               <Th>Status</Th>
               {periods && <Th>Período</Th>}
               {periods && <Th>Vale</Th>}
-              {canEdit && clientId && <Th className="w-12" />}
+              {canEdit && clientId && <Th className="w-44 text-right">Acciones</Th>}
             </tr>
           </thead>
           <tbody>
@@ -348,8 +348,8 @@ function AgendaItemRow({ item, seq, seqLabel, clientId, runners, periods, patchC
       {clientId && (
         <Td align="right">
           <div className="flex items-center justify-end gap-0.5">
-          <button type="button" aria-label="Editar pauta" title="Editar" onClick={() => setEditing(true)} className="rounded p-1 text-ink-muted hover:bg-surface-2 hover:text-ink-primary"><Pencil className="h-3.5 w-3.5" /></button>
-          <button type="button" aria-label="Eliminar pauta" title="Eliminar de la agenda" onClick={() => setConfirm("DELETE")} className="rounded p-1 text-ink-muted hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
+          <button type="button" aria-label="Editar pauta" title="Editar esta actividad" onClick={() => setEditing(true)} className="inline-flex items-center gap-1 rounded-md border border-border bg-white px-2 py-1 text-xs font-medium text-ink-primary hover:bg-surface-2"><Pencil className="h-3.5 w-3.5" /> Editar</button>
+          <button type="button" aria-label="Eliminar pauta" title="Borrar esta actividad de la agenda" onClick={() => setConfirm("DELETE")} className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" /> Eliminar</button>
           <DropdownMenu>
             <DropdownMenuDots label="Más acciones" />
             <DropdownMenuContent>
