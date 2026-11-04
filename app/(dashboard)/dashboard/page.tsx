@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { shortName } from "@/lib/short-name";
-import { ArrowUpRight, Target, Users } from "lucide-react";
+import { ArrowUpRight, AlertTriangle, Gauge, Target } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { STRATEGIST_ROLES } from "@/lib/strategist-report";
-import { currentPeriodProgress } from "@/lib/service-periods";
+import { goalOutlook, teamPace, WEEKLY_GOAL_TARGET } from "@/lib/dashboard-goals";
 import { isClosedGoal, isOpenGoal } from "@/lib/goal-status";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/header";
@@ -13,7 +13,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DeliverablePacingBar } from "@/components/deliverables/pacing-bar";
 import { MonthCompleteToggle } from "@/components/dashboard/month-complete-toggle";
-import { currentCycle, cycleForLabel, cycleLabel } from "@/lib/cycles";
+import { currentCycle, cycleLabel } from "@/lib/cycles";
 import { formatDayKey } from "@/components/runners/miami-time";
 import { dayKeyInTz } from "@/components/runners/miami-time";
 
@@ -73,8 +73,10 @@ export default async function DashboardPage() {
     return Math.max(0, Math.round((b - a) / 86_400_000));
   };
 
-  // Service periods: each client's CURRENT period (the latest one) — the same progress the agenda shows.
-  const current = await currentPeriodProgress(clients.map((c) => c.id));
+  // Service periods placed in time (overdue / in course / future) — see lib/dashboard-goals.ts.
+  const outlook = await goalOutlook(clients, now);
+  const pace = await teamPace(now);
+  const current = new Map([...outlook.relevant].map(([id, slot]) => [id, slot.period]));
 
   // Who closed what in each client's current period (Esther, Oct 6 2026: "cuántas son por estratega").
   const goalIds = [...current.values()].flatMap((p) => p.units.map((u) => u.goalId).filter((x): x is string => !!x));
@@ -97,60 +99,76 @@ export default async function DashboardPage() {
   const rows = clients.map((c) => {
     const cur = current.get(c.id);
     // The period is due at the end of the client's cycle whose label is the period's reference month.
-    const cycle = cur ? cycleForLabel(c.cycleDay, cur.refYear, cur.refMonth) : cycleByClient.get(c.id)!;
+    const slot = outlook.relevant.get(c.id);
+    const cycle = slot ? slot.cycle : cycleByClient.get(c.id)!;
     const p0 = pacing.get(c.id) ?? { completed: 0, inProgress: 0 };
     const p = { ...p0, completed: cur ? cur.achieved : p0.completed };
     if (cur) c = { ...c, monthlyTarget: cur.target };
-    const target = c.monthlyTarget + (c.goalsOwed ?? 0);
+    const target = c.monthlyTarget; // "debidas" are no longer a manual number: overdue periods are computed below
     const override = overrideOf(c.id, cycle.year, cycle.month);
     const remaining = override ? 0 : Math.max(0, target - p.completed);
     const left = daysLeft(cycle.endKey);
     // Urgency: goals still missing per day left (more missing + fewer days = more urgent).
     const urgency = remaining === 0 ? -1 : remaining / Math.max(left, 1);
-    return { ...c, cycle, completed: p.completed, inProgress: p.inProgress, target, remaining, left, urgency, override, period: cur ?? null, strategists: perClient.get(c.id) ?? [] };
+    return { ...c, cycle, completed: p.completed, inProgress: p.inProgress, target, remaining, left, urgency, override, period: cur ?? null, state: slot?.state ?? "inCourse", strategists: perClient.get(c.id) ?? [] };
   });
 
   const active = rows.filter((r) => r.target > 0).sort((a, b) => b.urgency - a.urgency || a.left - b.left || a.name.localeCompare(b.name, "es"));
   const prep = rows.filter((r) => r.target === 0).sort((a, b) => a.name.localeCompare(b.name, "es"));
 
-  // Specific numbers (Esther, Oct 6 2026): this period's goals vs. goals owed from earlier months,
-  // how many clients are complete, and what is due within a week.
-  const totalCompleted = rows.reduce((s, r) => s + r.completed, 0);
-  const periodTarget = active.reduce((s, r) => s + r.monthlyTarget, 0);
-  const owed = active.reduce((s, r) => s + (r.goalsOwed ?? 0), 0);
-  const totalRemaining = rows.reduce((s, r) => s + r.remaining, 0);
-  const clientsDone = active.filter((r) => r.remaining === 0).length;
-  const dueSoon = active.filter((r) => r.remaining > 0 && r.left <= 7);
-  const dueSoonGoals = dueSoon.reduce((s, r) => s + r.remaining, 0);
-  const nextDue = active.filter((r) => r.remaining > 0).sort((a, b) => a.left - b.left)[0];
+  // The honest count (Esther, Nov 3 2026): what is due this week, what is in course, what is overdue — each with its dates.
+  const dueWeekGoals = outlook.sum(outlook.dueWeek);
+  const inCourseGoals = outlook.sum(outlook.inCourse);
+  const overdueGoals = outlook.sum(outlook.overdue);
+  const inCourseRange = outlook.inCourse.length ? `${formatDayKey(outlook.inCourse[0].cycle.endKey, "d MMM")} → ${formatDayKey(outlook.inCourse[outlook.inCourse.length - 1].cycle.endKey, "d MMM")}` : "";
+  const inCourseDone = outlook.inCourse.filter((s) => s.period.missing === 0 && s.period.target > 0).length;
+  const totalCompleted = outlook.inCourse.reduce((n, s) => n + s.period.achieved, 0);
+  const periodTarget = outlook.inCourse.reduce((n, s) => n + s.period.target, 0);
+  const firstName = (n: string) => n.split(" ")[0];
+  // Next two weeks vs. the team's weekly capacity.
+  const dueTwoWeeks = outlook.sum(outlook.inCourse.filter((s) => s.daysLeft <= 14));
+  const paceOk = pace.capacity * 2 >= dueTwoWeeks + overdueGoals;
 
   return (
     <>
-      <PageHeader title="Dashboard" subtitle="Clientes activos y entregables del ciclo actual, ordenados por urgencia." />
+      <PageHeader title="Dashboard" subtitle={`${clients.length} clientes activos · metas por cerrar con fechas claras y el ritmo del equipo.`} />
 
-      <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Clientes activos" value={clients.length} hint={`${active.length} con meta este período · ${clientsDone} al día`} icon={<Users />} />
-        <StatTile
-          label="Metas del período actual"
-          value={`${totalCompleted} / ${periodTarget}`}
-          hint={`cerradas en ${active.length} clientes${owed ? ` · más ${owed} debida${owed === 1 ? "" : "s"} de meses anteriores` : ""}`}
-          icon={<Target />}
-          tone={totalRemaining === 0 ? "success" : "neutral"}
-        />
-        <StatTile
-          label="Faltan por cerrar"
-          value={totalRemaining}
-          hint={owed ? `${Math.max(0, totalRemaining - owed)} del período + ${owed} debidas` : "en los períodos en curso"}
-          icon={<Target />}
-          tone={totalRemaining === 0 ? "success" : "neutral"}
-        />
-        <StatTile
-          label="Vencen en 7 días"
-          value={dueSoonGoals}
-          hint={dueSoon.length ? `${dueSoon.length} cliente${dueSoon.length === 1 ? "" : "s"}: ${dueSoon.slice(0, 3).map((r) => r.name.split(" ")[0]).join(", ")}${dueSoon.length > 3 ? "…" : ""}` : nextDue ? `próximo: ${nextDue.name.split(" ")[0]} vence ${formatDayKey(nextDue.cycle.endKey, "d MMM")}` : "nada pendiente"}
-          icon={<Target />}
-          tone={dueSoonGoals > 0 ? "warning" : "success"}
-        />
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile label="Vencen esta semana" value={dueWeekGoals} hint={outlook.dueWeek.length ? `${outlook.dueWeek.length} cliente${outlook.dueWeek.length === 1 ? "" : "s"}: ${outlook.dueWeek.slice(0, 3).map((s) => firstName(s.clientName)).join(", ")}${outlook.dueWeek.length > 3 ? "…" : ""}` : "nada vence en 7 días"} icon={<Target />} tone={dueWeekGoals > 0 ? "warning" : "success"} />
+        <StatTile label="En curso" value={inCourseGoals} hint={outlook.inCourse.length ? `faltan en ${outlook.inCourse.length} período${outlook.inCourse.length === 1 ? "" : "s"} que vencen ${inCourseRange} · ${totalCompleted}/${periodTarget} cerradas · ${inCourseDone} al día` : "sin períodos en curso"} icon={<Target />} tone={inCourseGoals === 0 ? "success" : "neutral"} />
+        <StatTile label="Atrasadas" value={overdueGoals} hint={outlook.overdue.length ? `${outlook.overdue.length} período${outlook.overdue.length === 1 ? "" : "s"} ya vencido${outlook.overdue.length === 1 ? "" : "s"} con metas sin cumplir` : "ningún período vencido con metas pendientes"} icon={<AlertTriangle />} tone={overdueGoals > 0 ? "danger" : "success"} />
+        <StatTile label="Ritmo del equipo" value={`${pace.teamThisWeek} / ${pace.capacity}`} hint={`cerradas esta semana vs. ${WEEKLY_GOAL_TARGET} por estratega · ${paceOk ? "vamos bien" : "hay que apretar"}: ${dueTwoWeeks + overdueGoals} por cerrar en 14 días`} icon={<Gauge />} tone={paceOk ? "success" : "warning"} />
+      </div>
+
+      <div className="mb-6 grid gap-4 lg:grid-cols-2">
+        <Card padding="none" className="p-4 sm:p-5">
+          <p className="eyebrow">Ritmo semanal · {formatDayKey(pace.weekStart, "d MMM")} – {formatDayKey(pace.weekEnd, "d MMM")}</p>
+          <p className="mt-0.5 text-xs text-ink-muted">Metas cerradas por estratega esta semana (meta de referencia: {WEEKLY_GOAL_TARGET}). Entre paréntesis, la semana pasada.</p>
+          <ul className="mt-3 space-y-2">
+            {pace.rows.map((r) => { const pct = Math.min(100, Math.round((r.thisWeek / WEEKLY_GOAL_TARGET) * 100)); return (
+              <li key={r.id} className="flex items-center gap-3 text-sm">
+                <span className="w-28 shrink-0 truncate font-medium">{shortName(r.name, pace.rows)}</span>
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2"><div className={cn("h-full", r.thisWeek >= WEEKLY_GOAL_TARGET ? "bg-emerald-500" : r.thisWeek >= 4 ? "bg-amber-400" : "bg-red-400")} style={{ width: `${pct}%` }} /></div>
+                <span className="w-20 shrink-0 text-right tabular"><span className="font-semibold">{r.thisWeek}</span><span className="text-xs text-ink-muted"> / {WEEKLY_GOAL_TARGET} ({r.lastWeek})</span></span>
+              </li>); })}
+            {pace.unassigned > 0 && <li className="text-xs text-ink-muted">+ {pace.unassigned} cerradas sin estratega asignado esta semana</li>}
+          </ul>
+        </Card>
+        <Card padding="none" className="p-4 sm:p-5">
+          <p className="eyebrow">Atrasadas · períodos vencidos con metas sin cumplir</p>
+          <p className="mt-0.5 text-xs text-ink-muted">Calculado desde las agendas. Se resuelven cerrando las metas, moviendo pautas al período, o editando la meta del mes en la agenda.</p>
+          {outlook.overdue.length === 0 ? <p className="mt-3 text-sm text-ink-muted">Nada atrasado.</p> : (
+            <ul className="mt-3 divide-y divide-border text-sm">
+              {outlook.overdue.map((s) => (
+                <li key={s.period.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5">
+                  <Link href={`/clients/${s.clientId}/agenda`} className="font-medium hover:text-accent2">{s.clientName}</Link>
+                  <span className="text-xs text-ink-muted">Mes {s.period.number} · {s.period.label} · venció {formatDayKey(s.cycle.endKey, "d MMM")}</span>
+                  <Badge tone="danger" size="xs" className="ml-auto">faltan {s.period.missing} de {s.period.target}</Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
       </div>
 
       {strategistTotals.length > 0 && (
@@ -170,7 +188,7 @@ export default async function DashboardPage() {
       <Card padding="none">
         <div className="border-b border-border px-5 py-3">
           <p className="eyebrow">Clientes por urgencia</p>
-          <p className="mt-0.5 text-xs text-ink-muted">Primero los que tienen más metas pendientes con menos días de ciclo.</p>
+          <p className="mt-0.5 text-xs text-ink-muted">El período en curso de cada cliente (o el último vencido con metas pendientes). Primero los que tienen más metas pendientes con menos días.</p>
         </div>
         <ol className="divide-y divide-border">
           {active.map((r, i) => {
@@ -188,9 +206,8 @@ export default async function DashboardPage() {
                   <div className="min-w-[200px] flex-1">
                     <DeliverablePacingBar completed={r.completed} inProgress={r.inProgress} target={r.target} />
                   </div>
-                  {r.goalsOwed ? <span className="text-xs text-ink-muted">incl. {r.goalsOwed} {r.goalsOwed === 1 ? "debida" : "debidas"}</span> : null}
                   <Badge tone={done ? "success" : critical ? "danger" : warn ? "warning" : "neutral"} size="xs" dot>
-                    {done ? (r.override ? `Al día · marcado${r.override.note ? `: ${r.override.note}` : ""}` : "Al día") : `Faltan ${r.remaining} · vence ${formatDayKey(r.cycle.endKey, "d MMM")} (${r.left} ${r.left === 1 ? "día" : "días"})`}
+                    {done ? (r.override ? `Al día · marcado${r.override.note ? `: ${r.override.note}` : ""}` : "Al día") : r.state === "overdue" ? `Faltan ${r.remaining} · venció ${formatDayKey(r.cycle.endKey, "d MMM")}` : r.state === "future" ? `Faltan ${r.remaining} · empieza ${formatDayKey(r.cycle.startKey, "d MMM")}` : `Faltan ${r.remaining} · vence ${formatDayKey(r.cycle.endKey, "d MMM")} (${r.left} ${r.left === 1 ? "día" : "días"})`}
                   </Badge>
                   <span className="ml-auto flex items-center gap-2 text-2xs text-ink-muted">
                     {r.period ? `Mes ${r.period.number} · ${r.period.label}` : cycleLabel(r.cycle, r.cycleDay)}
