@@ -18,11 +18,16 @@ export function eventKeyOf(row: { id: string; eventGroupId?: string | null }): s
   return row.eventGroupId ? `g:${row.eventGroupId}` : `p:${row.id}`;
 }
 
-/** Two rows on the same day that read as the same event (same venue, or names sharing most words). */
-export function sameEvent(a: { eventDate: Date; venueName: string | null; eventName: string }, b: { eventDate: Date; venueName: string | null; eventName: string }): boolean {
+/** Venues that say nothing about the event: three Zoom interviews are three events (Esther, Nov 4 2026). */
+const GENERIC_VENUES = new Set(["zoom", "virtual", "online", "remoto", "remote", "teams", "meet", "google meet", "call", "llamada", "telefono", "phone", "whatsapp", "cuestionario", "email", "tba", "tbd", "n a", "na", "por confirmar", "instagram", "ig live", "live", "redes", "website", "web"]);
+const timeOf = (r: { eventDate: Date; eventTime?: Date | null }) => (r.eventTime ?? r.eventDate).getTime();
+
+/** Two rows on the same day that read as the same event: same real venue within 90 minutes, or names sharing most words. */
+export function sameEvent(a: { eventDate: Date; eventTime?: Date | null; venueName: string | null; eventName: string }, b: { eventDate: Date; eventTime?: Date | null; venueName: string | null; eventName: string }): boolean {
   if (dayKeyInTz(a.eventDate) !== dayKeyInTz(b.eventDate)) return false;
   const va = words(a.venueName).slice(0, 3).join(" "), vb = words(b.venueName).slice(0, 3).join(" ");
-  if (va && vb) { if (va === vb) return true; }
+  const generic = (v: string) => !v || GENERIC_VENUES.has(v) || [...GENERIC_VENUES].some((g) => v.startsWith(g + " "));
+  if (va && vb && !generic(va) && !generic(vb) && va === vb && Math.abs(timeOf(a) - timeOf(b)) <= 90 * 60_000) return true;
   const wa = new Set(words(a.eventName)), wb = new Set(words(b.eventName));
   if (!wa.size || !wb.size) return false;
   const common = [...wa].filter((w) => wb.has(w)).length;
@@ -32,7 +37,7 @@ export function sameEvent(a: { eventDate: Date; venueName: string | null; eventN
 /** Link same-event pautas (from today on) that nobody grouped yet. Returns how many rows got a group. */
 export async function linkEventGroups(days = 45): Promise<{ linked: number; groups: number }> {
   const from = new Date(Date.now() - 86400000), to = new Date(Date.now() + days * 86400000);
-  const rows = await db.runnerAssignment.findMany({ where: { eventDate: { gte: from, lt: to }, status: { not: "CANCELLED" } }, select: { id: true, clientId: true, eventDate: true, venueName: true, eventName: true, eventGroupId: true }, orderBy: { eventDate: "asc" } });
+  const rows = await db.runnerAssignment.findMany({ where: { eventDate: { gte: from, lt: to }, status: { not: "CANCELLED" } }, select: { id: true, clientId: true, eventDate: true, eventTime: true, venueName: true, eventName: true, eventGroupId: true }, orderBy: { eventDate: "asc" } });
   let linked = 0, groups = 0;
   const byDay = new Map<string, typeof rows>();
   for (const r of rows) { const k = dayKeyInTz(r.eventDate); byDay.set(k, [...(byDay.get(k) ?? []), r]); }

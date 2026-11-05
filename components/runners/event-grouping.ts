@@ -1,19 +1,13 @@
 /** Client-side grouping of pautas that belong to the same event (see lib/event-groups.ts). */
 export type Grouped<T> = { a: T; members: T[]; clients: string[] };
 
+/**
+ * Esther, Nov 4 2026: never merge pautas in the views. Each pauta is its own card — its talent, its runner and the
+ * hour of its own agenda — even when several talents go to the same event with the same runner.
+ * (eventGroupId / eventKey stay on the data for the "same runner for all" assignment shortcut.)
+ */
 export function groupByEvent<T extends { id: string; eventKey?: string; clientName?: string | null }>(items: T[]): Grouped<T>[] {
-  const order: string[] = [];
-  const map = new Map<string, T[]>();
-  for (const it of items) {
-    const k = it.eventKey ?? it.id;
-    if (!map.has(k)) { map.set(k, []); order.push(k); }
-    map.get(k)!.push(it);
-  }
-  return order.map((k) => {
-    const members = map.get(k)!;
-    const clients = Array.from(new Set(members.map((m) => m.clientName).filter((n): n is string => !!n)));
-    return { a: members[0], members, clients };
-  });
+  return items.map((it) => ({ a: it, members: [it], clients: it.clientName ? [it.clientName] : [] }));
 }
 
 /** "Casa D, Ana Vélez y 2 más" */
