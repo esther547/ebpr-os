@@ -19,7 +19,7 @@ type Props = {
   /** Team board: who can be put in charge. Empty on personal boards (no selector). */
   teamMembers?: TeamMember[];
   onAssign?: (item: PriorityItem, assigneeId: string | null) => void;
-  /** Mixed lists (Mis to dos): show which client the line belongs to. */
+  /** Mixed lists (Mis to dos): show which client the line belongs to (its project always shows when it has one). */
   showClient?: boolean;
   onToggle: (item: PriorityItem) => void;
   onRename: (item: PriorityItem, title: string) => void;
@@ -66,9 +66,10 @@ export function PriorityRow({ item, teamMembers = [], onAssign, showClient = fal
       />
 
       <div className="min-w-0 flex-1">
-        {showClient && !editing && (
-          <div className="mb-0.5">
-            <Badge tone={item.client ? "dark" : "outline"} size="sm">{item.client?.name ?? "General"}</Badge>
+        {(showClient || item.project) && !editing && (
+          <div className="mb-0.5 flex flex-wrap items-center gap-1">
+            {showClient && (item.client || !item.project) && <Badge tone={item.client ? "dark" : "outline"} size="sm">{item.client?.name ?? "General"}</Badge>}
+            {item.project && <span title="Proyecto"><Badge tone={item.client || !showClient ? "outline" : "dark"} size="sm">{item.project}</Badge></span>}
           </div>
         )}
         {editing ? (

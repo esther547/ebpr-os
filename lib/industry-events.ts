@@ -120,6 +120,7 @@ export async function createOpportunityPriority(
     data: {
       weekOf,
       clientId: null,
+      project: "Calendario de eventos",
       title,
       notes: priorityNotes(event, occursKey) || null,
       order: (last._max.order ?? -1) + 1,

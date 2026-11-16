@@ -10,6 +10,7 @@ export const EBM_TEAM_EMAILS = [
   "esther@ebmanagement.io",
   "carolina@ebmanagement.io",
   "ayax@ebmanagement.io",
+  "pferreira@ebmanagement.io", // Paola Ferreira (Esther, Nov 16 2026)
 ];
 
 export function canAccessEbm(user: SessionUser): boolean {

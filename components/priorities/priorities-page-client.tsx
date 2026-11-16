@@ -411,6 +411,7 @@ export function PrioritiesPageClient({
         clients={clients}
         teamMembers={teamMembers}
         categories={board.categories}
+        showProject={!board.personal}
         onSubmit={savePriority}
       />
       <PriorityModal
@@ -420,6 +421,7 @@ export function PrioritiesPageClient({
         clients={clients}
         teamMembers={teamMembers}
         categories={board.categories}
+        showProject={!board.personal}
         onSubmit={savePriority}
       />
       <MovePriorityModal

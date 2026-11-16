@@ -129,8 +129,9 @@ export function MyTodosBoard({ items: initial, target, team, viewerId, isAdmin, 
         clients={[]}
         teamMembers={[]}
         categories={undefined}
+        showProject={editItem?.list === "TEAM"}
         onSubmit={async (draft: PriorityDraft) => {
-          if (editItem) await patch(editItem, { title: draft.title, notes: draft.notes });
+          if (editItem) await patch(editItem, { title: draft.title, notes: draft.notes, ...(draft.project !== undefined ? { project: draft.project } : {}) });
         }}
       />
       <ConfirmModal

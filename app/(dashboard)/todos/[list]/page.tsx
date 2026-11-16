@@ -72,7 +72,7 @@ export default async function PersonalTodosPage({
       getClientOrder(weekKey),
       user.role === "SUPER_ADMIN" ? db.user.findMany({ where: { isActive: true, role: { in: ["SUPER_ADMIN", "STRATEGIST"] } }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
     ]);
-    const assigned = rows.map((r) => ({ id: r.id, clientId: r.clientId, category: r.category, title: r.title, notes: r.notes, assigneeId: r.assigneeId, isDone: r.isDone, order: r.order, client: r.client, assignee: r.assignee }));
+    const assigned = rows.map((r) => ({ id: r.id, clientId: r.clientId, category: r.category, project: r.project, title: r.title, notes: r.notes, assigneeId: r.assigneeId, isDone: r.isDone, order: r.order, client: r.client, assignee: r.assignee }));
     return <PrioritiesBoard list={list} requestedWeek={searchParams?.week} topSlot={<AssignedTeamCard items={assigned} ownerId={user.id} weekKey={weekKey} clientOrder={clientOrder} team={team} />} />;
   }
 

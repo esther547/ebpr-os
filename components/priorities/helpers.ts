@@ -7,6 +7,8 @@ export type PriorityItem = {
   clientId: string | null;
   /** Personal boards with categories (e.g. "EBPR"); null elsewhere. */
   category: string | null;
+  /** What the line is about when the client alone does not say it ("Art Basel"…); null when not set. */
+  project?: string | null;
   title: string;
   notes: string | null;
   assigneeId: string | null;

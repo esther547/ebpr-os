@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   const [pending, target] = await Promise.all([
     db.weeklyPriority.findMany({
       where: { weekOf: fromWeekOf, isDone: false, list },
-      select: { clientId: true, category: true, title: true, notes: true, assigneeId: true, order: true },
+      select: { clientId: true, category: true, project: true, title: true, notes: true, assigneeId: true, order: true },
       orderBy: [{ order: "asc" }, { createdAt: "asc" }],
     }),
     db.weeklyPriority.findMany({
@@ -79,6 +79,7 @@ export async function POST(req: NextRequest) {
     list: string;
     clientId: string | null;
     category: string | null;
+    project: string | null;
     title: string;
     notes: string | null;
     assigneeId: string | null;
@@ -98,6 +99,7 @@ export async function POST(req: NextRequest) {
       list,
       clientId: item.clientId,
       category: item.category,
+      project: item.project,
       title: item.title,
       notes: item.notes,
       assigneeId: item.assigneeId,

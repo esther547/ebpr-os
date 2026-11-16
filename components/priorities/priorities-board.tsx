@@ -64,6 +64,7 @@ export async function PrioritiesBoard({
     id: r.id,
     clientId: r.clientId,
     category: r.category,
+    project: r.project,
     title: r.title,
     notes: r.notes,
     assigneeId: r.assigneeId,

@@ -23,6 +23,7 @@ const updateSchema = z.object({
   isDone: z.boolean().optional(),
   clientId: z.string().nullable().optional(),
   category: z.string().trim().max(40).nullable().optional(),
+  project: z.string().trim().max(60).nullable().optional(),
   order: z.number().int().min(0).max(100_000).optional(),
 });
 
@@ -64,6 +65,7 @@ export async function PATCH(
   if (d.title !== undefined) data.title = d.title;
   if (d.notes !== undefined) data.notes = d.notes || null;
   if (d.order !== undefined) data.order = d.order;
+  if (d.project !== undefined) data.project = d.project || null;
   if (d.category !== undefined) data.category = await normalizeCategory(isPriorityListKey(existing.list) ? existing.list : "TEAM", d.category);
 
   if (d.assigneeId !== undefined) {

@@ -141,6 +141,7 @@ export const prioritySelect = {
   weekOf: true,
   list: true,
   category: true,
+  project: true,
   clientId: true,
   title: true,
   notes: true,

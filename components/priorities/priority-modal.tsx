@@ -15,6 +15,8 @@ import type { ClientOption, PriorityItem, TeamMember } from "./helpers";
 export type PriorityDraft = {
   clientId: string | null;
   category?: string | null;
+  /** Only sent by boards that show the field. */
+  project?: string | null;
   title: string;
   notes: string | null;
   assigneeId: string | null;
@@ -29,6 +31,8 @@ type Props = {
   teamMembers: TeamMember[];
   /** Boards grouped by category show a category select instead of the client one. */
   categories?: string[];
+  /** Team lines: offer "Proyecto" so whoever gets the line knows what it is about when the client alone does not say it. */
+  showProject?: boolean;
   /** Preselected client for a new line. */
   defaultClientId?: string | null;
   onSubmit: (draft: PriorityDraft) => Promise<void>;
@@ -43,11 +47,13 @@ export function PriorityModal({
   clients,
   teamMembers,
   categories,
+  showProject = false,
   defaultClientId = null,
   onSubmit,
 }: Props) {
   const [clientId, setClientId] = useState(GENERAL);
   const [category, setCategory] = useState("");
+  const [project, setProject] = useState("");
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
@@ -57,6 +63,7 @@ export function PriorityModal({
     if (!open) return;
     setClientId(item?.clientId ?? defaultClientId ?? GENERAL);
     setCategory(item?.category ?? categories?.[0] ?? "");
+    setProject(item?.project ?? "");
     setTitle(item?.title ?? "");
     setNotes(item?.notes ?? "");
     setAssigneeId(item?.assigneeId ?? "");
@@ -71,6 +78,7 @@ export function PriorityModal({
       await onSubmit({
         clientId: categories ? null : clientId === GENERAL ? null : clientId,
         category: categories ? category || null : undefined,
+        project: showProject ? project.trim() || null : undefined,
         title: title.trim(),
         notes: notes.trim() || null,
         assigneeId: assigneeId || null,
@@ -102,7 +110,7 @@ export function PriorityModal({
             <option value="">Sin categoría</option>
           </Select>
         </FormGroup>
-        ) : (
+        ) : clients.length > 0 ? (
         <FormGroup label="Cliente" htmlFor="priority-client">
           <Select
             id="priority-client"
@@ -116,6 +124,20 @@ export function PriorityModal({
               </option>
             ))}
           </Select>
+        </FormGroup>
+        ) : item?.client ? (
+          <p className="text-sm text-ink-secondary">Cliente: <span className="font-medium text-ink-primary">{item.client.name}</span></p>
+        ) : null}
+
+        {showProject && !categories && (
+        <FormGroup label="Proyecto" htmlFor="priority-project" hint={clientId === GENERAL && !item?.client ? "Sin cliente: di de qué proyecto es" : "Opcional"}>
+          <Input
+            id="priority-project"
+            value={project}
+            onChange={(e) => setProject(e.target.value)}
+            maxLength={60}
+            placeholder="Art Basel, Premiere de Marko, Wish list de colaboraciones…"
+          />
         </FormGroup>
         )}
 

@@ -1137,6 +1137,8 @@ model WeeklyPriority {
   list        String    @default("TEAM")
   /// Personal boards group by category instead of client (e.g. PERSONAL / LEGAL / EBM / EBPR).
   category    String?
+  /// What the line is about when the client alone does not say it (or there is no client): "Art Basel", "Colaboraciones de Gracie Bon"…
+  project     String?
   createdById String
   createdBy   User      @relation("PriorityCreator", fields: [createdById], references: [id])
   createdAt   DateTime  @default(now())

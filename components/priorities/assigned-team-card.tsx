@@ -81,8 +81,8 @@ export function AssignedTeamCard({ items: initial, ownerId, weekKey, clientOrder
         onMove={(p) => setEditItem(p)}
         onDelete={(p) => setDeleteItem(p)}
       />
-      <PriorityModal open={editItem !== null} onOpenChange={(open) => !open && setEditItem(null)} item={editItem} clients={[]} teamMembers={[]} categories={undefined}
-        onSubmit={async (draft: PriorityDraft) => { if (editItem) await patch(editItem, { title: draft.title, notes: draft.notes }); }} />
+      <PriorityModal open={editItem !== null} onOpenChange={(open) => !open && setEditItem(null)} item={editItem} clients={[]} teamMembers={[]} categories={undefined} showProject
+        onSubmit={async (draft: PriorityDraft) => { if (editItem) await patch(editItem, { title: draft.title, notes: draft.notes, project: draft.project ?? null }); }} />
       <ConfirmModal open={deleteItem !== null} onOpenChange={(open) => !open && setDeleteItem(null)} title="Eliminar to do" description={deleteItem?.title} confirmLabel="Eliminar" destructive onConfirm={() => { if (deleteItem) void remove(deleteItem); }} />
     </div>
   );
