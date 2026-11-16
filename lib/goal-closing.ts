@@ -17,6 +17,8 @@ export const GOAL_CLOSING = {
   dueLabel: "15 de diciembre",
   dueShort: "15 dic",
   sinceShort: "16 nov",
+  /** Esther, Nov 16 2026: Verónica closes 12 and Esther 8; everything else is split among the other strategists. */
+  fixedQuotas: { "veronicaf@ebmanagement.io": 12, "esther@ebmanagement.io": 8 } as Record<string, number>,
 } as const;
 
 export type ClosingRow = {
@@ -40,7 +42,7 @@ export type ClosingBoard = {
   closed: number;
   pending: number;
   daysLeft: number;
-  byStrategist: { name: string; goals: number }[];
+  byStrategist: { id: string | null; name: string; goals: number }[];
 };
 
 export async function closingBoard(clients: { id: string; name: string; closingOwed: number | null; closingNote: string | null; closingHold: boolean }[], now = new Date()): Promise<ClosingBoard> {
@@ -59,15 +61,18 @@ export async function closingBoard(clients: { id: string; name: string; closingO
   }));
   const goalIds = secured.flat().map((u) => u.goalId).filter((x): x is string => !!x);
   const isStrategist = (u: { role: string } | null) => !!u && (STRATEGIST_ROLES as string[]).includes(u.role);
-  const closers = new Map((goalIds.length ? await db.deliverable.findMany({ where: { id: { in: goalIds } }, select: { id: true, closedBy: { select: { name: true, role: true } }, assignee: { select: { name: true, role: true } } } }) : []).map((g) => [g.id, isStrategist(g.closedBy) ? g.closedBy!.name : isStrategist(g.assignee) ? g.assignee!.name : null]));
-  const team = new Map<string, number>();
+  const closers = new Map((goalIds.length ? await db.deliverable.findMany({ where: { id: { in: goalIds } }, select: { id: true, closedBy: { select: { id: true, name: true, role: true } }, assignee: { select: { id: true, name: true, role: true } } } }) : []).map((g) => [g.id, isStrategist(g.closedBy) ? g.closedBy! : isStrategist(g.assignee) ? g.assignee! : null]));
+  const team = new Map<string, { id: string | null; name: string; goals: number }>();
   const all: ClosingRow[] = counted.map((c, i) => {
     const m = new Map<string, number>();
     let closed = 0;
     for (const u of secured[i]) {
-      const who = (u.goalId ? closers.get(u.goalId) : null) ?? "Sin estratega";
+      const closer = (u.goalId ? closers.get(u.goalId) : null) ?? null;
+      const who = closer?.name ?? "Sin estratega";
       m.set(who, (m.get(who) ?? 0) + u.weight);
-      team.set(who, (team.get(who) ?? 0) + u.weight);
+      const t = team.get(closer?.id ?? "") ?? { id: closer?.id ?? null, name: who, goals: 0 };
+      t.goals += u.weight;
+      team.set(closer?.id ?? "", t);
       closed += u.weight;
     }
     const owed = c.closingOwed ?? 0;
@@ -86,6 +91,21 @@ export async function closingBoard(clients: { id: string; name: string; closingO
     closed: rows.reduce((n, r) => n + Math.min(r.closed, r.owed), 0),
     pending: rows.reduce((n, r) => n + r.pending, 0),
     daysLeft,
-    byStrategist: [...team.entries()].map(([name, goals]) => ({ name, goals })).sort((a, b) => b.goals - a.goals),
+    byStrategist: [...team.values()].sort((a, b) => b.goals - a.goals),
   };
+}
+
+/**
+ * What each strategist has to close per week so everything is done by the closing date. Verónica and Esther carry
+ * their own fixed numbers (GOAL_CLOSING.fixedQuotas — private, never shown); the rest is split among the others.
+ */
+export async function weeklyPerStrategist(board: ClosingBoard): Promise<{ perWeek: number; strategists: number }> {
+  const people = await db.user.findMany({ where: { isActive: true, role: { in: STRATEGIST_ROLES } }, select: { id: true, email: true } });
+  const fixedOf = (email: string) => GOAL_CLOSING.fixedQuotas[email.toLowerCase()];
+  const closedBy = (id: string) => board.byStrategist.find((s) => s.id === id)?.goals ?? 0;
+  const fixedRemaining = people.reduce((n, p) => { const q = fixedOf(p.email); return q === undefined ? n : n + Math.max(0, q - closedBy(p.id)); }, 0);
+  const others = people.filter((p) => fixedOf(p.email) === undefined).length;
+  const weeks = Math.max(1, board.daysLeft / 7);
+  const rest = Math.max(0, board.pending - fixedRemaining);
+  return { perWeek: others ? Math.ceil(rest / others / weeks) : 0, strategists: others };
 }

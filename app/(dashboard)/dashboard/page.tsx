@@ -4,9 +4,8 @@ import { ArrowUpRight, CalendarClock, Gauge, Target, TrendingUp } from "lucide-r
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { teamPace, WEEKLY_GOAL_TARGET } from "@/lib/dashboard-goals";
-import { closingBoard, GOAL_CLOSING } from "@/lib/goal-closing";
+import { closingBoard, weeklyPerStrategist, GOAL_CLOSING } from "@/lib/goal-closing";
 import { canManageClients } from "@/lib/permissions";
-import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/header";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Card } from "@/components/ui/card";
@@ -33,14 +32,11 @@ export default async function DashboardPage() {
     orderBy: { name: "asc" },
   });
   const [closing, pace] = await Promise.all([closingBoard(clients, now), teamPace(now)]);
+  const each = await weeklyPerStrategist(closing);
 
   const { dueLabel, dueShort, sinceShort } = GOAL_CLOSING;
   const weeksLeft = Math.max(1, closing.daysLeft / 7);
   const perWeek = Math.ceil(closing.pending / weeksLeft);
-  // Esther's reference (6 to 8 a week) is per strategist, so she is not part of the divisor.
-  const strategists = Math.max(1, await db.user.count({ where: { isActive: true, role: "STRATEGIST" } }));
-  const perStrategist = Math.round((perWeek / strategists) * 10) / 10;
-  const paceTone = perStrategist <= 8 ? "success" : perStrategist <= 10 ? "warning" : "danger";
   const owing = closing.rows.filter((r) => r.pending > 0);
   const upToDate = closing.rows.filter((r) => r.pending === 0);
 
@@ -51,20 +47,20 @@ export default async function DashboardPage() {
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile label={`Por cerrar al ${dueShort}`} value={closing.pending} hint={`de ${closing.owed} contadas el ${sinceShort} · ${closing.closed} cerrada${closing.closed === 1 ? "" : "s"} desde entonces`} icon={<Target />} tone={closing.pending === 0 ? "success" : "neutral"} />
         <StatTile label="Días que quedan" value={closing.daysLeft} hint={`${Math.round(weeksLeft * 10) / 10} semanas hasta el ${dueLabel}`} icon={<CalendarClock />} tone={closing.daysLeft <= 7 ? "warning" : "neutral"} />
-        <StatTile label="Necesarias por semana" value={perWeek} hint={`≈ ${perStrategist} por estratega (${strategists} estrategas) · lo normal es 6 a 8`} icon={<TrendingUp />} tone={paceTone} />
+        <StatTile label="Cada estratega, por semana" value={each.perWeek} hint={`Cada estratega debe cerrar ${each.perWeek} a la semana para que de acá al ${dueLabel} se cumpla todo`} icon={<TrendingUp />} tone="neutral" />
         <StatTile label="Cerradas esta semana" value={`${pace.teamThisWeek} / ${perWeek}`} hint="lo que lleva el equipo vs. lo que hace falta por semana" icon={<Gauge />} tone={pace.teamThisWeek >= perWeek ? "success" : "warning"} />
       </div>
 
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
         <Card padding="none" className="p-4 sm:p-5">
           <p className="eyebrow">Ritmo semanal · {formatDayKey(pace.weekStart, "d MMM")} – {formatDayKey(pace.weekEnd, "d MMM")}</p>
-          <p className="mt-0.5 text-xs text-ink-muted">Metas cerradas por estratega esta semana (meta de referencia: {WEEKLY_GOAL_TARGET}). Entre paréntesis, la semana pasada.</p>
+          <p className="mt-0.5 text-xs text-ink-muted">Metas cerradas por cada quien esta semana. Entre paréntesis, la semana pasada.</p>
           <ul className="mt-3 space-y-2">
-            {pace.rows.map((r) => { const pct = Math.min(100, Math.round((r.thisWeek / WEEKLY_GOAL_TARGET) * 100)); return (
+            {pace.rows.map((r) => { const ref = Math.max(1, each.perWeek || WEEKLY_GOAL_TARGET); const pct = Math.min(100, Math.round((r.thisWeek / ref) * 100)); return (
               <li key={r.id} className="flex items-center gap-3 text-sm">
                 <span className="w-28 shrink-0 truncate font-medium">{shortName(r.name, pace.rows)}</span>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2"><div className={cn("h-full", r.thisWeek >= WEEKLY_GOAL_TARGET ? "bg-emerald-500" : r.thisWeek >= 4 ? "bg-amber-400" : "bg-red-400")} style={{ width: `${pct}%` }} /></div>
-                <span className="w-20 shrink-0 text-right tabular"><span className="font-semibold">{r.thisWeek}</span><span className="text-xs text-ink-muted"> / {WEEKLY_GOAL_TARGET} ({r.lastWeek})</span></span>
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} /></div>
+                <span className="w-16 shrink-0 text-right tabular"><span className="font-semibold">{r.thisWeek}</span><span className="text-xs text-ink-muted"> ({r.lastWeek})</span></span>
               </li>); })}
             {pace.unassigned > 0 && <li className="text-xs text-ink-muted">+ {pace.unassigned} cerradas sin estratega asignado esta semana</li>}
           </ul>
@@ -116,20 +112,6 @@ export default async function DashboardPage() {
           </div>
         </Card>
       </div>
-
-      {closing.byStrategist.length > 0 && (
-        <Card padding="none" className="mb-6 p-4 sm:p-5">
-          <p className="eyebrow">Metas cerradas por estratega · desde el {sinceShort}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {closing.byStrategist.map((s) => (
-              <span key={s.name} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-sm", s.name === "Sin estratega" ? "border-dashed border-border text-ink-muted" : "border-border bg-white text-ink-primary")}>
-                <span className="font-medium">{s.name === "Sin estratega" ? s.name : shortName(s.name, closing.byStrategist)}</span>
-                <span className="tabular text-ink-secondary">{s.goals}</span>
-              </span>
-            ))}
-          </div>
-        </Card>
-      )}
 
       <Card padding="none">
         <div className="border-b border-border px-5 py-3">
