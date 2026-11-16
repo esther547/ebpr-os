@@ -232,6 +232,10 @@ model Client {
   cycleDay          Int?
   // Goals owed from previous cycles ("metas atrasadas")
   goalsOwed         Int             @default(0)
+  // Year-end count (Esther, Nov 16 2026): goals still owed until the closing date, as counted by her on
+  // GOAL_CLOSING.since. null = client not in the count. Pending today = closingOwed − goals secured since then.
+  closingOwed       Int?
+  closingNote       String?
   // What the team should close next for this client ("metas de septiembre" note)
   focusNote         String?
   // Google Doc with the client's agenda (events/appearances)

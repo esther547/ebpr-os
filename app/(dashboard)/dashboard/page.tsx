@@ -1,143 +1,58 @@
 import Link from "next/link";
 import { shortName } from "@/lib/short-name";
-import { ArrowUpRight, AlertTriangle, Gauge, Target } from "lucide-react";
+import { ArrowUpRight, CalendarClock, Gauge, Target, TrendingUp } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { STRATEGIST_ROLES } from "@/lib/strategist-report";
-import { goalOutlook, teamPace, WEEKLY_GOAL_TARGET } from "@/lib/dashboard-goals";
-import { isClosedGoal, isOpenGoal } from "@/lib/goal-status";
+import { teamPace, WEEKLY_GOAL_TARGET } from "@/lib/dashboard-goals";
+import { closingBoard, GOAL_CLOSING } from "@/lib/goal-closing";
+import { canManageClients } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/header";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DeliverablePacingBar } from "@/components/deliverables/pacing-bar";
-import { MonthCompleteToggle } from "@/components/dashboard/month-complete-toggle";
-import { currentCycle, cycleLabel } from "@/lib/cycles";
+import { ClosingEdit } from "@/components/dashboard/closing-edit";
 import { formatDayKey } from "@/components/runners/miami-time";
-import { dayKeyInTz } from "@/components/runners/miami-time";
 
 export const metadata = { title: "Dashboard — EBPR OS" };
 export const dynamic = "force-dynamic";
 
 /**
- * Dashboard, simplified (Esther, Sept 27 2026): how many active clients, how many
- * deliverables this cycle, and the clients ordered by how urgently they need goals.
+ * Dashboard (Esther, Nov 16 2026): the year closes on Dec 15. One count — the goals each active client is
+ * still owed until that day, as she counted them — plus the pace the team needs and the pace it has.
+ * The earlier period-by-period count (overdue / in course) was retired at her request.
  */
 export default async function DashboardPage() {
-  await requireUser();
+  const user = await requireUser();
+  const canEdit = canManageClients(user);
   const now = new Date();
-  const todayKey = dayKeyInTz(now);
 
   const clients = await db.client.findMany({
     where: { status: "ACTIVE" },
-    select: { id: true, name: true, monthlyTarget: true, cycleDay: true, goalsOwed: true },
+    select: { id: true, name: true, closingOwed: true, closingNote: true },
     orderBy: { name: "asc" },
   });
+  const [closing, pace] = await Promise.all([closingBoard(clients, now), teamPace(now)]);
 
-  // Deliverables of each client's CURRENT cycle (fecha de corte).
-  const cycleByClient = new Map(clients.map((c) => [c.id, currentCycle(c.cycleDay, now)]));
-  const labels = new Map<string, { month: number; year: number }>();
-  for (const c of cycleByClient.values()) labels.set(`${c.year}-${c.month}`, { month: c.month, year: c.year });
-  const deliverables = labels.size
-    ? (
-        await db.deliverable.findMany({
-          where: { OR: Array.from(labels.values()), status: { not: "CANCELLED" }, clientId: { in: clients.map((c) => c.id) } },
-          select: { clientId: true, status: true, month: true, year: true },
-        })
-      ).filter((d) => {
-        const c = cycleByClient.get(d.clientId);
-        return c && c.month === d.month && c.year === d.year;
-      })
-    : [];
-
-  // Manual "month complete" marks (e.g. a client that doubled up the month before).
-  const overrides = await db.clientMonthOverride.findMany({
-    where: { clientId: { in: clients.map((c) => c.id) }, isComplete: true },
-    select: { clientId: true, year: true, month: true, note: true },
-  });
-  const overrideOf = (clientId: string, year: number, month: number) => overrides.find((o) => o.clientId === clientId && o.year === year && o.month === month) ?? null;
-
-  const pacing = new Map<string, { completed: number; inProgress: number }>();
-  for (const d of deliverables) {
-    const p = pacing.get(d.clientId) ?? { completed: 0, inProgress: 0 };
-    // "Completed" here means CLOSED (confirmed or executed); "in progress" = still pitching.
-    if (isClosedGoal(d.status)) p.completed++;
-    else if (isOpenGoal(d.status)) p.inProgress++;
-    pacing.set(d.clientId, p);
-  }
-
-  const daysLeft = (endKey: string) => {
-    const a = new Date(`${todayKey}T00:00:00Z`).getTime();
-    const b = new Date(`${endKey}T00:00:00Z`).getTime();
-    return Math.max(0, Math.round((b - a) / 86_400_000));
-  };
-
-  // Service periods placed in time (overdue / in course / future) — see lib/dashboard-goals.ts.
-  const outlook = await goalOutlook(clients, now);
-  const pace = await teamPace(now);
-  const current = new Map([...outlook.relevant].map(([id, slot]) => [id, slot.period]));
-
-  // Who closed what in each client's current period (Esther, Oct 6 2026: "cuántas son por estratega").
-  const goalIds = [...current.values()].flatMap((p) => p.units.map((u) => u.goalId).filter((x): x is string => !!x));
-  // Only strategists (not runners who closed a pauta) are credited by name — Diana is a runner (Esther, Oct 12 2026).
-  const isStrategist = (u: { role: string } | null) => !!u && (STRATEGIST_ROLES as string[]).includes(u.role);
-  const closers = new Map((await db.deliverable.findMany({ where: { id: { in: goalIds } }, select: { id: true, closedBy: { select: { name: true, role: true } }, assignee: { select: { name: true, role: true } } } })).map((g) => [g.id, isStrategist(g.closedBy) ? g.closedBy!.name : isStrategist(g.assignee) ? g.assignee!.name : null]));
-  const byStrategist = new Map<string, number>();
-  const perClient = new Map<string, { name: string; goals: number }[]>();
-  for (const [clientId, p] of current) {
-    const m = new Map<string, number>();
-    for (const u of p.units) {
-      const who = (u.goalId ? closers.get(u.goalId) : null) ?? "Sin estratega";
-      m.set(who, (m.get(who) ?? 0) + u.weight);
-      byStrategist.set(who, (byStrategist.get(who) ?? 0) + u.weight);
-    }
-    perClient.set(clientId, [...m.entries()].map(([name, goals]) => ({ name, goals })).sort((a, b) => b.goals - a.goals));
-  }
-  const strategistTotals = [...byStrategist.entries()].sort((a, b) => b[1] - a[1]);
-
-  const rows = clients.map((c) => {
-    const cur = current.get(c.id);
-    // The period is due at the end of the client's cycle whose label is the period's reference month.
-    const slot = outlook.relevant.get(c.id);
-    const cycle = slot ? slot.cycle : cycleByClient.get(c.id)!;
-    const p0 = pacing.get(c.id) ?? { completed: 0, inProgress: 0 };
-    const p = { ...p0, completed: cur ? cur.achieved : p0.completed };
-    if (cur) c = { ...c, monthlyTarget: cur.target };
-    const target = c.monthlyTarget; // "debidas" are no longer a manual number: overdue periods are computed below
-    const override = overrideOf(c.id, cycle.year, cycle.month);
-    const remaining = override ? 0 : Math.max(0, target - p.completed);
-    const left = daysLeft(cycle.endKey);
-    // Urgency: goals still missing per day left (more missing + fewer days = more urgent).
-    const urgency = remaining === 0 ? -1 : remaining / Math.max(left, 1);
-    return { ...c, cycle, completed: p.completed, inProgress: p.inProgress, target, remaining, left, urgency, override, period: cur ?? null, state: slot?.state ?? "inCourse", strategists: perClient.get(c.id) ?? [] };
-  });
-
-  const active = rows.filter((r) => r.target > 0).sort((a, b) => b.urgency - a.urgency || a.left - b.left || a.name.localeCompare(b.name, "es"));
-  const prep = rows.filter((r) => r.target === 0).sort((a, b) => a.name.localeCompare(b.name, "es"));
-
-  // The honest count (Esther, Nov 3 2026): what is due this week, what is in course, what is overdue — each with its dates.
-  const dueWeekGoals = outlook.sum(outlook.dueWeek);
-  const inCourseGoals = outlook.sum(outlook.inCourse);
-  const overdueGoals = outlook.sum(outlook.overdue);
-  const inCourseRange = outlook.inCourse.length ? `${formatDayKey(outlook.inCourse[0].cycle.endKey, "d MMM")} → ${formatDayKey(outlook.inCourse[outlook.inCourse.length - 1].cycle.endKey, "d MMM")}` : "";
-  const inCourseDone = outlook.inCourse.filter((s) => s.period.missing === 0 && s.period.target > 0).length;
-  const totalCompleted = outlook.inCourse.reduce((n, s) => n + s.period.achieved, 0);
-  const periodTarget = outlook.inCourse.reduce((n, s) => n + s.period.target, 0);
-  const firstName = (n: string) => n.split(" ")[0];
-  // Next two weeks vs. the team's weekly capacity.
-  const dueTwoWeeks = outlook.sum(outlook.inCourse.filter((s) => s.daysLeft <= 14));
-  const paceOk = pace.capacity * 2 >= dueTwoWeeks + overdueGoals;
+  const { dueLabel, dueShort, sinceShort } = GOAL_CLOSING;
+  const weeksLeft = Math.max(1, closing.daysLeft / 7);
+  const perWeek = Math.ceil(closing.pending / weeksLeft);
+  // Esther's reference (6 to 8 a week) is per strategist, so she is not part of the divisor.
+  const strategists = Math.max(1, await db.user.count({ where: { isActive: true, role: "STRATEGIST" } }));
+  const perStrategist = Math.round((perWeek / strategists) * 10) / 10;
+  const paceTone = perStrategist <= 8 ? "success" : perStrategist <= 10 ? "warning" : "danger";
+  const owing = closing.rows.filter((r) => r.pending > 0);
+  const upToDate = closing.rows.filter((r) => r.pending === 0);
 
   return (
     <>
-      <PageHeader title="Dashboard" subtitle={`${clients.length} clientes activos · metas por cerrar con fechas claras y el ritmo del equipo.`} />
+      <PageHeader title="Dashboard" subtitle={`${clients.length} clientes activos · ${GOAL_CLOSING.label}: cerramos el ${dueLabel}.`} />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Vencen esta semana" value={dueWeekGoals} hint={outlook.dueWeek.length ? `${outlook.dueWeek.length} cliente${outlook.dueWeek.length === 1 ? "" : "s"}: ${outlook.dueWeek.slice(0, 3).map((s) => firstName(s.clientName)).join(", ")}${outlook.dueWeek.length > 3 ? "…" : ""}` : "nada vence en 7 días"} icon={<Target />} tone={dueWeekGoals > 0 ? "warning" : "success"} />
-        <StatTile label="En curso" value={inCourseGoals} hint={outlook.inCourse.length ? `faltan en ${outlook.inCourse.length} período${outlook.inCourse.length === 1 ? "" : "s"} que vencen ${inCourseRange} · ${totalCompleted}/${periodTarget} cerradas · ${inCourseDone} al día` : "sin períodos en curso"} icon={<Target />} tone={inCourseGoals === 0 ? "success" : "neutral"} />
-        <StatTile label="Atrasadas" value={overdueGoals} hint={outlook.overdue.length ? `${outlook.overdue.length} período${outlook.overdue.length === 1 ? "" : "s"} ya vencido${outlook.overdue.length === 1 ? "" : "s"} con metas sin cumplir` : "ningún período vencido con metas pendientes"} icon={<AlertTriangle />} tone={overdueGoals > 0 ? "danger" : "success"} />
-        <StatTile label="Ritmo del equipo" value={`${pace.teamThisWeek} / ${pace.capacity}`} hint={`cerradas esta semana vs. ${WEEKLY_GOAL_TARGET} por estratega · ${paceOk ? "vamos bien" : "hay que apretar"}: ${dueTwoWeeks + overdueGoals} por cerrar en 14 días`} icon={<Gauge />} tone={paceOk ? "success" : "warning"} />
+        <StatTile label={`Por cerrar al ${dueShort}`} value={closing.pending} hint={`de ${closing.owed} contadas el ${sinceShort} · ${closing.closed} cerrada${closing.closed === 1 ? "" : "s"} desde entonces`} icon={<Target />} tone={closing.pending === 0 ? "success" : "neutral"} />
+        <StatTile label="Días que quedan" value={closing.daysLeft} hint={`${Math.round(weeksLeft * 10) / 10} semanas hasta el ${dueLabel}`} icon={<CalendarClock />} tone={closing.daysLeft <= 7 ? "warning" : "neutral"} />
+        <StatTile label="Necesarias por semana" value={perWeek} hint={`≈ ${perStrategist} por estratega (${strategists} estrategas) · lo normal es 6 a 8`} icon={<TrendingUp />} tone={paceTone} />
+        <StatTile label="Cerradas esta semana" value={`${pace.teamThisWeek} / ${perWeek}`} hint="lo que lleva el equipo vs. lo que hace falta por semana" icon={<Gauge />} tone={pace.teamThisWeek >= perWeek ? "success" : "warning"} />
       </div>
 
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
@@ -155,30 +70,47 @@ export default async function DashboardPage() {
           </ul>
         </Card>
         <Card padding="none" className="p-4 sm:p-5">
-          <p className="eyebrow">Atrasadas · períodos vencidos con metas sin cumplir</p>
-          <p className="mt-0.5 text-xs text-ink-muted">Calculado desde las agendas. Se resuelven cerrando las metas, moviendo pautas al período, o editando la meta del mes en la agenda.</p>
-          {outlook.overdue.length === 0 ? <p className="mt-3 text-sm text-ink-muted">Nada atrasado.</p> : (
-            <ul className="mt-3 divide-y divide-border text-sm">
-              {outlook.overdue.map((s) => (
-                <li key={s.period.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5">
-                  <Link href={`/clients/${s.clientId}/agenda`} className="font-medium hover:text-accent2">{s.clientName}</Link>
-                  <span className="text-xs text-ink-muted">Mes {s.period.number} · {s.period.label} · venció {formatDayKey(s.cycle.endKey, "d MMM")}</span>
-                  <Badge tone="danger" size="xs" className="ml-auto">faltan {s.period.missing} de {s.period.target}</Badge>
-                </li>
-              ))}
-            </ul>
-          )}
+          <p className="eyebrow">Al día y sin número</p>
+          <p className="mt-0.5 text-xs text-ink-muted">Clientes activos que hoy no suman al conteo.</p>
+          <div className="mt-3 space-y-3 text-sm">
+            <div>
+              <p className="text-xs font-medium text-emerald-700">Al día de metas ({upToDate.length})</p>
+              {upToDate.length === 0 ? <p className="text-xs text-ink-muted">Ninguno todavía.</p> : (
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {upToDate.map((r) => (
+                    <span key={r.id} className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-900" title={r.note ?? undefined}>
+                      <Link href={`/clients/${r.id}/agenda`} className="hover:underline">{r.name}</Link>
+                      {canEdit && <ClosingEdit clientId={r.id} clientName={r.name} pending={r.pending} closed={Math.min(r.closed, r.owed)} note={r.note} dueLabel={dueLabel} />}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            {closing.uncounted.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-ink-secondary">Sin número de metas ({closing.uncounted.length})</p>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {closing.uncounted.map((c) => (
+                    <span key={c.id} className="inline-flex items-center gap-1 rounded-lg border border-dashed border-border px-2 py-0.5 text-xs text-ink-secondary">
+                      <Link href={`/clients/${c.id}/agenda`} className="hover:underline">{c.name}</Link>
+                      {canEdit && <ClosingEdit clientId={c.id} clientName={c.name} pending={null} closed={0} note={null} dueLabel={dueLabel} />}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </Card>
       </div>
 
-      {strategistTotals.length > 0 && (
+      {closing.byStrategist.length > 0 && (
         <Card padding="none" className="mb-6 p-4 sm:p-5">
-          <p className="eyebrow">Metas cerradas por estratega · período actual de cada cliente</p>
+          <p className="eyebrow">Metas cerradas por estratega · desde el {sinceShort}</p>
           <div className="mt-2 flex flex-wrap gap-2">
-            {strategistTotals.map(([name, goals]) => (
-              <span key={name} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-sm", name === "Sin estratega" ? "border-dashed border-border text-ink-muted" : "border-border bg-white text-ink-primary")}>
-                <span className="font-medium">{name.split(" ")[0]}</span>
-                <span className="tabular text-ink-secondary">{goals}</span>
+            {closing.byStrategist.map((s) => (
+              <span key={s.name} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-sm", s.name === "Sin estratega" ? "border-dashed border-border text-ink-muted" : "border-border bg-white text-ink-primary")}>
+                <span className="font-medium">{s.name === "Sin estratega" ? s.name : shortName(s.name, closing.byStrategist)}</span>
+                <span className="tabular text-ink-secondary">{s.goals}</span>
               </span>
             ))}
           </div>
@@ -187,51 +119,43 @@ export default async function DashboardPage() {
 
       <Card padding="none">
         <div className="border-b border-border px-5 py-3">
-          <p className="eyebrow">Clientes por urgencia</p>
-          <p className="mt-0.5 text-xs text-ink-muted">El período en curso de cada cliente (o el último vencido con metas pendientes). Primero los que tienen más metas pendientes con menos días.</p>
+          <p className="eyebrow">Metas que se deben al {dueLabel} · por cliente</p>
+          <p className="mt-0.5 text-xs text-ink-muted">El número de cada cliente baja solo cuando se cierra una meta nueva. Primero los que más deben.</p>
         </div>
         <ol className="divide-y divide-border">
-          {active.map((r, i) => {
-            const done = r.remaining === 0;
-            const critical = !done && (r.left <= 7 || r.urgency >= 0.5);
-            const warn = !done && !critical && r.urgency >= 0.25;
+          {owing.map((r, i) => {
+            const pct = r.owed > 0 ? Math.min(100, Math.round((Math.min(r.closed, r.owed) / r.owed) * 100)) : 0;
             return (
-              <li key={r.id} className={cn("px-5 py-3.5", critical && "bg-red-50/50")}>
+              <li key={r.id} className="px-5 py-3">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                   <span className="w-6 shrink-0 text-xs text-ink-muted tabular">{i + 1}</span>
                   <Link href={`/clients/${r.id}/deliverables`} className="group inline-flex w-full items-center gap-1 text-sm font-semibold text-ink-primary hover:text-accent2 sm:w-56">
                     {r.name}
                     <ArrowUpRight className="h-3.5 w-3.5 text-ink-muted group-hover:text-accent2" />
                   </Link>
-                  <div className="min-w-[200px] flex-1">
-                    <DeliverablePacingBar completed={r.completed} inProgress={r.inProgress} target={r.target} />
+                  <div className="min-w-[160px] flex-1">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-surface-3"><div className="h-full rounded-full bg-emerald-500 transition-all duration-500" style={{ width: `${pct}%` }} /></div>
                   </div>
-                  <Badge tone={done ? "success" : critical ? "danger" : warn ? "warning" : "neutral"} size="xs" dot>
-                    {done ? (r.override ? `Al día · marcado${r.override.note ? `: ${r.override.note}` : ""}` : "Al día") : r.state === "overdue" ? `Faltan ${r.remaining} · venció ${formatDayKey(r.cycle.endKey, "d MMM")}` : r.state === "future" ? `Faltan ${r.remaining} · empieza ${formatDayKey(r.cycle.startKey, "d MMM")}` : `Faltan ${r.remaining} · vence ${formatDayKey(r.cycle.endKey, "d MMM")} (${r.left} ${r.left === 1 ? "día" : "días"})`}
-                  </Badge>
-                  <span className="ml-auto flex items-center gap-2 text-2xs text-ink-muted">
-                    {r.period ? `Mes ${r.period.number} · ${r.period.label}` : cycleLabel(r.cycle, r.cycleDay)}
-                    <MonthCompleteToggle clientId={r.id} clientName={r.name} year={r.cycle.year} month={r.cycle.month} isComplete={!!r.override} note={r.override?.note ?? null} />
+                  <span className="ml-auto flex shrink-0 items-center gap-2">
+                    <span className="text-xs text-ink-muted tabular">{Math.min(r.closed, r.owed)} de {r.owed} cerradas</span>
+                    <Badge tone={r.pending >= 15 ? "danger" : r.pending >= 8 ? "warning" : "neutral"} size="xs" dot>Faltan {r.pending}</Badge>
+                    {canEdit && <ClosingEdit clientId={r.id} clientName={r.name} pending={r.pending} closed={Math.min(r.closed, r.owed)} note={r.note} dueLabel={dueLabel} />}
                   </span>
                 </div>
-                {r.strategists.length > 0 && (
-                  <p className="mt-1.5 pl-10 text-xs text-ink-muted">
-                    <span className="text-ink-secondary">Por estratega:</span>{" "}
-                    {r.strategists.map((s, k) => (
+                {(r.note || r.strategists.length > 0) && (
+                  <p className="mt-1 pl-10 text-xs text-ink-muted">
+                    {r.note}
+                    {r.note && r.strategists.length > 0 ? " · " : ""}
+                    {r.strategists.length > 0 && <><span className="text-ink-secondary">Cerradas por:</span>{" "}{r.strategists.map((s, k) => (
                       <span key={s.name}>{k > 0 ? " · " : ""}{s.name === "Sin estratega" ? "sin estratega" : shortName(s.name, r.strategists)} <span className="tabular font-medium text-ink-primary">{s.goals}</span></span>
-                    ))}
+                    ))}</>}
                   </p>
                 )}
               </li>
             );
           })}
-          {active.length === 0 && <li className="px-5 py-6 text-sm text-ink-muted">No hay clientes activos con meta este ciclo.</li>}
+          {owing.length === 0 && <li className="px-5 py-6 text-sm text-ink-muted">{closing.rows.length ? "Todos los clientes están al día." : "Todavía no hay metas cargadas para el cierre."}</li>}
         </ol>
-        {prep.length > 0 && (
-          <div className="border-t border-border px-5 py-3 text-xs text-ink-muted">
-            Sin meta este ciclo (prep / pausa): {prep.map((r) => r.name).join(", ")}
-          </div>
-        )}
       </Card>
     </>
   );

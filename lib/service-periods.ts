@@ -48,6 +48,8 @@ export type PeriodUnit = {
   isGold: boolean;
   /** No closing date and nobody confirmed the period yet (Esther: flag, don't guess). */
   needsReview: boolean;
+  /** When the unit entered the system (the pauta's creation, or the goal's when there is no pauta). */
+  createdAt: Date;
 };
 
 export const periodSelect = { id: true, number: true, label: true, refYear: true, refMonth: true, target: true, note: true } as const;
@@ -115,6 +117,7 @@ export async function clientUnits(clientId: string): Promise<PeriodUnit[]> {
       periodSource: g?.periodSource ?? p.periodSource ?? null,
       isGold: !!(g?.isGold || p.isGold),
       needsReview: !(g?.closedAt) && (g?.periodSource ?? p.periodSource) !== "manual",
+      createdAt: p.createdAt,
     });
   }
   for (const g of goals) {
@@ -136,6 +139,7 @@ export async function clientUnits(clientId: string): Promise<PeriodUnit[]> {
       periodSource: g.periodSource ?? null,
       isGold: g.isGold,
       needsReview: !g.closedAt && g.periodSource !== "manual",
+      createdAt: g.createdAt,
     });
   }
   return units;
