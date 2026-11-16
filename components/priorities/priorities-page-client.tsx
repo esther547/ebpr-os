@@ -7,14 +7,17 @@ import {
   ChevronLeft,
   ChevronRight,
   CopyPlus,
+  FolderPlus,
   ListChecks,
+  Pencil,
   Plus,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/header";
-import { Button } from "@/components/ui/form-field";
+import { Button, FormActions, FormGroup, Input } from "@/components/ui/form-field";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ConfirmModal } from "@/components/ui/modal";
+import { ConfirmModal, Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { apiErrorMessage } from "@/lib/form-helpers";
 import { PrioritySectionCard } from "./priority-section-card";
@@ -36,6 +39,8 @@ export type BoardInfo = {
   personal: boolean;
   /** Group by these categories instead of by client. */
   categories?: string[];
+  /** The viewer's own sections on a category board (can be renamed / removed). Present = sections can be added. */
+  customSections?: { id: string; name: string }[];
 };
 
 type Props = {
@@ -78,6 +83,32 @@ export function PrioritiesPageClient({
   const [deleteItem, setDeleteItem] = useState<PriorityItem | null>(null);
   const [confirmCarryOver, setConfirmCarryOver] = useState(false);
   const [carrying, setCarrying] = useState(false);
+  // Custom sections ("clientes" propios) on category boards.
+  const [sectionModal, setSectionModal] = useState<{ id: string | null; name: string } | null>(null);
+  const [sectionSaving, setSectionSaving] = useState(false);
+  const [deleteSection, setDeleteSection] = useState<{ id: string; name: string } | null>(null);
+  const customByName = useMemo(() => new Map((board.customSections ?? []).map((c) => [c.name, c])), [board.customSections]);
+
+  async function saveSection(name: string) {
+    if (!sectionModal) return;
+    setSectionSaving(true);
+    try {
+      const res = await fetch("/api/priorities/categories", { method: sectionModal.id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sectionModal.id ? { id: sectionModal.id, name } : { list: board.key, name }) });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) { toast({ title: sectionModal.id ? "No se pudo renombrar" : "No se pudo crear la sección", description: apiErrorMessage(payload, "Error"), variant: "error" }); return; }
+      toast({ title: sectionModal.id ? "Sección renombrada" : `Sección «${name}» creada`, variant: "success" });
+      setSectionModal(null);
+      router.refresh();
+    } finally { setSectionSaving(false); }
+  }
+  async function removeSection(section: { id: string; name: string }) {
+    const res = await fetch("/api/priorities/categories", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: section.id }) });
+    const payload = await res.json().catch(() => ({}));
+    setDeleteSection(null);
+    if (!res.ok) { toast({ title: "No se pudo eliminar la sección", description: apiErrorMessage(payload, "Error"), variant: "error" }); return; }
+    toast({ title: `Sección «${section.name}» eliminada`, description: payload?.data?.moved ? `${payload.data.moved} to do(s) pasaron a «Sin categoría».` : undefined, variant: "success" });
+    router.refresh();
+  }
 
   // The server is the source of truth; optimistic edits are replaced on refresh.
   useEffect(() => setItems(initialItems), [initialItems]);
@@ -278,6 +309,11 @@ export function PrioritiesPageClient({
             >
               Copiar pendientes a la próxima semana
             </Button>
+            {board.customSections && (
+              <Button variant="secondary" leftIcon={<FolderPlus className="h-4 w-4" />} onClick={() => setSectionModal({ id: null, name: "" })}>
+                Nueva sección
+              </Button>
+            )}
             <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)}>
               {board.personal ? "To do" : "Prioridad"}
             </Button>
@@ -335,6 +371,12 @@ export function PrioritiesPageClient({
               category={section.key}
               title={section.key}
               items={section.items}
+              headerActions={customByName.has(section.key) ? (
+                <>
+                  <Button type="button" variant="ghost" size="icon-sm" aria-label={`Renombrar ${section.key}`} title="Renombrar sección" onClick={() => setSectionModal({ id: customByName.get(section.key)!.id, name: section.key })}><Pencil className="h-3.5 w-3.5" /></Button>
+                  <Button type="button" variant="ghost" size="icon-sm" aria-label={`Eliminar ${section.key}`} title="Eliminar sección" onClick={() => setDeleteSection(customByName.get(section.key)!)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                </>
+              ) : undefined}
               {...rowProps}
             />
           ))}
@@ -397,6 +439,21 @@ export function PrioritiesPageClient({
         onConfirm={() => {
           if (deleteItem) void removePriority(deleteItem);
         }}
+      />
+      <Modal open={sectionModal !== null} onOpenChange={(open) => !open && setSectionModal(null)} title={sectionModal?.id ? "Renombrar sección" : "Nueva sección"} description={sectionModal?.id ? "Sus to dos conservan todo; solo cambia el nombre." : "Un cliente, proyecto o tema propio para agrupar tus to dos. Solo existe en este tablero."} size="sm">
+        <form key={sectionModal?.id ?? "new"} onSubmit={(e) => { e.preventDefault(); const v = String(new FormData(e.currentTarget).get("name") ?? "").trim(); if (v) void saveSection(v); }} className="space-y-4">
+          <FormGroup label="Nombre" htmlFor="section-name" required><Input id="section-name" name="name" defaultValue={sectionModal?.name ?? ""} maxLength={40} required autoFocus placeholder="Shark Ninja" /></FormGroup>
+          <FormActions><Button type="button" variant="secondary" onClick={() => setSectionModal(null)}>Cancelar</Button><Button type="submit" loading={sectionSaving}>{sectionModal?.id ? "Guardar" : "Crear"}</Button></FormActions>
+        </form>
+      </Modal>
+      <ConfirmModal
+        open={deleteSection !== null}
+        onOpenChange={(open) => !open && setDeleteSection(null)}
+        title={deleteSection ? `¿Eliminar la sección «${deleteSection.name}»?` : "¿Eliminar?"}
+        description="Sus to dos no se borran: pasan a «Sin categoría» y los puedes mover a otra sección."
+        confirmLabel="Eliminar sección"
+        destructive
+        onConfirm={() => { if (deleteSection) void removeSection(deleteSection); }}
       />
       <ConfirmModal
         open={confirmCarryOver}

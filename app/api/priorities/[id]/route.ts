@@ -64,7 +64,7 @@ export async function PATCH(
   if (d.title !== undefined) data.title = d.title;
   if (d.notes !== undefined) data.notes = d.notes || null;
   if (d.order !== undefined) data.order = d.order;
-  if (d.category !== undefined) data.category = normalizeCategory(isPriorityListKey(existing.list) ? existing.list : "TEAM", d.category);
+  if (d.category !== undefined) data.category = await normalizeCategory(isPriorityListKey(existing.list) ? existing.list : "TEAM", d.category);
 
   if (d.assigneeId !== undefined) {
     const assigneeId = d.assigneeId || null;

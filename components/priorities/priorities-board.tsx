@@ -35,6 +35,7 @@ export async function PrioritiesBoard({
   // Pending lines from past weeks follow the team into the current week.
   await rollOverPendingPriorities().catch((err) => console.error("rollOverPendingPriorities failed:", err));
 
+  const customSections = list.categories ? await db.priorityCategory.findMany({ where: { list: list.key }, select: { id: true, name: true }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] }) : [];
   const [rows, activeClients, teamMembers, clientOrder] = await Promise.all([
     db.weeklyPriority.findMany({
       where: { weekOf: weekOfInstant(weekKey), list: list.key },
@@ -72,6 +73,14 @@ export async function PrioritiesBoard({
     assignee: r.assignee,
   }));
 
+  // Sections of a category board: the fixed ones, then the person's own, then any category a line still carries
+  // (so a line is never hidden because its section was removed).
+  let categories: string[] | undefined;
+  if (list.categories) {
+    categories = [...list.categories, ...customSections.map((c) => c.name)];
+    for (const item of items) if (item.category && !categories.some((c) => c.toLowerCase() === item.category!.toLowerCase())) categories.push(item.category);
+  }
+
   // Active clients, plus any other client that already has a line this week.
   const clients: ClientOption[] = [...activeClients];
   const known = new Set(clients.map((c) => c.id));
@@ -85,7 +94,7 @@ export async function PrioritiesBoard({
 
   return (
     <PrioritiesPageClient
-      board={{ key: list.key, path: list.path, title: list.title, subtitle: list.subtitle, personal: list.personal, categories: list.categories ? [...list.categories] : undefined }}
+      board={{ key: list.key, path: list.path, title: list.title, subtitle: list.subtitle, personal: list.personal, categories, customSections: list.categories ? customSections : undefined }}
       initialItems={items}
       clients={clients}
       teamMembers={teamMembers}

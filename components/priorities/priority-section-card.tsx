@@ -30,6 +30,8 @@ type Props = {
   onReorder?: (direction: -1 | 1) => void;
   isFirst?: boolean;
   isLast?: boolean;
+  /** Extra tools in the card header (e.g. rename / delete a custom section). */
+  headerActions?: React.ReactNode;
   onAdd: (clientId: string | null, raw: string, category?: string | null) => Promise<void>;
   onToggle: (item: PriorityItem) => void;
   onRename: (item: PriorityItem, title: string) => void;
@@ -52,6 +54,7 @@ export function PrioritySectionCard({
   onReorder,
   isFirst = false,
   isLast = false,
+  headerActions,
   onAdd,
   onToggle,
   onRename,
@@ -110,6 +113,7 @@ export function PrioritySectionCard({
         >
           <Plus className="h-4 w-4" />
         </Button>
+        {headerActions}
         {onReorder && (
           <div className="flex shrink-0 items-center" title="Ordenar por urgencia">
             <Button type="button" variant="ghost" size="icon-sm" aria-label={`Subir ${title}`} disabled={isFirst} onClick={() => onReorder(-1)}>

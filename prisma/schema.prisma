@@ -1141,6 +1141,19 @@ model WeeklyPriority {
   @@map("weekly_priorities")
 }
 
+/// Sections a person adds to a category board (Esther to dos): her own "clientes" beside PERSONAL / EBM / EBPR.
+model PriorityCategory {
+  id        String   @id @default(cuid())
+  /// Board key: "ESTHER", "CAROLINA"…
+  list      String
+  name      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([list, name])
+  @@map("priority_categories")
+}
+
 /// Esther's manual client order on Prioridades for a given week (most urgent first).
 /// Weeks without their own order inherit the latest earlier one.
 model PriorityClientOrder {

@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
     data: {
       weekOf,
       list,
-      category: normalizeCategory(list, parsed.data.category),
+      category: await normalizeCategory(list, parsed.data.category),
       clientId,
       title,
       notes: parsed.data.notes || null,

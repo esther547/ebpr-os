@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { ROLE_HOME, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
+  MERGED_TODO_BOARDS,
   canManagePriorities,
   isValidDayKey,
   priorityOrderBy,
@@ -31,6 +32,9 @@ export default async function MyTodosPage({ searchParams }: { searchParams?: { w
     orderBy: { name: "asc" },
   });
   const targetId = viewer.role === "SUPER_ADMIN" && searchParams?.user && team.some((t) => t.id === searchParams.user) ? searchParams.user : viewer.id;
+  // Esther's own "Mis to dos" is merged into "Esther to dos" (Nov 16 2026).
+  const merged = MERGED_TODO_BOARDS[(viewer.email ?? "").toLowerCase()];
+  if (merged && targetId === viewer.id) redirect(`${merged}${searchParams?.week ? `?week=${searchParams.week}` : ""}`);
   const target = team.find((t) => t.id === targetId) ?? { id: viewer.id, name: viewer.name };
 
   await rollOverPendingPriorities().catch(() => undefined);

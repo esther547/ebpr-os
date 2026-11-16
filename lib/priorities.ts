@@ -55,7 +55,7 @@ export const PRIORITY_LISTS: Record<PriorityListKey, PriorityList> = {
     key: "ESTHER",
     path: "/todos/esther",
     title: "Esther to dos",
-    subtitle: "Solo tú ves esta lista.",
+    subtitle: "Solo tú ves esta lista. Incluye lo que tienes asignado en Prioridades.",
     viewers: [ESTHER],
     personal: true,
     categories: ["PERSONAL", "EBM", "EBPR"],
@@ -86,6 +86,9 @@ export const PRIORITY_LISTS: Record<PriorityListKey, PriorityList> = {
     personal: true,
   },
 };
+
+/** People whose "Mis to dos" is part of their personal board: email → that board's path. */
+export const MERGED_TODO_BOARDS: Record<string, string> = { [ESTHER]: "/todos/esther" };
 
 /** "esther" → ESTHER list; unknown slugs → null. */
 export function priorityListFromSlug(slug: string): PriorityList | null {
@@ -257,12 +260,14 @@ export async function rollOverPendingPriorities(now: Date = new Date()): Promise
   return stale.length;
 }
 
-/** Uppercased category when the board has categories and it is one of them; null otherwise. */
-export function normalizeCategory(list: PriorityListKey, raw: string | null | undefined): string | null {
+/** The category a line may carry on a category board: one of the fixed ones (uppercased) or one of the person's own sections (its exact name); null otherwise. */
+export async function normalizeCategory(list: PriorityListKey, raw: string | null | undefined): Promise<string | null> {
   const cats = PRIORITY_LISTS[list].categories;
   if (!cats || !raw) return null;
   const up = raw.trim().toUpperCase();
-  return cats.includes(up) ? up : null;
+  if (cats.includes(up)) return up;
+  const custom = await db.priorityCategory.findMany({ where: { list }, select: { name: true } });
+  return custom.find((c) => c.name.trim().toUpperCase() === up)?.name ?? null;
 }
 
 /** Comparison key used to detect an item that already exists in a week. */
