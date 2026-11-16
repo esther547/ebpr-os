@@ -236,6 +236,8 @@ model Client {
   // GOAL_CLOSING.since. null = client not in the count. Pending today = closingOwed − goals secured since then.
   closingOwed       Int?
   closingNote       String?
+  // Owed but the client is on hold: shown apart, not part of what the team must close by the date.
+  closingHold       Boolean         @default(false)
   // What the team should close next for this client ("metas de septiembre" note)
   focusNote         String?
   // Google Doc with the client's agenda (events/appearances)

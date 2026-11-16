@@ -29,7 +29,7 @@ export default async function DashboardPage() {
 
   const clients = await db.client.findMany({
     where: { status: "ACTIVE" },
-    select: { id: true, name: true, closingOwed: true, closingNote: true },
+    select: { id: true, name: true, closingOwed: true, closingNote: true, closingHold: true },
     orderBy: { name: "asc" },
   });
   const [closing, pace] = await Promise.all([closingBoard(clients, now), teamPace(now)]);
@@ -70,7 +70,7 @@ export default async function DashboardPage() {
           </ul>
         </Card>
         <Card padding="none" className="p-4 sm:p-5">
-          <p className="eyebrow">Al día y sin número</p>
+          <p className="eyebrow">Al día, en hold y sin número</p>
           <p className="mt-0.5 text-xs text-ink-muted">Clientes activos que hoy no suman al conteo.</p>
           <div className="mt-3 space-y-3 text-sm">
             <div>
@@ -80,12 +80,26 @@ export default async function DashboardPage() {
                   {upToDate.map((r) => (
                     <span key={r.id} className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-900" title={r.note ?? undefined}>
                       <Link href={`/clients/${r.id}/agenda`} className="hover:underline">{r.name}</Link>
-                      {canEdit && <ClosingEdit clientId={r.id} clientName={r.name} pending={r.pending} closed={Math.min(r.closed, r.owed)} note={r.note} dueLabel={dueLabel} />}
+                      {canEdit && <ClosingEdit clientId={r.id} clientName={r.name} pending={r.pending} closed={Math.min(r.closed, r.owed)} note={r.note} hold={r.hold} dueLabel={dueLabel} />}
                     </span>
                   ))}
                 </div>
               )}
             </div>
+            {closing.onHold.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-amber-700">En hold · se les debe, pero no suman al conteo ({closing.onHold.length})</p>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {closing.onHold.map((r) => (
+                    <span key={r.id} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-900" title={r.note ?? undefined}>
+                      <Link href={`/clients/${r.id}/agenda`} className="hover:underline">{r.name}</Link>
+                      <span className="tabular font-semibold">{r.pending}</span>
+                      {canEdit && <ClosingEdit clientId={r.id} clientName={r.name} pending={r.pending} closed={Math.min(r.closed, r.owed)} note={r.note} hold={r.hold} dueLabel={dueLabel} />}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             {closing.uncounted.length > 0 && (
               <div>
                 <p className="text-xs font-medium text-ink-secondary">Sin número de metas ({closing.uncounted.length})</p>
@@ -93,7 +107,7 @@ export default async function DashboardPage() {
                   {closing.uncounted.map((c) => (
                     <span key={c.id} className="inline-flex items-center gap-1 rounded-lg border border-dashed border-border px-2 py-0.5 text-xs text-ink-secondary">
                       <Link href={`/clients/${c.id}/agenda`} className="hover:underline">{c.name}</Link>
-                      {canEdit && <ClosingEdit clientId={c.id} clientName={c.name} pending={null} closed={0} note={null} dueLabel={dueLabel} />}
+                      {canEdit && <ClosingEdit clientId={c.id} clientName={c.name} pending={null} closed={0} note={null} hold={false} dueLabel={dueLabel} />}
                     </span>
                   ))}
                 </div>
@@ -139,7 +153,7 @@ export default async function DashboardPage() {
                   <span className="ml-auto flex shrink-0 items-center gap-2">
                     <span className="text-xs text-ink-muted tabular">{Math.min(r.closed, r.owed)} de {r.owed} cerradas</span>
                     <Badge tone={r.pending >= 15 ? "danger" : r.pending >= 8 ? "warning" : "neutral"} size="xs" dot>Faltan {r.pending}</Badge>
-                    {canEdit && <ClosingEdit clientId={r.id} clientName={r.name} pending={r.pending} closed={Math.min(r.closed, r.owed)} note={r.note} dueLabel={dueLabel} />}
+                    {canEdit && <ClosingEdit clientId={r.id} clientName={r.name} pending={r.pending} closed={Math.min(r.closed, r.owed)} note={r.note} hold={r.hold} dueLabel={dueLabel} />}
                   </span>
                 </div>
                 {(r.note || r.strategists.length > 0) && (

@@ -7,15 +7,16 @@ import { Button, FormActions, FormGroup, Input } from "@/components/ui/form-fiel
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 
-type Props = { clientId: string; clientName: string; pending: number | null; closed: number; note: string | null; dueLabel: string };
+type Props = { clientId: string; clientName: string; pending: number | null; closed: number; note: string | null; hold: boolean; dueLabel: string };
 
 /** Dashboard: correct how many goals a client still owes for the year-end count (or take it out of the count). */
-export function ClosingEdit({ clientId, clientName, pending, closed, note, dueLabel }: Props) {
+export function ClosingEdit({ clientId, clientName, pending, closed, note, hold, dueLabel }: Props) {
   const router = useRouter();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(pending === null ? "" : String(pending));
   const [draft, setDraft] = useState(note ?? "");
+  const [onHold, setOnHold] = useState(hold);
   const [saving, setSaving] = useState(false);
 
   async function save(remove = false) {
@@ -27,7 +28,7 @@ export function ClosingEdit({ clientId, clientName, pending, closed, note, dueLa
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         // Stored as of the count date: what is pending today plus what was already secured since then.
-        body: JSON.stringify(remove ? { closingOwed: null, closingNote: null } : { closingOwed: n + closed, closingNote: draft.trim() || null }),
+        body: JSON.stringify(remove ? { closingOwed: null, closingNote: null, closingHold: false } : { closingOwed: n + closed, closingNote: draft.trim() || null, closingHold: onHold }),
       });
       if (!res.ok) throw new Error();
       toast({ title: remove ? `${clientName}: fuera del conteo` : `${clientName}: ${n} meta${n === 1 ? "" : "s"} pendiente${n === 1 ? "" : "s"}`, variant: "success" });
@@ -53,6 +54,10 @@ export function ClosingEdit({ clientId, clientName, pending, closed, note, dueLa
           <FormGroup label="Nota" htmlFor="ce-note" description="Opcional.">
             <Input id="ce-note" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="p. ej. Si desea continuar debe renovar" maxLength={200} />
           </FormGroup>
+          <label className="flex items-start gap-2 text-sm text-ink-secondary">
+            <input type="checkbox" checked={onHold} onChange={(e) => setOnHold(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-border" />
+            <span>Cliente en hold <span className="text-ink-muted">(se le deben, pero no suman a lo que hay que cerrar ahora)</span></span>
+          </label>
           <FormActions>
             {pending !== null && <Button type="button" variant="ghost" onClick={() => void save(true)} disabled={saving}>Sacar del conteo</Button>}
             <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={saving}>Cancelar</Button>

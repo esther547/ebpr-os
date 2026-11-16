@@ -26,10 +26,14 @@ export type ClosingRow = {
   closed: number;
   pending: number;
   note: string | null;
+  /** Owed, but the client is on hold: listed apart and left out of the totals. */
+  hold: boolean;
   strategists: { name: string; goals: number }[];
 };
 export type ClosingBoard = {
   rows: ClosingRow[];
+  /** Clients on hold with goals still owed (not in `rows` nor in the totals). */
+  onHold: ClosingRow[];
   /** Active clients Esther's count has no number for. */
   uncounted: { id: string; name: string }[];
   owed: number;
@@ -39,7 +43,7 @@ export type ClosingBoard = {
   byStrategist: { name: string; goals: number }[];
 };
 
-export async function closingBoard(clients: { id: string; name: string; closingOwed: number | null; closingNote: string | null }[], now = new Date()): Promise<ClosingBoard> {
+export async function closingBoard(clients: { id: string; name: string; closingOwed: number | null; closingNote: string | null; closingHold: boolean }[], now = new Date()): Promise<ClosingBoard> {
   const since = GOAL_CLOSING.since;
   const sinceKey = dayKeyInTz(since);
   const counted = clients.filter((c) => c.closingOwed !== null);
@@ -57,7 +61,7 @@ export async function closingBoard(clients: { id: string; name: string; closingO
   const isStrategist = (u: { role: string } | null) => !!u && (STRATEGIST_ROLES as string[]).includes(u.role);
   const closers = new Map((goalIds.length ? await db.deliverable.findMany({ where: { id: { in: goalIds } }, select: { id: true, closedBy: { select: { name: true, role: true } }, assignee: { select: { name: true, role: true } } } }) : []).map((g) => [g.id, isStrategist(g.closedBy) ? g.closedBy!.name : isStrategist(g.assignee) ? g.assignee!.name : null]));
   const team = new Map<string, number>();
-  const rows: ClosingRow[] = counted.map((c, i) => {
+  const all: ClosingRow[] = counted.map((c, i) => {
     const m = new Map<string, number>();
     let closed = 0;
     for (const u of secured[i]) {
@@ -67,13 +71,15 @@ export async function closingBoard(clients: { id: string; name: string; closingO
       closed += u.weight;
     }
     const owed = c.closingOwed ?? 0;
-    return { id: c.id, name: c.name, owed, closed, pending: Math.max(0, owed - closed), note: c.closingNote, strategists: [...m.entries()].map(([name, goals]) => ({ name, goals })).sort((a, b) => b.goals - a.goals) };
+    return { id: c.id, name: c.name, owed, closed, pending: Math.max(0, owed - closed), note: c.closingNote, hold: c.closingHold, strategists: [...m.entries()].map(([name, goals]) => ({ name, goals })).sort((a, b) => b.goals - a.goals) };
   });
+  const rows = all.filter((r) => !r.hold);
   rows.sort((a, b) => b.pending - a.pending || b.owed - a.owed || a.name.localeCompare(b.name, "es"));
   const todayKey = dayKeyInTz(now);
   const daysLeft = Math.max(0, Math.round((new Date(`${GOAL_CLOSING.dueKey}T00:00:00Z`).getTime() - new Date(`${todayKey}T00:00:00Z`).getTime()) / 86_400_000));
   return {
     rows,
+    onHold: all.filter((r) => r.hold),
     uncounted: clients.filter((c) => c.closingOwed === null).map((c) => ({ id: c.id, name: c.name })),
     owed: rows.reduce((n, r) => n + r.owed, 0),
     // Only what counts against a client's own number (a client that over-delivers does not cover another's).

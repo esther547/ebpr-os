@@ -14,6 +14,7 @@ const updateClientSchema = z.object({
   goalsOwed: z.number().int().min(0).max(999).optional(),
   closingOwed: z.number().int().min(0).max(999).nullable().optional(),
   closingNote: z.string().max(200).nullable().optional(),
+  closingHold: z.boolean().optional(),
   focusNote: z.string().max(300).nullable().optional(),
   agendaDocUrl: z.string().url().nullable().optional().or(z.literal("").transform(() => null)),
   status: z.enum(["PROSPECT", "ACTIVE", "PAUSED", "CHURNED"]).optional(),

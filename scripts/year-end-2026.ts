@@ -13,7 +13,7 @@ import { dayKeyInTz, tzMidnight, weekStartKey } from "../components/runners/miam
 
 const E = "esther@ebmanagement.io", V = "veronicaf@ebmanagement.io", AY = "ayax@ebmanagement.io", AN = "aduran@ebmanagement.io", PP = "paolaprecilla@ebmanagement.io", PF = "pferreira@ebmanagement.io";
 type Todo = [title: string, ...who: string[]];
-type Entry = { match: string; create?: string; owed: number | null; note?: string; todos: Todo[] };
+type Entry = { match: string; create?: string; owed: number | null; note?: string; hold?: boolean; todos: Todo[] };
 
 const LIST: Entry[] = [
   { match: "Hector Benitez", owed: 18, todos: [["Updates de Hector?", V]] },
@@ -62,6 +62,10 @@ const LIST: Entry[] = [
     ["Estrategia: entregar a Esther el jueves 19 nov para darle al talento el viernes 20 nov", AY],
     ["Reunión de equipo para brainstorm"],
   ] },
+  // Esther, later the same day: "de los atrasos faltaría cumplirle a…"
+  { match: "Marianela Ancheta", owed: 8, note: "Atrasos", todos: [] },
+  { match: "Casa D", owed: 6, note: "Atrasos", todos: [] },
+  { match: "Alejandra Jaramillo", owed: 8, note: "Atrasos · cliente en hold", hold: true, todos: [] },
 ];
 // Not tied to a client ("PAOLA PRECILLA" heading of the notes).
 const GENERAL: Todo[] = [["Llamar a Sol para Art Basel y hacerle agenda", PP]];
@@ -102,7 +106,7 @@ async function main() {
     if (c.closingOwed !== e.owed) changes.push(`metas al 15 dic: ${c.closingOwed ?? "—"} → ${e.owed ?? "sin número"}`);
     console.log(`${changes.length ? "~" : "✓"} ${c.name}${changes.length ? ": " + changes.join(" · ") : ""}`);
     if (apply) {
-      await db.client.update({ where: { id: c.id }, data: { status: "ACTIVE", closingOwed: e.owed, closingNote: e.note ?? null } });
+      await db.client.update({ where: { id: c.id }, data: { status: "ACTIVE", closingOwed: e.owed, closingNote: e.note ?? null, closingHold: !!e.hold } });
       if (c.status !== "ACTIVE") await db.activityLog.create({ data: { clientId: c.id, userId: esther.id, action: "client_updated", description: `Updated client ${c.name} — status: active (resumen de cierre 2026)` } });
     }
   }
