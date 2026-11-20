@@ -95,17 +95,79 @@ export async function closingBoard(clients: { id: string; name: string; closingO
   };
 }
 
+/** Strategists whose weekly number never carries over (Esther, Nov 20 2026: "con todos los estrategas menos conmigo"). */
+const NO_CARRY_OVER = ["esther@ebmanagement.io"];
+
+export type StrategistDue = {
+  /** Their share of one week. */
+  base: number;
+  /** What they left unclosed in earlier weeks of the count: it stays theirs. */
+  carried: number;
+  /** What they owe this week: base + carried. */
+  due: number;
+  closed: number;
+  missing: number;
+  /** What next week becomes if this one ends as it stands. */
+  next: number;
+  /** A fixed personal number (GOAL_CLOSING.fixedQuotas): only that person and Esther may see it. */
+  isPrivate: boolean;
+};
+
+const mondayOf = (dayKey: string) => { const d = new Date(`${dayKey}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); };
+const daysBetween = (a: string, b: string) => Math.round((new Date(`${b}T00:00:00Z`).getTime() - new Date(`${a}T00:00:00Z`).getTime()) / 86_400_000);
+
 /**
- * What each strategist has to close per week so everything is done by the closing date. Verónica and Esther carry
- * their own fixed numbers (GOAL_CLOSING.fixedQuotas — private, never shown); the rest is split among the others.
+ * What each strategist owes per week until the closing date, person by person (Esther, Nov 20 2026): the weekly
+ * share is fixed from her count, and whatever someone does not close in a week is added to THEIR next week
+ * ("Ayax está en 3 esta semana → la semana que viene le tocan las que no cumplió"). Verónica and Esther carry
+ * their own fixed totals (GOAL_CLOSING.fixedQuotas — private); Esther has no carry-over at all.
+ * Weeks are Monday–Sunday in Miami and goals count by closing day, exactly like the weekly pace card.
  */
-export async function weeklyPerStrategist(board: ClosingBoard): Promise<{ perWeek: number; strategists: number }> {
+export async function weeklyDue(board: ClosingBoard, now = new Date()): Promise<{ base: number; strategists: number; rows: Map<string, StrategistDue>; isLastWeek: boolean }> {
   const people = await db.user.findMany({ where: { isActive: true, role: { in: STRATEGIST_ROLES } }, select: { id: true, email: true } });
   const fixedOf = (email: string) => GOAL_CLOSING.fixedQuotas[email.toLowerCase()];
-  const closedBy = (id: string) => board.byStrategist.find((s) => s.id === id)?.goals ?? 0;
-  const fixedRemaining = people.reduce((n, p) => { const q = fixedOf(p.email); return q === undefined ? n : n + Math.max(0, q - closedBy(p.id)); }, 0);
   const others = people.filter((p) => fixedOf(p.email) === undefined).length;
-  const weeks = Math.max(1, board.daysLeft / 7);
-  const rest = Math.max(0, board.pending - fixedRemaining);
-  return { perWeek: others ? Math.ceil(rest / others / weeks) : 0, strategists: others };
+  const fixedTotal = people.reduce((n, p) => n + (fixedOf(p.email) ?? 0), 0);
+  const share = others ? Math.ceil(Math.max(0, board.owed - fixedTotal) / others) : 0;
+
+  const sinceKey = dayKeyInTz(GOAL_CLOSING.since);
+  const startWeek = mondayOf(sinceKey);
+  const thisWeek = mondayOf(dayKeyInTz(now));
+  const totalWeeks = Math.max(1, daysBetween(sinceKey, GOAL_CLOSING.dueKey) / 7);
+  const weeksDone = Math.max(0, Math.round(daysBetween(startWeek, thisWeek) / 7));
+  const weekly = (total: number) => Math.ceil(total / totalWeeks);
+
+  const goals = await db.deliverable.findMany({
+    where: { closedAt: { gte: new Date(`${startWeek}T04:00:00Z`) }, status: { not: "CANCELLED" }, isInternal: false },
+    select: { closedAt: true, goalValue: true, closedBy: { select: { id: true, role: true } }, assignee: { select: { id: true, role: true } } },
+  });
+  const isStrat = (u: { role: string } | null) => !!u && (STRATEGIST_ROLES as string[]).includes(u.role);
+  const before = new Map<string, number>();
+  const current = new Map<string, number>();
+  for (const g of goals) {
+    const key = dayKeyInTz(g.closedAt!);
+    if (key < startWeek) continue;
+    const who = isStrat(g.closedBy) ? g.closedBy!.id : isStrat(g.assignee) ? g.assignee!.id : null;
+    if (!who) continue;
+    const bucket = key < thisWeek ? before : current;
+    bucket.set(who, (bucket.get(who) ?? 0) + (g.goalValue ?? 1));
+  }
+
+  const rows = new Map<string, StrategistDue>();
+  for (const p of people) {
+    if (NO_CARRY_OVER.includes(p.email.toLowerCase())) continue;
+    const fixed = fixedOf(p.email);
+    const total = fixed ?? share;
+    const base = weekly(total);
+    // Never ask for more than the person's whole share, however many weeks are left.
+    const expected = (weeks: number) => Math.min(total, base * weeks);
+    const carried = Math.max(0, expected(weeksDone) - (before.get(p.id) ?? 0));
+    const due = expected(weeksDone + 1) - expected(weeksDone) + carried;
+    const closed = current.get(p.id) ?? 0;
+    const missing = Math.max(0, due - closed);
+    rows.set(p.id, { base, carried, due, closed, missing, next: expected(weeksDone + 2) - expected(weeksDone + 1) + missing, isPrivate: fixed !== undefined });
+  }
+  // After this week there is no other one before the closing date.
+  const isLastWeek = daysBetween(thisWeek, GOAL_CLOSING.dueKey) < 7;
+  return { base: weekly(share), strategists: others, rows, isLastWeek };
 }

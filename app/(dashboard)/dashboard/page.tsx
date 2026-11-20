@@ -4,7 +4,7 @@ import { ArrowUpRight, CalendarClock, Gauge, Target, TrendingUp } from "lucide-r
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { teamPace, WEEKLY_GOAL_TARGET } from "@/lib/dashboard-goals";
-import { closingBoard, weeklyPerStrategist, GOAL_CLOSING } from "@/lib/goal-closing";
+import { closingBoard, weeklyDue, GOAL_CLOSING } from "@/lib/goal-closing";
 import { canManageClients } from "@/lib/permissions";
 import { PageHeader } from "@/components/layout/header";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -32,7 +32,9 @@ export default async function DashboardPage() {
     orderBy: { name: "asc" },
   });
   const [closing, pace] = await Promise.all([closingBoard(clients, now), teamPace(now)]);
-  const each = await weeklyPerStrategist(closing);
+  const each = await weeklyDue(closing, now);
+  // A fixed personal number (Verónica's) is shown only to that person and to Esther.
+  const dueOf = (id: string) => { const d = each.rows.get(id); return d && (!d.isPrivate || user.role === "SUPER_ADMIN" || user.id === id) ? d : null; };
 
   const { dueLabel, dueShort, sinceShort } = GOAL_CLOSING;
   const weeksLeft = Math.max(1, closing.daysLeft / 7);
@@ -47,20 +49,28 @@ export default async function DashboardPage() {
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile label={`Por cerrar al ${dueShort}`} value={closing.pending} hint={`de ${closing.owed} contadas el ${sinceShort} · ${closing.closed} cerrada${closing.closed === 1 ? "" : "s"} desde entonces`} icon={<Target />} tone={closing.pending === 0 ? "success" : "neutral"} />
         <StatTile label="Días que quedan" value={closing.daysLeft} hint={`${Math.round(weeksLeft * 10) / 10} semanas hasta el ${dueLabel}`} icon={<CalendarClock />} tone={closing.daysLeft <= 7 ? "warning" : "neutral"} />
-        <StatTile label="Cada estratega, por semana" value={each.perWeek} hint={`Cada estratega debe cerrar ${each.perWeek} a la semana para que de acá al ${dueLabel} se cumpla todo`} icon={<TrendingUp />} tone="neutral" />
+        <StatTile label="Cada estratega, por semana" value={each.base} hint={`Cada estratega debe cerrar ${each.base} a la semana para que de acá al ${dueLabel} se cumpla todo. Lo que no cierre pasa a su semana siguiente`} icon={<TrendingUp />} tone="neutral" />
         <StatTile label="Cerradas esta semana" value={`${pace.teamThisWeek} / ${perWeek}`} hint="lo que lleva el equipo vs. lo que hace falta por semana" icon={<Gauge />} tone={pace.teamThisWeek >= perWeek ? "success" : "warning"} />
       </div>
 
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
         <Card padding="none" className="p-4 sm:p-5">
           <p className="eyebrow">Ritmo semanal · {formatDayKey(pace.weekStart, "d MMM")} – {formatDayKey(pace.weekEnd, "d MMM")}</p>
-          <p className="mt-0.5 text-xs text-ink-muted">Metas cerradas por cada quien esta semana. Entre paréntesis, la semana pasada.</p>
-          <ul className="mt-3 space-y-2">
-            {pace.rows.map((r) => { const ref = Math.max(1, each.perWeek || WEEKLY_GOAL_TARGET); const pct = Math.min(100, Math.round((r.thisWeek / ref) * 100)); return (
-              <li key={r.id} className="flex items-center gap-3 text-sm">
-                <span className="w-28 shrink-0 truncate font-medium">{shortName(r.name, pace.rows)}</span>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} /></div>
-                <span className="w-16 shrink-0 text-right tabular"><span className="font-semibold">{r.thisWeek}</span><span className="text-xs text-ink-muted"> ({r.lastWeek})</span></span>
+          <p className="mt-0.5 text-xs text-ink-muted">Lo que lleva cada quien y lo que le toca esta semana. Lo que alguien no cierra no se reparte: pasa a su propia semana siguiente.</p>
+          <ul className="mt-3 space-y-2.5">
+            {pace.rows.map((r) => { const d = dueOf(r.id); const ref = Math.max(1, d ? d.due : each.base || WEEKLY_GOAL_TARGET); const pct = Math.min(100, Math.round((r.thisWeek / ref) * 100)); return (
+              <li key={r.id} className="text-sm">
+                <div className="flex items-center gap-3">
+                  <span className="w-28 shrink-0 truncate font-medium">{shortName(r.name, pace.rows)}</span>
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2"><div className={`h-full rounded-full ${d && d.carried > 0 && d.missing > 0 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${pct}%` }} /></div>
+                  <span className="w-16 shrink-0 text-right tabular"><span className="font-semibold">{r.thisWeek}</span>{d && <span className="text-xs text-ink-muted"> de {d.due}</span>}</span>
+                </div>
+                {d && (
+                  <p className="mt-0.5 pl-[7.75rem] text-xs text-ink-muted">
+                    {d.carried > 0 && <span className="text-amber-700">Le tocan {d.due}: {d.due > d.carried ? `${d.due - d.carried} de la semana + ` : ""}{d.carried} que no cerró antes. </span>}
+                    {d.missing === 0 ? <span className="text-emerald-700">Cumplió su semana.</span> : each.isLastWeek ? <>Le faltan {d.missing} para el {dueLabel}.</> : <>Le faltan {d.missing}. Si no las cierra, la próxima semana le tocan <span className="font-medium text-ink-primary">{d.next}</span>.</>}
+                  </p>
+                )}
               </li>); })}
             {pace.unassigned > 0 && <li className="text-xs text-ink-muted">+ {pace.unassigned} cerradas sin estratega asignado esta semana</li>}
           </ul>
