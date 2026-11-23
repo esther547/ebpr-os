@@ -19,6 +19,17 @@ export const GOAL_CLOSING = {
   sinceShort: "16 nov",
   /** Esther, Nov 16 2026: Verónica closes 12 and Esther 8; everything else is split among the other strategists. */
   fixedQuotas: { "veronicaf@ebmanagement.io": 12, "esther@ebmanagement.io": 8 } as Record<string, number>,
+  /**
+   * Esther, Nov 23 2026: "separar noviembre y diciembre — cobrar diciembre antes de adelantar metas de diciembre".
+   * Once a client carries a December number (closingOwedDec), the count splits: November is due on novDueKey and
+   * December runs from decStartKey to dueKey. New goals pay November first; only the surplus counts for December.
+   */
+  novDueKey: "2026-11-30",
+  novDueLabel: "30 de noviembre",
+  novDueShort: "30 nov",
+  decStartKey: "2026-12-01",
+  decRangeLabel: "1 al 15 de diciembre",
+  decRangeShort: "1–15 dic",
 } as const;
 
 export type ClosingRow = {
@@ -27,6 +38,13 @@ export type ClosingRow = {
   owed: number;
   closed: number;
   pending: number;
+  /** November part (the whole count while it is not split) and December part. */
+  owedNov: number;
+  pendingNov: number;
+  owedDec: number;
+  pendingDec: number;
+  /** New goals beyond November's number: they already count for December. */
+  advancedDec: number;
   note: string | null;
   /** Owed, but the client is on hold: listed apart and left out of the totals. */
   hold: boolean;
@@ -42,13 +60,23 @@ export type ClosingBoard = {
   closed: number;
   pending: number;
   daysLeft: number;
+  /** True once any client has a December number: November and December are counted apart. */
+  split: boolean;
+  /** Which part the team is working on today. */
+  phase: "nov" | "dec";
+  nov: { owed: number; closed: number; pending: number; daysLeft: number };
+  dec: { owed: number; closed: number; pending: number; daysLeft: number };
   byStrategist: { id: string | null; name: string; goals: number }[];
 };
 
-export async function closingBoard(clients: { id: string; name: string; closingOwed: number | null; closingNote: string | null; closingHold: boolean }[], now = new Date()): Promise<ClosingBoard> {
+const mondayOf = (dayKey: string) => { const d = new Date(`${dayKey}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); };
+const daysBetween = (a: string, b: string) => Math.round((new Date(`${b}T00:00:00Z`).getTime() - new Date(`${a}T00:00:00Z`).getTime()) / 86_400_000);
+
+export async function closingBoard(clients: { id: string; name: string; closingOwed: number | null; closingOwedDec?: number | null; closingNote: string | null; closingHold: boolean }[], now = new Date()): Promise<ClosingBoard> {
   const since = GOAL_CLOSING.since;
   const sinceKey = dayKeyInTz(since);
-  const counted = clients.filter((c) => c.closingOwed !== null);
+  const inCount = (c: { closingOwed: number | null; closingOwedDec?: number | null }) => c.closingOwed !== null || (c.closingOwedDec ?? null) !== null;
+  const counted = clients.filter(inCount);
   const secured = await Promise.all(counted.map(async (c) => {
     const board = await periodBoard(c.id);
     const units = [...board.periods.flatMap((p) => p.units), ...board.pending];
@@ -75,17 +103,27 @@ export async function closingBoard(clients: { id: string; name: string; closingO
       team.set(closer?.id ?? "", t);
       closed += u.weight;
     }
-    const owed = c.closingOwed ?? 0;
-    return { id: c.id, name: c.name, owed, closed, pending: Math.max(0, owed - closed), note: c.closingNote, hold: c.closingHold, strategists: [...m.entries()].map(([name, goals]) => ({ name, goals })).sort((a, b) => b.goals - a.goals) };
+    const owedNov = c.closingOwed ?? 0;
+    const owedDec = c.closingOwedDec ?? 0;
+    const owed = owedNov + owedDec;
+    // New goals pay November first; only what is left over counts for December.
+    const advancedDec = Math.min(owedDec, Math.max(0, closed - owedNov));
+    return { id: c.id, name: c.name, owed, closed, pending: Math.max(0, owed - closed), owedNov, pendingNov: Math.max(0, owedNov - closed), owedDec, pendingDec: owedDec - advancedDec, advancedDec, note: c.closingNote, hold: c.closingHold, strategists: [...m.entries()].map(([name, goals]) => ({ name, goals })).sort((a, b) => b.goals - a.goals) };
   });
   const rows = all.filter((r) => !r.hold);
   rows.sort((a, b) => b.pending - a.pending || b.owed - a.owed || a.name.localeCompare(b.name, "es"));
   const todayKey = dayKeyInTz(now);
-  const daysLeft = Math.max(0, Math.round((new Date(`${GOAL_CLOSING.dueKey}T00:00:00Z`).getTime() - new Date(`${todayKey}T00:00:00Z`).getTime()) / 86_400_000));
+  const daysTo = (key: string) => Math.max(0, daysBetween(todayKey, key));
+  const daysLeft = daysTo(GOAL_CLOSING.dueKey);
+  const sum = (f: (r: ClosingRow) => number) => rows.reduce((n, r) => n + f(r), 0);
   return {
     rows,
     onHold: all.filter((r) => r.hold),
-    uncounted: clients.filter((c) => c.closingOwed === null).map((c) => ({ id: c.id, name: c.name })),
+    uncounted: clients.filter((c) => !inCount(c)).map((c) => ({ id: c.id, name: c.name })),
+    split: clients.some((c) => (c.closingOwedDec ?? null) !== null),
+    phase: todayKey <= GOAL_CLOSING.novDueKey ? "nov" : "dec",
+    nov: { owed: sum((r) => r.owedNov), closed: sum((r) => Math.min(r.closed, r.owedNov)), pending: sum((r) => r.pendingNov), daysLeft: daysTo(GOAL_CLOSING.novDueKey) },
+    dec: { owed: sum((r) => r.owedDec), closed: sum((r) => r.advancedDec), pending: sum((r) => r.pendingDec), daysLeft },
     owed: rows.reduce((n, r) => n + r.owed, 0),
     // Only what counts against a client's own number (a client that over-delivers does not cover another's).
     closed: rows.reduce((n, r) => n + Math.min(r.closed, r.owed), 0),
@@ -113,8 +151,6 @@ export type StrategistDue = {
   isPrivate: boolean;
 };
 
-const mondayOf = (dayKey: string) => { const d = new Date(`${dayKey}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); };
-const daysBetween = (a: string, b: string) => Math.round((new Date(`${b}T00:00:00Z`).getTime() - new Date(`${a}T00:00:00Z`).getTime()) / 86_400_000);
 
 /**
  * What each strategist owes per week until the closing date, person by person (Esther, Nov 20 2026): the weekly
@@ -122,20 +158,38 @@ const daysBetween = (a: string, b: string) => Math.round((new Date(`${b}T00:00:0
  * ("Ayax está en 3 esta semana → la semana que viene le tocan las que no cumplió"). Verónica and Esther carry
  * their own fixed totals (GOAL_CLOSING.fixedQuotas — private); Esther has no carry-over at all.
  * Weeks are Monday–Sunday in Miami and goals count by closing day, exactly like the weekly pace card.
+ * When the count is split, November's share is spread over the weeks up to Nov 30 and December's over the weeks
+ * from Dec 1; what is left of November keeps being carried into December, person by person.
  */
 export async function weeklyDue(board: ClosingBoard, now = new Date()): Promise<{ base: number; strategists: number; rows: Map<string, StrategistDue>; isLastWeek: boolean }> {
   const people = await db.user.findMany({ where: { isActive: true, role: { in: STRATEGIST_ROLES } }, select: { id: true, email: true } });
   const fixedOf = (email: string) => GOAL_CLOSING.fixedQuotas[email.toLowerCase()];
   const others = people.filter((p) => fixedOf(p.email) === undefined).length;
-  const fixedTotal = people.reduce((n, p) => n + (fixedOf(p.email) ?? 0), 0);
-  const share = others ? Math.ceil(Math.max(0, board.owed - fixedTotal) / others) : 0;
-
   const sinceKey = dayKeyInTz(GOAL_CLOSING.since);
   const startWeek = mondayOf(sinceKey);
   const thisWeek = mondayOf(dayKeyInTz(now));
-  const totalWeeks = Math.max(1, daysBetween(sinceKey, GOAL_CLOSING.dueKey) / 7);
   const weeksDone = Math.max(0, Math.round(daysBetween(startWeek, thisWeek) / 7));
-  const weekly = (total: number) => Math.ceil(total / totalWeeks);
+
+  // The parts of the count: one (the whole window) or two (November, then December). `from` is the first week of
+  // the part, counted from the week of Esther's count; `weeks` how long it lasts.
+  const parts = board.split
+    ? [
+        { owed: board.nov.owed, from: 0, weeks: Math.max(1, daysBetween(sinceKey, GOAL_CLOSING.novDueKey) / 7) },
+        { owed: board.dec.owed, from: Math.max(0, Math.round(daysBetween(startWeek, mondayOf(GOAL_CLOSING.decStartKey)) / 7)), weeks: Math.max(1, daysBetween(mondayOf(GOAL_CLOSING.decStartKey), GOAL_CLOSING.dueKey) / 7) },
+      ]
+    : [{ owed: board.owed, from: 0, weeks: Math.max(1, daysBetween(sinceKey, GOAL_CLOSING.dueKey) / 7) }];
+  const allOwed = parts.reduce((n, p) => n + p.owed, 0);
+  /** A fixed personal total, split between the parts in proportion to what each part owes. */
+  const fixedIn = (quota: number, i: number) => {
+    if (parts.length === 1 || allOwed === 0) return i === 0 ? quota : 0;
+    const first = Math.min(quota, Math.round((quota * parts[0].owed) / allOwed));
+    return i === 0 ? first : quota - first;
+  };
+  const quotas = people.map((p) => fixedOf(p.email)).filter((q): q is number => q !== undefined);
+  const shareIn = (i: number) => (others ? Math.ceil(Math.max(0, parts[i].owed - quotas.reduce((n, q) => n + fixedIn(q, i), 0)) / others) : 0);
+  /** What a person with these totals should have closed after `weeks` weeks of the count (never more than each part's total). */
+  const schedule = (totals: number[]) => (weeks: number) => parts.reduce((n, p, i) => n + Math.min(totals[i], Math.ceil(totals[i] / p.weeks) * Math.max(0, weeks - p.from)), 0);
+  const currentPart = parts.length > 1 && weeksDone >= parts[1].from ? 1 : 0;
 
   const goals = await db.deliverable.findMany({
     where: { closedAt: { gte: new Date(`${startWeek}T04:00:00Z`) }, status: { not: "CANCELLED" }, isInternal: false },
@@ -157,10 +211,9 @@ export async function weeklyDue(board: ClosingBoard, now = new Date()): Promise<
   for (const p of people) {
     if (NO_CARRY_OVER.includes(p.email.toLowerCase())) continue;
     const fixed = fixedOf(p.email);
-    const total = fixed ?? share;
-    const base = weekly(total);
-    // Never ask for more than the person's whole share, however many weeks are left.
-    const expected = (weeks: number) => Math.min(total, base * weeks);
+    const totals = parts.map((_, i) => (fixed === undefined ? shareIn(i) : fixedIn(fixed, i)));
+    const base = Math.ceil(totals[currentPart] / parts[currentPart].weeks);
+    const expected = schedule(totals);
     const carried = Math.max(0, expected(weeksDone) - (before.get(p.id) ?? 0));
     const due = expected(weeksDone + 1) - expected(weeksDone) + carried;
     const closed = current.get(p.id) ?? 0;
@@ -169,5 +222,5 @@ export async function weeklyDue(board: ClosingBoard, now = new Date()): Promise<
   }
   // After this week there is no other one before the closing date.
   const isLastWeek = daysBetween(thisWeek, GOAL_CLOSING.dueKey) < 7;
-  return { base: weekly(share), strategists: others, rows, isLastWeek };
+  return { base: Math.ceil(shareIn(currentPart) / parts[currentPart].weeks), strategists: others, rows, isLastWeek };
 }

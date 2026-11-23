@@ -235,6 +235,9 @@ model Client {
   // Year-end count (Esther, Nov 16 2026): goals still owed until the closing date, as counted by her on
   // GOAL_CLOSING.since. null = client not in the count. Pending today = closingOwed − goals secured since then.
   closingOwed       Int?
+  // December part of the count (Esther, Nov 23 2026: bill December before working its goals): goals owed for
+  // Dec 1–15. When any client has it, closingOwed is the November part (due Nov 30) and the dashboard splits in two.
+  closingOwedDec    Int?
   closingNote       String?
   // Owed but the client is on hold: shown apart, not part of what the team must close by the date.
   closingHold       Boolean         @default(false)

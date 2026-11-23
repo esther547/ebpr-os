@@ -13,6 +13,7 @@ const updateClientSchema = z.object({
   cycleDay: z.number().int().min(1).max(31).nullable().optional(),
   goalsOwed: z.number().int().min(0).max(999).optional(),
   closingOwed: z.number().int().min(0).max(999).nullable().optional(),
+  closingOwedDec: z.number().int().min(0).max(999).nullable().optional(),
   closingNote: z.string().max(200).nullable().optional(),
   closingHold: z.boolean().optional(),
   focusNote: z.string().max(300).nullable().optional(),
