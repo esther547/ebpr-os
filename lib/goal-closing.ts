@@ -167,8 +167,8 @@ export type StrategistDue = {
  * ("Ayax está en 3 esta semana → la semana que viene le tocan las que no cumplió"). Verónica and Esther carry
  * their own fixed totals (GOAL_CLOSING.fixedQuotas — private); Esther has no carry-over at all.
  * Weeks are Monday–Sunday in Miami and goals count by closing day, exactly like the weekly pace card.
- * When the count is split, November's share is spread over the weeks up to Nov 30 and December's over the weeks
- * from Dec 1; what is left of November keeps being carried into December, person by person.
+ * When the count is split, November's share is spread over the weeks up to Nov 30 and the open December goals
+ * over the weeks up to the closing date; December goals waiting to be billed are not asked of anyone yet.
  */
 export async function weeklyDue(board: ClosingBoard, now = new Date()): Promise<{ base: number; strategists: number; rows: Map<string, StrategistDue>; isLastWeek: boolean }> {
   const people = await db.user.findMany({ where: { isActive: true, role: { in: STRATEGIST_ROLES } }, select: { id: true, email: true } });
@@ -179,32 +179,9 @@ export async function weeklyDue(board: ClosingBoard, now = new Date()): Promise<
   const thisWeek = mondayOf(dayKeyInTz(now));
   const weeksDone = Math.max(0, Math.round(daysBetween(startWeek, thisWeek) / 7));
 
-  // The parts of the count: one (the whole window) or two — November, due Nov 30, and the December goals that can
-  // already be worked, due on the closing date. December goals waiting to be billed are nobody's yet.
-  const parts = board.split
-    ? [
-        { owed: board.nov.owed, from: 0, weeks: Math.max(1, daysBetween(sinceKey, GOAL_CLOSING.novDueKey) / 7) },
-        { owed: board.decOpen.owed, from: 0, weeks: Math.max(1, daysBetween(sinceKey, GOAL_CLOSING.dueKey) / 7) },
-      ]
-    : [{ owed: board.owed, from: 0, weeks: Math.max(1, daysBetween(sinceKey, GOAL_CLOSING.dueKey) / 7) }];
-  const allOwed = parts.reduce((n, p) => n + p.owed, 0);
-  /** A fixed personal total, split between the parts in proportion to what each part owes. */
-  const fixedIn = (quota: number, i: number) => {
-    if (parts.length === 1 || allOwed === 0) return i === 0 ? quota : 0;
-    const first = Math.min(quota, Math.round((quota * parts[0].owed) / allOwed));
-    return i === 0 ? first : quota - first;
-  };
-  const quotas = people.map((p) => fixedOf(p.email)).filter((q): q is number => q !== undefined);
-  const shareIn = (i: number) => (others ? Math.ceil(Math.max(0, parts[i].owed - quotas.reduce((n, q) => n + fixedIn(q, i), 0)) / others) : 0);
-  /** What a person with these totals should have closed after `weeks` weeks of the count (never more than each part's total). */
-  const schedule = (totals: number[]) => (weeks: number) => parts.reduce((n, p, i) => n + Math.min(totals[i], Math.ceil(totals[i] / p.weeks) * Math.max(0, weeks - p.from)), 0);
-  /** This week's own share (without anything carried). */
-  const weekShare = (totals: number[]) => schedule(totals)(weeksDone + 1) - schedule(totals)(weeksDone);
   // Before this count there was the first one: what someone left unclosed then is still theirs.
   const first = GOAL_CLOSING.firstCount;
   const firstWeeks = Math.max(0, Math.round(daysBetween(first.weekKey, startWeek) / 7));
-  const firstShare = (quota: number | undefined) => (quota === undefined ? first.weeklyShare : Math.ceil(quota / (daysBetween(first.weekKey, GOAL_CLOSING.dueKey) / 7)));
-
   const goals = await db.deliverable.findMany({
     where: { closedAt: { gte: new Date(`${first.weekKey < startWeek ? first.weekKey : startWeek}T04:00:00Z`) }, status: { not: "CANCELLED" }, isInternal: false },
     select: { closedAt: true, goalValue: true, closedBy: { select: { id: true, role: true } }, assignee: { select: { id: true, role: true } } },
@@ -222,14 +199,40 @@ export async function weeklyDue(board: ClosingBoard, now = new Date()): Promise<
     bucket.set(who, (bucket.get(who) ?? 0) + (g.goalValue ?? 1));
   }
 
+  // A fixed personal total covers the whole closing: what the person closed during the first count comes off it.
+  const fixedLeft = (p: { id: string; email: string }) => { const q = fixedOf(p.email); return q === undefined ? undefined : Math.max(0, q - (earlier.get(p.id) ?? 0)); };
+
+  // The parts of the count: one (the whole window) or two — November, due Nov 30, and the December goals that can
+  // already be worked, due on the closing date. December goals waiting to be billed are nobody's yet.
+  const parts = board.split
+    ? [
+        { owed: board.nov.owed, from: 0, weeks: Math.max(1, daysBetween(sinceKey, GOAL_CLOSING.novDueKey) / 7) },
+        { owed: board.decOpen.owed, from: 0, weeks: Math.max(1, daysBetween(sinceKey, GOAL_CLOSING.dueKey) / 7) },
+      ]
+    : [{ owed: board.owed, from: 0, weeks: Math.max(1, daysBetween(sinceKey, GOAL_CLOSING.dueKey) / 7) }];
+  const allOwed = parts.reduce((n, p) => n + p.owed, 0);
+  /** A fixed personal total, split between the parts in proportion to what each part owes. */
+  const fixedIn = (quota: number, i: number) => {
+    if (parts.length === 1 || allOwed === 0) return i === 0 ? quota : 0;
+    const first = Math.min(quota, Math.round((quota * parts[0].owed) / allOwed));
+    return i === 0 ? first : quota - first;
+  };
+  const quotas = people.map(fixedLeft).filter((q): q is number => q !== undefined);
+  const shareIn = (i: number) => (others ? Math.ceil(Math.max(0, parts[i].owed - quotas.reduce((n, q) => n + fixedIn(q, i), 0)) / others) : 0);
+  /** What a person with these totals should have closed after `weeks` weeks of the count (never more than each part's total). */
+  const schedule = (totals: number[]) => (weeks: number) => parts.reduce((n, p, i) => n + Math.min(totals[i], Math.ceil(totals[i] / p.weeks) * Math.max(0, weeks - p.from)), 0);
+  /** This week's own share (without anything carried). */
+  const weekShare = (totals: number[]) => schedule(totals)(weeksDone + 1) - schedule(totals)(weeksDone);
+
   const rows = new Map<string, StrategistDue>();
   for (const p of people) {
     if (NO_CARRY_OVER.includes(p.email.toLowerCase())) continue;
-    const fixed = fixedOf(p.email);
+    const fixed = fixedLeft(p);
     const totals = parts.map((_, i) => (fixed === undefined ? shareIn(i) : fixedIn(fixed, i)));
     const base = weekShare(totals);
     const expected = schedule(totals);
-    const fromFirst = Math.max(0, firstShare(fixed) * firstWeeks - (earlier.get(p.id) ?? 0));
+    // Fixed totals already carry their own remainder (fixedLeft), so only the shared weekly figure carries over.
+    const fromFirst = fixed === undefined ? Math.max(0, first.weeklyShare * firstWeeks - (earlier.get(p.id) ?? 0)) : 0;
     const carried = Math.max(0, fromFirst + expected(weeksDone) - (before.get(p.id) ?? 0));
     const due = expected(weeksDone + 1) - expected(weeksDone) + carried;
     const closed = current.get(p.id) ?? 0;
