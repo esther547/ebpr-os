@@ -238,6 +238,9 @@ model Client {
   // December part of the count (Esther, Nov 23 2026: bill December before working its goals): goals owed for
   // Dec 1–15. When any client has it, closingOwed is the November part (due Nov 30) and the dashboard splits in two.
   closingOwedDec    Int?
+  // Day (yyyy-MM-dd) Esther bills the client's December. While set, the December goals wait ("cobrar diciembre
+  // antes de adelantar metas de diciembre"); she clears it once billed. Only admins see or edit it.
+  closingBillKey    String?
   closingNote       String?
   // Owed but the client is on hold: shown apart, not part of what the team must close by the date.
   closingHold       Boolean         @default(false)

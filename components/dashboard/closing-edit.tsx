@@ -23,15 +23,19 @@ type Props = {
   dueLabel: string;
   /** The count is split in November / December: label the first number as November's. */
   split?: boolean;
+  /** Admins only: the day December is billed (yyyy-MM-dd). While set, the December goals wait. */
+  billKey?: string | null;
+  canBill?: boolean;
 };
 
 /** Dashboard: correct how many goals a client still owes for the year-end count (or take it out of the count). */
-export function ClosingEdit({ clientId, clientName, pending, pendingDec = null, closed, owedNov = 0, note, hold, dueLabel, split = false }: Props) {
+export function ClosingEdit({ clientId, clientName, pending, pendingDec = null, closed, owedNov = 0, note, hold, dueLabel, split = false, billKey = null, canBill = false }: Props) {
   const router = useRouter();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(pending === null ? "" : String(pending));
   const [december, setDecember] = useState(pendingDec === null ? "" : String(pendingDec));
+  const [bill, setBill] = useState(billKey ?? "");
   const [draft, setDraft] = useState(note ?? "");
   const [onHold, setOnHold] = useState(hold);
   const [saving, setSaving] = useState(false);
@@ -51,7 +55,7 @@ export function ClosingEdit({ clientId, clientName, pending, pendingDec = null, 
       const res = await fetch(`/api/clients/${clientId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(remove ? { closingOwed: null, closingOwedDec: null, closingNote: null, closingHold: false } : { closingOwed: nov, closingOwedDec: dec, closingNote: draft.trim() || null, closingHold: onHold }),
+        body: JSON.stringify(remove ? { closingOwed: null, closingOwedDec: null, closingNote: null, closingHold: false, ...(canBill ? { closingBillKey: null } : {}) } : { closingOwed: nov, closingOwedDec: dec, closingNote: draft.trim() || null, closingHold: onHold, ...(canBill ? { closingBillKey: bill || null } : {}) }),
       });
       if (!res.ok) throw new Error();
       toast({ title: remove ? `${clientName}: fuera del conteo` : `${clientName}: ${n} meta${n === 1 ? "" : "s"} pendiente${n === 1 ? "" : "s"}${d !== null ? ` de noviembre y ${d} de diciembre` : ""}`, variant: "success" });
@@ -74,9 +78,17 @@ export function ClosingEdit({ clientId, clientName, pending, pendingDec = null, 
           <FormGroup label={split ? "Noviembre: metas pendientes hoy" : "Metas pendientes hoy"} htmlFor="ce-n" description="0 = está al día.">
             <Input id="ce-n" type="number" min={0} max={200} value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
           </FormGroup>
-          <FormGroup label="Diciembre (1 al 15): metas pendientes" htmlFor="ce-d" description={split ? "Se cuentan aparte de noviembre. Vacío = no tiene metas de diciembre." : "Opcional. Al poner un número, el dashboard separa noviembre y diciembre."}>
+          <FormGroup label="Diciembre: metas pendientes" htmlFor="ce-d" description={split ? "Se cuentan aparte de noviembre. Vacío = no tiene metas de diciembre." : "Opcional. Al poner un número, el dashboard separa noviembre y diciembre."}>
             <Input id="ce-d" type="number" min={0} max={200} value={december} onChange={(e) => setDecember(e.target.value)} />
           </FormGroup>
+          {canBill && (
+            <FormGroup label="Fecha de cobro de diciembre" htmlFor="ce-bill" description="Solo tú la ves. Mientras tenga fecha, sus metas de diciembre quedan en espera para el equipo. Bórrala cuando cobres.">
+              <div className="flex items-center gap-2">
+                <Input id="ce-bill" type="date" value={bill} onChange={(e) => setBill(e.target.value)} />
+                {bill && <Button type="button" variant="secondary" onClick={() => setBill("")}>Ya cobré</Button>}
+              </div>
+            </FormGroup>
+          )}
           <FormGroup label="Nota" htmlFor="ce-note" description="Opcional.">
             <Input id="ce-note" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="p. ej. Si desea continuar debe renovar" maxLength={200} />
           </FormGroup>

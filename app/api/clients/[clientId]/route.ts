@@ -14,6 +14,7 @@ const updateClientSchema = z.object({
   goalsOwed: z.number().int().min(0).max(999).optional(),
   closingOwed: z.number().int().min(0).max(999).nullable().optional(),
   closingOwedDec: z.number().int().min(0).max(999).nullable().optional(),
+  closingBillKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   closingNote: z.string().max(200).nullable().optional(),
   closingHold: z.boolean().optional(),
   focusNote: z.string().max(300).nullable().optional(),
@@ -94,6 +95,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (parsed.data.strategyDocUrl && !/^https?:\/\//i.test(parsed.data.strategyDocUrl)) {
       return NextResponse.json({ error: "Strategy document link must be a full URL" }, { status: 400 });
     }
+
+    // The billing day of December is Esther's to set (admins only); anyone else's value is ignored.
+    if (user.role !== "SUPER_ADMIN") delete parsed.data.closingBillKey;
 
     const client = await db.client.update({
       where: { id: params.clientId },
