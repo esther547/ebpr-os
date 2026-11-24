@@ -58,6 +58,10 @@ type Pauta = {
   deliverable?: { month: number; year: number } | null;
   agendaMonth?: number | null;
   agendaYear?: number | null;
+  isGold?: boolean;
+  isProposal?: boolean;
+  agendaDocRowAt?: Date | null;
+  period?: { number: number; refMonth: number } | null;
 };
 
 /** A "MES N (…)" block inside the doc's single agenda table. */
@@ -110,8 +114,24 @@ function dayKeyFromFecha(text: string): string | null {
 
 function estadoFor(a: Pauta, now: Date): string {
   if (a.status === "CANCELLED") return a.cancelLastMinute ? "No asistió – Cancelación last minute" : "Passed by client";
-  if (!a.runnerId && a.eventDate.getTime() > now.getTime()) return "Pending";
+  if (a.isGold) return "GOLD";
+  if (a.isProposal) return "Pending";
+  // A pauta tied to a goal is a confirmed commitment even when nobody has to accompany it.
+  if (!a.runnerId && !a.deliverableId && a.eventDate.getTime() > now.getTime()) return "Pending";
   return "Goal";
+}
+
+/**
+ * Is this pauta already a row of the doc? Same day + same (or same-prefix) name. A row typed with
+ * the wrong year ("01/04/26" for January 2027) is the same pauta too.
+ */
+function inDoc(rows: { dayKey: string; name: string }[], dayKey: string, eventName: string): boolean {
+  const [y, md] = [Number(dayKey.slice(0, 4)), dayKey.slice(5)];
+  return rows.some((r) => {
+    if (!sameName(r.name, eventName)) return false;
+    if (r.dayKey === dayKey) return true;
+    return r.dayKey.slice(5) === md && Math.abs(Number(r.dayKey.slice(0, 4)) - y) === 1;
+  });
 }
 
 function joinLines(...parts: (string | null | undefined)[]): string {
@@ -175,6 +195,7 @@ export async function appendNewPautasToDoc(clientId: string, opts: { dryRun?: bo
     select: {
       id: true, eventDate: true, eventTime: true, eventName: true, venueName: true, venueAddress: true,
       notes: true, status: true, cancelLastMinute: true, runnerId: true, createdAt: true, deliverableId: true, agendaMonth: true, agendaYear: true,
+      isGold: true, isProposal: true, agendaDocRowAt: true, period: { select: { number: true, refMonth: true } },
     },
   });
 
@@ -196,11 +217,13 @@ export async function appendNewPautasToDoc(clientId: string, opts: { dryRun?: bo
       return { ok: false, kind: "other", error: "El documento no tiene bloques \"MES N\"; no se agregó nada." };
     }
 
-    // What is missing: same day + same (or same-prefix) name means "already there".
-    const missing = pautas.filter((p) => {
-      const dayKey = dayKeyInTz(p.eventDate);
-      return !index.rows.some((r) => r.dayKey === dayKey && sameName(r.name, p.eventName));
-    });
+    // What is missing. A pauta that already got its row once (agendaDocRowAt) is never added again:
+    // rescheduling or renaming it in the portal used to append a second row for the same commitment.
+    const found = pautas.filter((p) => !p.agendaDocRowAt && inDoc(index.rows, dayKeyInTz(p.eventDate), p.eventName));
+    if (found.length && !opts.dryRun) {
+      await db.runnerAssignment.updateMany({ where: { id: { in: found.map((p) => p.id) } }, data: { agendaDocRowAt: now } }).catch(() => undefined);
+    }
+    const missing = pautas.filter((p) => !p.agendaDocRowAt && !found.includes(p));
     const skipped = Math.max(0, missing.length - MAX_ROWS_PER_RUN);
     const toAdd = missing.slice(0, MAX_ROWS_PER_RUN);
     if (toAdd.length === 0) return { ok: true, added: 0, skipped: 0, docRows: index.rows.length };
@@ -209,23 +232,30 @@ export async function appendNewPautasToDoc(clientId: string, opts: { dryRun?: bo
     const tableStart = index.table.startIndex!;
     const tableRows = index.table.table!.tableRows!.length;
     const blocks = [...index.blocks].sort((a, b) => a.headingRow - b.headingRow);
-    type NewBlock = { monthName: string; number: number; pautas: Pauta[] };
+    type NewBlock = { monthName: string; number: number; sort: number; pautas: Pauta[] };
     const perBlock = new Map<Block, Pauta[]>();
     const newBlocks: NewBlock[] = [];
-    let nextNumber = Math.max(...blocks.map((b) => b.number)) + 1;
     for (const p of toAdd) {
-      // Block = the goal's report month when linked, else the ledger month, else the pauta's calendar month.
-      const m = p.deliverable?.month ?? p.agendaMonth ?? Number(dayKeyInTz(p.eventDate).split("-")[1]);
+      // Block = the pauta's service period (its month; the team's docs do not always number the months
+      // like the portal, so the name goes first and the "MES N" number second), else the goal's report
+      // month, else the ledger month, else the pauta's calendar month.
+      const m = p.period?.refMonth ?? p.deliverable?.month ?? p.agendaMonth ?? Number(dayKeyInTz(p.eventDate).split("-")[1]);
       const monthName = MONTH_NAMES_ES[m - 1];
-      const target = [...blocks].reverse().find((b) => b.monthName === norm(monthName));
+      const target =
+        [...blocks].reverse().find((b) => b.monthName === norm(monthName)) ??
+        (p.period ? [...blocks].reverse().find((b) => b.number === p.period!.number) : undefined);
       if (target) {
         perBlock.set(target, [...(perBlock.get(target) ?? []), p]);
         continue;
       }
       const nb = newBlocks.find((b) => b.monthName === monthName);
       if (nb) nb.pautas.push(p);
-      else newBlocks.push({ monthName, number: nextNumber++, pautas: [p] });
+      else newBlocks.push({ monthName, number: 0, sort: p.period?.number ?? 1000 + newBlocks.length, pautas: [p] });
     }
+    // New blocks follow the order of the service periods (MES 2 before MES 3), numbered after the doc's last one.
+    newBlocks.sort((a, b) => a.sort - b.sort);
+    let nextNumber = Math.max(...blocks.map((b) => b.number)) + 1;
+    for (const nb of newBlocks) nb.number = nextNumber++;
 
     const planned = [
       ...[...perBlock.entries()].flatMap(([b, ps]) => ps.map((p) => `MES ${b.number}: ${dayKeyInTz(p.eventDate)} ${p.eventName}`)),
@@ -237,15 +267,14 @@ export async function appendNewPautasToDoc(clientId: string, opts: { dryRun?: bo
     type Group = { afterRow: number; count: number; kind: "data" | "block"; block?: Block; nb?: NewBlock };
     const groups: Group[] = [];
     for (const [b, ps] of perBlock) groups.push({ afterRow: b.lastRow, count: ps.length, kind: "data", block: b });
-    // New blocks go at the very end: MES row + header row + data rows each.
-    let endRow = tableRows - 1;
-    for (const nb of newBlocks) {
-      groups.push({ afterRow: endRow, count: 2 + nb.pautas.length, kind: "block", nb });
-      endRow += 2 + nb.pautas.length; // only matters for ordering; inserted sequentially below
-    }
-    groups.sort((a, b) => b.afterRow - a.afterRow);
+    // New blocks go at the very end, one after another: MES row + header row + data rows each.
+    // They all hang from the table's last row; `ascending` keeps them in order (and after the rows
+    // added to the last existing block), and inserting in reverse leaves every index valid.
+    for (const nb of newBlocks) groups.push({ afterRow: tableRows - 1, count: 2 + nb.pautas.length, kind: "block", nb });
+    const rank = (g: Group) => (g.kind === "data" ? 0 : 1 + newBlocks.indexOf(g.nb!));
+    const ascending = [...groups].sort((a, b) => a.afterRow - b.afterRow || rank(a) - rank(b));
     const insertRequests: docs_v1.Schema$Request[] = [];
-    for (const g of groups) {
+    for (const g of [...ascending].reverse()) {
       for (let i = 0; i < g.count; i++) {
         insertRequests.push({
           insertTableRow: {
@@ -265,7 +294,6 @@ export async function appendNewPautasToDoc(clientId: string, opts: { dryRun?: bo
     if (!table || !rows.length) return { ok: false, kind: "other", error: "No pude releer la tabla de la agenda después de insertar filas." };
     const tStart = table.startIndex!;
 
-    const ascending = [...groups].sort((a, b) => a.afterRow - b.afterRow);
     let offset = 0;
     const placed: { g: Group; firstRow: number }[] = [];
     for (const g of ascending) {
@@ -310,6 +338,7 @@ export async function appendNewPautasToDoc(clientId: string, opts: { dryRun?: bo
     for (const r of mergeRows) requests.push(mergeRowRequest(tStart, r, COLUMNS));
     await docs.documents.batchUpdate({ documentId, requestBody: { requests } });
 
+    await db.runnerAssignment.updateMany({ where: { id: { in: toAdd.map((p) => p.id) } }, data: { agendaDocRowAt: new Date() } }).catch(() => undefined);
     await db.client.update({ where: { id: clientId }, data: { agendaDocSyncedAt: new Date() } }).catch(() => undefined);
     return { ok: true, added: toAdd.length, skipped, docRows: index.rows.length, planned };
   } catch (err) {

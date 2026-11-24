@@ -612,6 +612,9 @@ model RunnerAssignment {
   /// Cancelled last minute by the client: the runner is freed, but it stays in the talent's agenda as
   /// \"No asistió – Cancelación last minute\" and still counts toward the goal (Esther, Oct 8 2026).
   cancelLastMinute  Boolean        @default(false)
+  /// Set once this pauta has a row in the client's agenda Google Doc (appended by the portal or found
+  /// there). The append-only sync never adds it again, even if its date or name changes later.
+  agendaDocRowAt    DateTime?
   /// Pautas of several clients at the same event share a group: one card in the schedule, one runner, edits propagate.
   eventGroupId      String?
   /// Who scheduled it (team member): shown to runners so they know whom to call. Never shown to the client.
