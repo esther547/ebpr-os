@@ -8,7 +8,8 @@ import { useToast } from "@/components/ui/toast";
 import { apiErrorMessage } from "@/lib/form-helpers";
 import { PrioritySectionCard } from "./priority-section-card";
 import { PriorityModal, type PriorityDraft } from "./priority-modal";
-import type { PriorityItem } from "./helpers";
+import { isUrgentNow, type PriorityItem } from "./helpers";
+import { announcePriorityChange, applyPriorityChange, usePriorityChanges } from "./priority-sync";
 
 type Person = { id: string; name: string };
 
@@ -23,6 +24,7 @@ export function AssignedTeamCard({ items: initial, ownerId, weekKey, clientOrder
   const [editItem, setEditItem] = useState<PriorityItem | null>(null);
   const [deleteItem, setDeleteItem] = useState<PriorityItem | null>(null);
   useEffect(() => setItems(initial), [initial]);
+  usePriorityChanges((change) => setItems((prev) => applyPriorityChange(prev, change)));
 
   async function request<T>(url: string, init: RequestInit): Promise<T> {
     const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...init });
@@ -48,7 +50,12 @@ export function AssignedTeamCard({ items: initial, ownerId, weekKey, clientOrder
       const updated = await request<PriorityItem>(`/api/priorities/${item.id}`, { method: "PATCH", body: JSON.stringify(body) });
       setItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
       router.refresh();
-    } catch (err) { setItems(before); fail(err, "No se pudo guardar el cambio"); }
+    } catch (err) { setItems(before); announcePriorityChange({ type: "update", item }); fail(err, "No se pudo guardar el cambio"); }
+  }
+  function toggleUrgent(item: PriorityItem) {
+    const urgentAt = item.urgentAt ? null : new Date().toISOString();
+    announcePriorityChange({ type: "update", item: { ...item, list: "TEAM", urgentAt } });
+    void patch(item, { isUrgent: !!urgentAt }, { urgentAt });
   }
   async function remove(item: PriorityItem) {
     setDeleteItem(null);
@@ -64,7 +71,7 @@ export function AssignedTeamCard({ items: initial, ownerId, weekKey, clientOrder
         clientId={null}
         title="Asignado a mí en Prioridades del equipo"
         href="/priorities"
-        items={items}
+        items={items.filter((i) => !isUrgentNow(i))}
         personal
         showClient
         clientOrder={clientOrder}
@@ -75,6 +82,7 @@ export function AssignedTeamCard({ items: initial, ownerId, weekKey, clientOrder
           </Select>
         ) : undefined}
         onAdd={(_c, raw) => add(raw)}
+        onUrgent={toggleUrgent}
         onToggle={(p) => void patch(p, { isDone: !p.isDone }, { isDone: !p.isDone })}
         onRename={(p, title) => void patch(p, { title }, { title })}
         onEdit={(p) => setEditItem(p)}

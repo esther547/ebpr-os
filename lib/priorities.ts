@@ -148,6 +148,7 @@ export const prioritySelect = {
   assigneeId: true,
   isDone: true,
   doneAt: true,
+  urgentAt: true,
   order: true,
   client: { select: { id: true, name: true } },
   assignee: { select: { id: true, name: true } },

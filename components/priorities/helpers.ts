@@ -13,6 +13,10 @@ export type PriorityItem = {
   notes: string | null;
   assigneeId: string | null;
   isDone: boolean;
+  /** When the owner flagged it as urgent (ISO); null/undefined = not urgent. */
+  urgentAt?: string | null;
+  /** Board the line lives on, when the view mixes boards. */
+  list?: string;
   order: number;
   client: { id: string; name: string } | null;
   assignee: { id: string; name: string } | null;
@@ -123,4 +127,9 @@ export function countLabel(items: PriorityItem[]): string {
   const parts = [`${pending} ${pending === 1 ? "pendiente" : "pendientes"}`];
   if (done > 0) parts.push(`${done} ${done === 1 ? "hecha" : "hechas"}`);
   return parts.join(" · ");
+}
+
+/** A pending line its owner flagged as urgent: it shows in the Urgentes section instead of its own. */
+export function isUrgentNow(item: PriorityItem): boolean {
+  return !!item.urgentAt && !item.isDone;
 }

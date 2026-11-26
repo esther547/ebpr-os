@@ -1148,6 +1148,9 @@ model WeeklyPriority {
   category    String?
   /// What the line is about when the client alone does not say it (or there is no client): "Art Basel", "Colaboraciones de Gracie Bon"…
   project     String?
+  /// Set when the owner flags the line as urgent on a personal to-do board ("lo que debo trabajar primero");
+  /// those lines move to the Urgentes section, oldest flag first. Null = not urgent.
+  urgentAt    DateTime?
   createdById String
   createdBy   User      @relation("PriorityCreator", fields: [createdById], references: [id])
   createdAt   DateTime  @default(now())

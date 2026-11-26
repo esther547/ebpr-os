@@ -13,13 +13,14 @@ import {
 } from "@/lib/priorities";
 import { dayKeyInTz, weekStartKey } from "@/components/runners/miami-time";
 import { PrioritiesPageClient } from "./priorities-page-client";
-import type { ClientOption } from "./helpers";
+import type { ClientOption, PriorityItem } from "./helpers";
 
 export async function PrioritiesBoard({
   list,
   requestedWeek,
   canReorder = false,
   topSlot,
+  extraUrgent = [],
 }: {
   list: PriorityList;
   requestedWeek?: string;
@@ -27,6 +28,8 @@ export async function PrioritiesBoard({
   canReorder?: boolean;
   /** Rendered under the page header (e.g. Carolina's time tracker). */
   topSlot?: React.ReactNode;
+  /** Urgent lines of other boards shown on this page (e.g. what the owner has assigned on Prioridades). */
+  extraUrgent?: PriorityItem[];
 }) {
   // Week boundaries in Miami time (weeks start Monday), independent of server TZ.
   const currentWeekKey = weekStartKey(dayKeyInTz(new Date()));
@@ -69,6 +72,8 @@ export async function PrioritiesBoard({
     notes: r.notes,
     assigneeId: r.assigneeId,
     isDone: r.isDone,
+    urgentAt: r.urgentAt ? r.urgentAt.toISOString() : null,
+    list: r.list,
     order: r.order,
     client: r.client,
     assignee: r.assignee,
@@ -104,6 +109,7 @@ export async function PrioritiesBoard({
       clientOrder={clientOrder}
       canReorder={canReorder && list.key === "TEAM"}
       topSlot={topSlot}
+      urgentItems={list.personal ? [...items, ...extraUrgent].filter((i) => i.urgentAt && !i.isDone) : []}
     />
   );
 }

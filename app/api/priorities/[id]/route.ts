@@ -21,6 +21,7 @@ const updateSchema = z.object({
   notes: z.string().trim().max(2000).nullable().optional(),
   assigneeId: z.string().nullable().optional(),
   isDone: z.boolean().optional(),
+  isUrgent: z.boolean().optional(),
   clientId: z.string().nullable().optional(),
   category: z.string().trim().max(40).nullable().optional(),
   project: z.string().trim().max(60).nullable().optional(),
@@ -81,6 +82,9 @@ export async function PATCH(
     data.isDone = d.isDone;
     data.doneAt = d.isDone ? new Date() : null;
   }
+
+  // Urgent flag (personal to-do boards): the line moves to the Urgentes section.
+  if (d.isUrgent !== undefined) data.urgentAt = d.isUrgent ? new Date() : null;
 
   if (d.clientId !== undefined) {
     const clientId = d.clientId || null;

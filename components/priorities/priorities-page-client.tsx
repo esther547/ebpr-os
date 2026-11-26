@@ -22,7 +22,10 @@ import { useToast } from "@/components/ui/toast";
 import { apiErrorMessage } from "@/lib/form-helpers";
 import { PrioritySectionCard } from "./priority-section-card";
 import { MovePriorityModal, PriorityModal, type PriorityDraft } from "./priority-modal";
+import { UrgentCard } from "./urgent-card";
+import { announcePriorityChange, applyPriorityChange, usePriorityChanges } from "./priority-sync";
 import {
+  isUrgentNow,
   parseQuickAdd,
   shiftDayKey,
   weekRangeLabel,
@@ -58,6 +61,8 @@ type Props = {
   canReorder?: boolean;
   /** Rendered right under the page header. */
   topSlot?: React.ReactNode;
+  /** Personal boards: the lines flagged as urgent this week (this board's and any other shown on the page). */
+  urgentItems?: PriorityItem[];
 };
 
 export function PrioritiesPageClient({
@@ -70,6 +75,7 @@ export function PrioritiesPageClient({
   clientOrder: initialClientOrder = [],
   canReorder = false,
   topSlot,
+  urgentItems = [],
 }: Props) {
   const router = useRouter();
   const { toast } = useToast();
@@ -112,6 +118,8 @@ export function PrioritiesPageClient({
 
   // The server is the source of truth; optimistic edits are replaced on refresh.
   useEffect(() => setItems(initialItems), [initialItems]);
+  // Changes made from the Urgentes card (un-flag, check, rename, delete) reach the sections at once.
+  usePriorityChanges((change) => setItems((prev) => applyPriorityChange(prev, change)));
 
   const prevWeek = shiftDayKey(weekKey, -7);
   const nextWeek = shiftDayKey(weekKey, 7);
@@ -123,7 +131,8 @@ export function PrioritiesPageClient({
     return { total: items.length, done, pending: items.length - done, clients: clientIds.size };
   }, [items]);
 
-  const visible = items;
+  // Personal boards: a pending line flagged as urgent lives in the Urgentes card, not in its section.
+  const visible = useMemo(() => (board.personal ? items.filter((i) => !isUrgentNow(i)) : items), [board.personal, items]);
   const general = visible.filter((i) => (board.categories ? !i.category : !i.clientId));
   const categorySections = useMemo(() => {
     if (!board.categories) return [];
@@ -210,8 +219,16 @@ export function PrioritiesPageClient({
       router.refresh();
     } catch (err) {
       setItems(before);
+      announcePriorityChange({ type: "update", item });
       failed(err, "No se pudo guardar el cambio");
     }
+  }
+
+  /** «Urgente»: the line moves to the Urgentes card on top (lo que trabajo primero). */
+  function toggleUrgent(item: PriorityItem) {
+    const urgentAt = item.urgentAt ? null : new Date().toISOString();
+    announcePriorityChange({ type: "update", item: { ...item, list: item.list ?? board.key, urgentAt } });
+    void patch(item, { isUrgent: !!urgentAt }, { urgentAt });
   }
 
   // Ticking a line marks it done: it stays crossed out and the nightly cron removes it 20 days later.
@@ -287,6 +304,7 @@ export function PrioritiesPageClient({
     teamMembers: board.personal ? [] : teamMembers,
     onAssign: assignPriority,
     onAdd: addPriority,
+    onUrgent: board.personal ? toggleUrgent : undefined,
     onToggle: toggleDone,
     onRename: renamePriority,
     onEdit: (item: PriorityItem) => setEditItem(item),
@@ -338,6 +356,8 @@ export function PrioritiesPageClient({
           )}
         </div>
       </PageHeader>
+
+      {board.personal && <UrgentCard items={urgentItems} />}
 
       {topSlot}
 

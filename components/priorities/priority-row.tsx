@@ -2,7 +2,7 @@
 
 import { shortName } from "@/lib/short-name";
 import { useState } from "react";
-import { ArrowRightLeft, ChevronDown, Contact, Pencil, Trash2 } from "lucide-react";
+import { ArrowRightLeft, ChevronDown, Contact, Flame, Pencil, Trash2, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { initials, type PriorityItem, type TeamMember } from "./helpers";
+import { initials, isUrgentNow, type PriorityItem, type TeamMember } from "./helpers";
 
 type Props = {
   item: PriorityItem;
@@ -21,10 +21,16 @@ type Props = {
   onAssign?: (item: PriorityItem, assigneeId: string | null) => void;
   /** Mixed lists (Mis to dos): show which client the line belongs to (its project always shows when it has one). */
   showClient?: boolean;
+  /** Urgentes card: where the line comes from (client or section), shown instead of the client badge. */
+  contextLabel?: string | null;
+  /** Personal boards: flag the line as urgent (it moves to the Urgentes card) or take the flag off. */
+  onUrgent?: (item: PriorityItem) => void;
+  /** The row is being shown inside the Urgentes card. */
+  inUrgentSection?: boolean;
   onToggle: (item: PriorityItem) => void;
   onRename: (item: PriorityItem, title: string) => void;
   onEdit: (item: PriorityItem) => void;
-  onMove: (item: PriorityItem) => void;
+  onMove?: (item: PriorityItem) => void;
   onDelete: (item: PriorityItem) => void;
 };
 
@@ -38,11 +44,12 @@ export function splitPriorityNotes(notes: string | null | undefined): { text: st
   return { text: notes.slice(0, idx).trim(), contacts: notes.slice(idx + CONTACTS_MARKER.length).trim() };
 }
 
-export function PriorityRow({ item, teamMembers = [], onAssign, showClient = false, onToggle, onRename, onEdit, onMove, onDelete }: Props) {
+export function PriorityRow({ item, teamMembers = [], onAssign, showClient = false, contextLabel, onUrgent, inUrgentSection = false, onToggle, onRename, onEdit, onMove, onDelete }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.title);
   const [showContacts, setShowContacts] = useState(false);
   const { text: noteText, contacts } = splitPriorityNotes(item.notes);
+  const urgent = isUrgentNow(item);
 
   function startEditing() {
     setDraft(item.title);
@@ -66,7 +73,14 @@ export function PriorityRow({ item, teamMembers = [], onAssign, showClient = fal
       />
 
       <div className="min-w-0 flex-1">
-        {(showClient || item.project) && !editing && (
+        {contextLabel !== undefined ? (
+          (contextLabel || item.project) && !editing && (
+            <div className="mb-0.5 flex flex-wrap items-center gap-1">
+              {contextLabel && <Badge tone="dark" size="sm">{contextLabel}</Badge>}
+              {item.project && <span title="Proyecto"><Badge tone="outline" size="sm">{item.project}</Badge></span>}
+            </div>
+          )
+        ) : (showClient || item.project) && !editing && (
           <div className="mb-0.5 flex flex-wrap items-center gap-1">
             {showClient && (item.client || !item.project) && <Badge tone={item.client ? "dark" : "outline"} size="sm">{item.client?.name ?? "General"}</Badge>}
             {item.project && <span title="Proyecto"><Badge tone={item.client || !showClient ? "outline" : "dark"} size="sm">{item.project}</Badge></span>}
@@ -128,6 +142,23 @@ export function PriorityRow({ item, teamMembers = [], onAssign, showClient = fal
         )}
       </div>
 
+      {onUrgent && !item.isDone && (
+        <button
+          type="button"
+          onClick={() => onUrgent(item)}
+          title={urgent ? "Quitar de urgentes: vuelve a su sección" : "Pasar a Urgentes: lo que trabajo primero"}
+          className={cn(
+            "mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/30",
+            inUrgentSection
+              ? "border-red-200 bg-white text-ink-secondary hover:border-red-300 hover:text-red-700"
+              : "border-dashed border-border-strong text-ink-muted hover:border-solid hover:border-red-300 hover:bg-red-50 hover:text-red-700"
+          )}
+        >
+          {inUrgentSection ? <Undo2 className="h-3 w-3" aria-hidden /> : <Flame className="h-3 w-3" aria-hidden />}
+          {inUrgentSection ? "Quitar" : "Urgente"}
+        </button>
+      )}
+
       {teamMembers.length > 0 && onAssign ? (
         <label className="shrink-0" title="Quién se hace cargo">
           <span className="sr-only">Responsable</span>
@@ -163,9 +194,16 @@ export function PriorityRow({ item, teamMembers = [], onAssign, showClient = fal
           <DropdownMenuItem icon={<Pencil />} onSelect={() => onEdit(item)}>
             Editar
           </DropdownMenuItem>
-          <DropdownMenuItem icon={<ArrowRightLeft />} onSelect={() => onMove(item)}>
-            Mover a otro cliente
-          </DropdownMenuItem>
+          {onUrgent && !item.isDone && (
+            <DropdownMenuItem icon={urgent ? <Undo2 /> : <Flame />} onSelect={() => onUrgent(item)}>
+              {urgent ? "Quitar de urgentes" : "Marcar como urgente"}
+            </DropdownMenuItem>
+          )}
+          {onMove && (
+            <DropdownMenuItem icon={<ArrowRightLeft />} onSelect={() => onMove(item)}>
+              Mover a otro cliente
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem destructive icon={<Trash2 />} onSelect={() => onDelete(item)}>
             Eliminar

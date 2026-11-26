@@ -11,7 +11,9 @@ import { useToast } from "@/components/ui/toast";
 import { apiErrorMessage } from "@/lib/form-helpers";
 import { PrioritySectionCard } from "./priority-section-card";
 import { PriorityModal, type PriorityDraft } from "./priority-modal";
-import { shiftDayKey, weekRangeLabel, type PriorityItem } from "./helpers";
+import { isUrgentNow, shiftDayKey, weekRangeLabel, type PriorityItem } from "./helpers";
+import { UrgentCard } from "./urgent-card";
+import { announcePriorityChange, applyPriorityChange, usePriorityChanges } from "./priority-sync";
 
 type Item = PriorityItem & { list: string };
 type Person = { id: string; name: string };
@@ -24,6 +26,8 @@ export function MyTodosBoard({ items: initial, target, team, viewerId, isAdmin, 
   const [editItem, setEditItem] = useState<Item | null>(null);
   const [deleteItem, setDeleteItem] = useState<Item | null>(null);
   useEffect(() => setItems(initial), [initial]);
+  usePriorityChanges((change) => setItems((prev) => applyPriorityChange(prev, change)));
+  const urgentInitial = useMemo(() => initial.filter(isUrgentNow), [initial]);
 
   const base = `/todos/mios${isAdmin ? `?user=${target.id}` : ""}`;
   const withWeek = (w: string) => `${base}${base.includes("?") ? "&" : "?"}week=${w}`;
@@ -33,8 +37,9 @@ export function MyTodosBoard({ items: initial, target, team, viewerId, isAdmin, 
   const first = target.name.split(" ")[0];
 
   // Team lines carry their client (badge per line; the card sorts them by client).
-  const fromTeam = useMemo(() => items.filter((i) => i.list === "TEAM"), [items]);
-  const personal = useMemo(() => items.filter((i) => i.list === "PERSONAL"), [items]);
+  // Pending lines flagged as urgent live in the Urgentes card on top.
+  const fromTeam = useMemo(() => items.filter((i) => i.list === "TEAM" && !isUrgentNow(i)), [items]);
+  const personal = useMemo(() => items.filter((i) => i.list === "PERSONAL" && !isUrgentNow(i)), [items]);
   const done = items.filter((i) => i.isDone).length;
 
   async function request<T>(url: string, init: RequestInit): Promise<T> {
@@ -68,6 +73,7 @@ export function MyTodosBoard({ items: initial, target, team, viewerId, isAdmin, 
       router.refresh();
     } catch (err) {
       setItems(before);
+      announcePriorityChange({ type: "update", item });
       fail(err, "No se pudo guardar el cambio");
     }
   }
@@ -87,6 +93,13 @@ export function MyTodosBoard({ items: initial, target, team, viewerId, isAdmin, 
   const find = (p: PriorityItem) => items.find((i) => i.id === p.id);
   const rowProps = {
     personal: true,
+    onUrgent: (p: PriorityItem) => {
+      const item = find(p);
+      if (!item) return;
+      const urgentAt = item.urgentAt ? null : new Date().toISOString();
+      announcePriorityChange({ type: "update", item: { ...item, urgentAt } });
+      void patch(item, { isUrgent: !!urgentAt }, { urgentAt });
+    },
     onToggle: (p: PriorityItem) => { const item = find(p); if (item) void patch(item, { isDone: !item.isDone }, { isDone: !item.isDone }); },
     onRename: (p: PriorityItem, title: string) => { const item = find(p); if (item) void patch(item, { title }, { title }); },
     onEdit: (p: PriorityItem) => setEditItem(find(p) ?? null),
@@ -116,6 +129,8 @@ export function MyTodosBoard({ items: initial, target, team, viewerId, isAdmin, 
           {!isCurrent && <Button asChild variant="ghost" size="sm"><Link href={base}>Esta semana</Link></Button>}
         </div>
       </PageHeader>
+
+      <UrgentCard items={urgentInitial} />
 
       <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
         <PrioritySectionCard clientId={null} title="Asignado en Prioridades del equipo" href="/priorities" items={fromTeam} showClient clientOrder={clientOrder} onAdd={(_c, raw) => add("TEAM", raw)} {...rowProps} />

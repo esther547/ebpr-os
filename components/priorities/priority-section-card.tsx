@@ -33,6 +33,8 @@ type Props = {
   /** Extra tools in the card header (e.g. rename / delete a custom section). */
   headerActions?: React.ReactNode;
   onAdd: (clientId: string | null, raw: string, category?: string | null) => Promise<void>;
+  /** Personal boards: the «Urgente» button of each line. */
+  onUrgent?: (item: PriorityItem) => void;
   onToggle: (item: PriorityItem) => void;
   onRename: (item: PriorityItem, title: string) => void;
   onEdit: (item: PriorityItem) => void;
@@ -56,6 +58,7 @@ export function PrioritySectionCard({
   isLast = false,
   headerActions,
   onAdd,
+  onUrgent,
   onToggle,
   onRename,
   onEdit,
@@ -169,6 +172,7 @@ export function PrioritySectionCard({
               teamMembers={teamMembers}
               onAssign={onAssign}
               showClient={showClient}
+              onUrgent={onUrgent}
               onToggle={onToggle}
               onRename={onRename}
               onEdit={onEdit}

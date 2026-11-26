@@ -57,6 +57,7 @@ export default async function MyTodosPage({ searchParams }: { searchParams?: { w
     notes: r.notes,
     assigneeId: r.assigneeId,
     isDone: r.isDone,
+    urgentAt: r.urgentAt ? r.urgentAt.toISOString() : null,
     order: r.order,
     client: r.client,
     assignee: r.assignee,
